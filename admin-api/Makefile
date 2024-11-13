@@ -83,7 +83,7 @@ go-install:
 	@GOPATH=$(GOPATH) GOBIN=$(GOBIN) go install --mod=readonly $(GOFILES)
 
 go-tidy:
-	@GOPATH=$(GOPATH) GOBIN=$(GOBIN) go mod tidy -compat=1.18
+	@GOPATH=$(GOPATH) GOBIN=$(GOBIN) go mod tidy -compat=1.23
 
 go-clean:
 	@echo "  >  Cleaning build cache"
