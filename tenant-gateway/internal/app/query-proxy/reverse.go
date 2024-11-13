@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ikethecoder/prom-multi-tenant-proxy/internal/pkg"
-	"github.com/ikethecoder/prom-multi-tenant-proxy/pkg/injector"
+	"saasexpress/tenant-gateway/internal/pkg"
+	"saasexpress/tenant-gateway/pkg/injector"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 )

@@ -17,7 +17,7 @@ import (
 	"github.com/lestrrat-go/jwx/jwt"
 	// "github.com/lestrrat-go/jwx/jwa"
 	
-	"github.com/ikethecoder/prom-multi-tenant-proxy/internal/pkg"
+	"saasexpress/tenant-gateway/internal/pkg"
 )
 
 type key int

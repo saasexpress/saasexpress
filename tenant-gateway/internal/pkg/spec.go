@@ -6,7 +6,7 @@ import (
 
 type Specification struct {
   Debug          bool `default:false`
-  Port           int `required:"true", default: 9092`
+  Port                  int `required:"true", default: 9092`
   NamespaceLabel string `required:"true"`
 	NamespaceClaim string `required:"true"`
 	AdminRole      string

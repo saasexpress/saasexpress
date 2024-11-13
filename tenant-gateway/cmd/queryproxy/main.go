@@ -7,8 +7,8 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/saasexpress/saasexpress/tenant-gateway/internal/app/query-proxy"
-	"github.com/saasexpress/saasexpress/tenant-gateway/internal/pkg"
+	"saasexpress/tenant-gateway/internal/app/query-proxy"
+	"saasexpress/tenant-gateway/internal/pkg"
 )
 
 var (

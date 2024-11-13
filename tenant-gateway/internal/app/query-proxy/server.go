@@ -7,7 +7,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 
-	"github.com/ikethecoder/prom-multi-tenant-proxy/internal/pkg"
+	"saasexpress/tenant-gateway/internal/pkg"
 )
 
 // Serve serves
