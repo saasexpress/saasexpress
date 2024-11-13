@@ -32,6 +32,10 @@ Framework: `react-app` and `chakra`
 npx create-next-app@latest
 ```
 
+### testsuite
+
+Framework: `cypress`
+
 ### website
 
 Framework: `docusaurus`

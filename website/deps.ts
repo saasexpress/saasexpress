@@ -1,0 +1,1 @@
+export { serve } from "jsr:@std/http@1/file-server";
