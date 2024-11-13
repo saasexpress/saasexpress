@@ -16,8 +16,6 @@ func main() {
 
 	api.RegisterHandlers(r, server)
 
-	// And we serve HTTP until the world ends.
-
 	s := &http.Server{
 		Handler: r,
 		Addr:    "0.0.0.0:8080",
