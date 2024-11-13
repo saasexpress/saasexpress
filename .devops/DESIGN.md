@@ -6,7 +6,7 @@
 
 Language: `golang`
 
-Framework: `gin`, `air`
+Framework: `gin`, `air`, `gorm`, `oapi-codegen`
 
 - https://github.com/gin-gonic/gin
 - https://github.com/air-verse/air
@@ -24,9 +24,9 @@ Dependencies:
 
 ### tenant-ui
 
-Language: `react`
+Language: `javascript`
 
-Framework: `react-app` and `chakra`
+Framework: `react` and `chakra`
 
 ```
 npx create-next-app@latest
@@ -43,3 +43,4 @@ Framework: `docusaurus`
 ```
 npx create-docusaurus@latest website classic --typescript
 ```
+
