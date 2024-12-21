@@ -24,6 +24,7 @@ func main() {
 	r := gin.Default()
 
 	r.StaticFS("/ui", http.Dir("ui"))
+	r.StaticFile("/", "ui/redirect.html")
 
 	api.RegisterHandlersWithOptions(r, server, serverOptions)
 
