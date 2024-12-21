@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine as build
+FROM golang:1.23-alpine AS build
 
 RUN apk add --no-cache make build-base
 
@@ -17,6 +17,8 @@ FROM golang:1.23-alpine
 
 #Not working due to CGO_ENABLED=1 - "/app: no such file or directory"
 #FROM gcr.io/distroless/base:latest
+
+WORKDIR /
 
 COPY --from=build /go/src/app/bin/app /
 COPY --from=build /go/src/app/ui /ui
