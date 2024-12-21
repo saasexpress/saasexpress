@@ -44,7 +44,7 @@ jobs:
           docker build --tag ui -f tenant-ui/Dockerfile tenant-ui
 
           id=$(docker create ui)
-          docker cp $id:/app/out/ admin-api/ui
+          docker cp $id:/app/out/. admin-api/ui
           docker rm -v $id
 
       - name: Build
