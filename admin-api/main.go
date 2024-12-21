@@ -15,6 +15,8 @@ type Tenant struct {
 }
 
 func main() {
+	var serverOptions api.GinServerOptions
+	serverOptions.BaseURL = "/api"
 
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
 	server := api.NewServer()
@@ -23,7 +25,7 @@ func main() {
 
 	r.StaticFS("/ui", http.Dir("ui"))
 
-	api.RegisterHandlers(r, server)
+	api.RegisterHandlersWithOptions(r, server, serverOptions)
 
 	s := &http.Server{
 		Handler: r,
