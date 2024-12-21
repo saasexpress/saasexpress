@@ -21,6 +21,8 @@ func main() {
 
 	r := gin.Default()
 
+	r.StaticFS("/ui", http.Dir("ui"))
+
 	api.RegisterHandlers(r, server)
 
 	s := &http.Server{

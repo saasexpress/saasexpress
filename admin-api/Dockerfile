@@ -19,5 +19,6 @@ FROM golang:1.23-alpine
 #FROM gcr.io/distroless/base:latest
 
 COPY --from=build /go/src/app/bin/app /
+COPY --from=build /go/src/app/ui /ui
 ENV GIN_MODE=release
 CMD ["/app"]

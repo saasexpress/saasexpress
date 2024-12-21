@@ -75,9 +75,9 @@ func (Server) CreateTenant(ctx *gin.Context) {
 	}
 
 	var dbTenant db.Tenant
-	// if newTenant.DisplayName != nil {
-	// 	dbTenant.DisplayName = *newTenant.DisplayName
-	// }
+	if newTenant.DisplayName != nil {
+		dbTenant.DisplayName = newTenant.DisplayName
+	}
 	dbTenant.ID = db.RandStringRunes(15)
 	db.DB.Create(&dbTenant)
 

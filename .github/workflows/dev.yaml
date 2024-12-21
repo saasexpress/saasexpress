@@ -38,6 +38,16 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Prep static ui
+        run: |
+          docker build --tag ui -f tenant-ui/Dockerfile tenant-ui
+
+          id=$(docker create ui)
+          docker cp $id:/app/server.js admin-api/ui/server.js
+          docker cp $id:/app/.next admin-api/ui/.next
+          docker rm -v $id
+
       - name: Build
         uses: docker/build-push-action@v6
         with:
