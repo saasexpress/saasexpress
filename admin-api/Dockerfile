@@ -21,6 +21,5 @@ FROM golang:1.23-alpine
 WORKDIR /
 
 COPY --from=build /go/src/app/bin/app /
-COPY --from=build /go/src/app/ui /ui
 ENV GIN_MODE=release
 CMD ["/app"]
