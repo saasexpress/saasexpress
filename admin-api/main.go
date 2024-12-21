@@ -23,8 +23,10 @@ func main() {
 
 	r := gin.Default()
 
+	r.GET("/", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html", []byte(`<html><head><meta http-equiv="refresh" content="0; url=/ui/"/></head></html>`))
+	})
 	r.StaticFS("/ui", http.Dir("ui"))
-	r.StaticFile("/", "ui/redirect.html")
 
 	api.RegisterHandlersWithOptions(r, server, serverOptions)
 
