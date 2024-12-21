@@ -39,13 +39,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Prep static ui
+      - name: Prep Static UI
         run: |
           docker build --tag ui -f tenant-ui/Dockerfile tenant-ui
 
           id=$(docker create ui)
           docker cp $id:/app/server.js admin-api/ui/server.js
-          docker cp $id:/app/.next admin-api/ui/.next
+          docker cp $id:/app/out admin-api/ui/
           docker rm -v $id
 
       - name: Build
