@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"saasexpress/admin-api/api"
@@ -14,6 +16,9 @@ type Tenant struct {
 	Name string
 }
 
+//go:embed ui/*
+var static embed.FS
+
 func main() {
 	var serverOptions api.GinServerOptions
 	serverOptions.BaseURL = "/api"
@@ -26,7 +31,9 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html", []byte(`<html><head><meta http-equiv="refresh" content="0; url=/ui/"/></head></html>`))
 	})
-	r.StaticFS("/ui", http.Dir("ui"))
+
+	contentStatic, _ := fs.Sub(static, "ui")
+	r.StaticFS("/ui", http.FS(contentStatic))
 
 	api.RegisterHandlersWithOptions(r, server, serverOptions)
 
