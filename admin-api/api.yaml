@@ -69,6 +69,23 @@ paths:
         required: true
         schema:
           type: string
+    delete:
+      operationId: "delete-tenant"
+      summary: "Delete tenant"
+      security: []
+      responses:
+        "200":
+          description: tenant response
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                type: object
     get:
       operationId: "get-tenant"
       summary: "Get tenant"

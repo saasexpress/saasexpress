@@ -30,9 +30,28 @@ func (Server) GetTenant(ctx *gin.Context, id string) {
 	var tenant db.Tenant
 
 	tenant.ID = id
-	db.DB.First(&tenant)
+
+	result := db.DB.First(&tenant)
+	if result.RowsAffected == 0 {
+		ctx.AbortWithStatusJSON(400, gin.H{"errors": "RecordNotFound"})
+		return
+	}
 
 	ctx.JSON(http.StatusOK, tenant)
+}
+
+// (DELETE /tenant/{id})
+func (Server) DeleteTenant(ctx *gin.Context, id string) {
+	var tenant db.Tenant
+
+	tenant.ID = id
+	result := db.DB.Unscoped().Delete(&tenant)
+	if result.RowsAffected == 0 {
+		ctx.AbortWithStatusJSON(400, gin.H{"errors": "RecordNotFound"})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 // (PUT /tenants/{id})

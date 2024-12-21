@@ -37,6 +37,9 @@ type ServerInterface interface {
 	// 200
 	// (POST /tenants)
 	CreateTenant(c *gin.Context)
+	// Delete tenant
+	// (DELETE /tenants/{id})
+	DeleteTenant(c *gin.Context, id string)
 	// Get tenant
 	// (GET /tenants/{id})
 	GetTenant(c *gin.Context, id string)
@@ -78,6 +81,30 @@ func (siw *ServerInterfaceWrapper) CreateTenant(c *gin.Context) {
 	}
 
 	siw.Handler.CreateTenant(c)
+}
+
+// DeleteTenant operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTenant(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTenant(c, id)
 }
 
 // GetTenant operation middleware
@@ -157,6 +184,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/tenants", wrapper.GetTenants)
 	router.POST(options.BaseURL+"/tenants", wrapper.CreateTenant)
+	router.DELETE(options.BaseURL+"/tenants/:id", wrapper.DeleteTenant)
 	router.GET(options.BaseURL+"/tenants/:id", wrapper.GetTenant)
 	router.PUT(options.BaseURL+"/tenants/:id", wrapper.UpdateTenant)
 }
