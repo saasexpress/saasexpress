@@ -7,15 +7,17 @@ WORKDIR /go/src/app
 COPY go.mod go.sum Makefile ./
 COPY . .
 
-ENV CGO_ENABLED=1
-RUN make go-tidy go-build
+# RUN go mod download
+# RUN go vet -v
+# RUN go test -v
+
+RUN CGO_ENABLED=1 make go-tidy go-build
 
 FROM golang:1.23-alpine
 
-WORKDIR /app
+#Not working due to CGO_ENABLED=1 - "/app: no such file or directory"
+#FROM gcr.io/distroless/base:latest
 
-EXPOSE 8080
-
-COPY --from=build /go/src/app/bin/app /app/app
+COPY --from=build /go/src/app/bin/app /
 ENV GIN_MODE=release
-CMD ["/app/app"]
+CMD ["/app"]
