@@ -1,25 +1,132 @@
 openapi: "3.0.0"
 info:
   version: 1.0.0
+  license:
+    name: Apache License
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
   title: Minimal ping API server
+servers:
+  - url: http://127.0.0.1:8081
 paths:
-  /ping:
+  /tenants:
     get:
+      operationId: "get-tenants"
+      summary: "Get tenants"
+      security: []
       responses:
-        '200':
-          description: pet response
+        "200":
+          description: tenant list response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pong'
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenant"
+        "400":
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                type: object
+
+    post:
+      summary: "200"
+      description: ""
+      operationId: "create-tenant"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+      security: []
+
+      responses:
+        "200":
+          description: tenant response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "400":
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                type: object
+        "422":
+          description: Validation exception
+
+  /tenants/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: "get-tenant"
+      summary: "Get tenant"
+      security: []
+      responses:
+        "200":
+          description: tenant response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      summary: "200"
+      description: ""
+      operationId: "update-tenant"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+      security: []
+
+      responses:
+        "200":
+          description: tenant response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "400":
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                type: object
+        "422":
+          description: Validation exception
+
 components:
   schemas:
-    # base types
-    Pong:
+    Tenant:
       type: object
-      required:
-        - ping
       properties:
-        ping:
+        id:
           type: string
-          example: pong
+          example: E38A8913ACD5
+        displayName:
+          type: string
+          example: E38A8913ACD5
