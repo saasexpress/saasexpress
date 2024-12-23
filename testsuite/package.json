@@ -5,6 +5,7 @@
   },
   "devDependencies": {
     "cypress": "^13",
+    "cypress-mochawesome-reporter": "^3",
     "typescript": "^5"
   }
 }

@@ -8,35 +8,25 @@ on:
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: testsuite
     steps:
       - uses: actions/checkout@v2
-      - name: Build Docker Images
+      - name: Pull any base images from registries
         run: |
-          cd testsuite
+          docker compose pull -q --ignore-buildable
+
+      - name: Build custom images
+        run: |
           docker compose build
 
-      - name: Start E2E Tests
+      - name: Start E2E tests
         run: |
-          cd testsuite
-          docker compose up -d
+          docker compose up --abort-on-container-exit
 
-      - name: Wait for E2E Tests to finish & Clean Up
-        run: |
-          cd testsuite
-          while true; do
-            if [ "$(docker ps -aq -f status=exited -f name=e2e-cypress-1)" ]; then
-              # cleanup
-              docker compose down
-              break
-            else
-              echo  "Waiting for Cypress to Complete E2E Tests....."
-              docker compose logs cypress -n 5
-              sleep 10s
-            fi
-          done
-
-      - name: Upload E2E Test Results HTML Report
+      - name: Upload E2E test results HTML report
         uses: actions/upload-artifact@v4
         with:
           name: test-results-html
-          path: ${{ github.workspace }}/e2e/results/report
+          path: ${{ github.workspace }}/testsuite/reporter/results

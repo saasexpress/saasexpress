@@ -17,16 +17,17 @@ services:
           - admin-api.localtest.me
 
   cypress:
-    image: cypress/included:13.17.0
+    image: cypress:local
+    build:
+      context: .
+      dockerfile: ./Dockerfile
     environment:
       - BROWSER=electron
       - CYPRESS_baseUrl=http://admin-api.localtest.me:8081
     depends_on:
       - admin-api
-    working_dir: /app
     volumes:
-      - .:/app
-      - ./e2e/coverage:/e2e/coverage
-      - ./e2e/results:/e2e/results
+      - ./cypress:/app/cypress
+      - ./reporter:/app/reporter
     networks:
       - e2e-net

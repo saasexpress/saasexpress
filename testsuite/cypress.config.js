@@ -6,8 +6,9 @@ module.exports = defineConfig({
       // implement node event listeners here
     },
     baseUrl: "http://localhost:8081",
+    reporter: "mochawesome",
     reporterOptions: {
-      reportDir: "results",
+      reportDir: "reporter/results",
       html: true,
       json: true,
     },
