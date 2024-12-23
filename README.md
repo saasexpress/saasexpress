@@ -1,7 +1,6 @@
 # SaaS Express
 
-SaaS Express is an authorization gateway that adds multi-tenancy to any API.
-
+SaaS Express adds multi-tenancy to any application.
 
 ## Getting Started
 
@@ -11,7 +10,7 @@ docker compose up
 
 ## Features
 
-- Audit logging
+- Authentication
 - Authorization
-- RBAC
 - Tenant management
+- Audit logging

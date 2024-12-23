@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, feature/*]
 
 env:
   REGISTRY: ${{ secrets.REGISTRY }}
@@ -55,6 +55,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-tenant-gateway:
     runs-on: ubuntu-latest
@@ -92,6 +94,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-tenant-ui:
     runs-on: ubuntu-latest
@@ -129,6 +133,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-website:
     runs-on: ubuntu-latest
@@ -166,3 +172,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

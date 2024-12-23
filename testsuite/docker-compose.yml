@@ -1,0 +1,32 @@
+name: e2e
+
+networks:
+  e2e-net: {}
+
+services:
+  admin-api:
+    image: admin-api:local
+    build:
+      context: ../admin-api
+      dockerfile: ../admin-api/Dockerfile
+    ports:
+      - 8081
+    networks:
+      e2e-net:
+        aliases:
+          - admin-api.localtest.me
+
+  cypress:
+    image: cypress/included:13.17.0
+    environment:
+      - BROWSER=electron
+      - CYPRESS_baseUrl=http://admin-api.localtest.me:8081
+    depends_on:
+      - admin-api
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./e2e/coverage:/e2e/coverage
+      - ./e2e/results:/e2e/results
+    networks:
+      - e2e-net

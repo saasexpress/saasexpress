@@ -93,7 +93,7 @@ func (siw *ServerInterfaceWrapper) DeleteTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (siw *ServerInterfaceWrapper) GetTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -141,7 +141,7 @@ func (siw *ServerInterfaceWrapper) UpdateTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
