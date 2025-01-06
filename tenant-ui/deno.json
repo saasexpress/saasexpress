@@ -1,0 +1,58 @@
+{
+  "tasks": {
+    "dev": "deno run -A --node-modules-dir=auto npm:vite",
+    "build": "deno run -A --node-modules-dir=auto npm:vite build"
+  },
+  "imports": {
+    "@deno/vite-plugin": "npm:@deno/vite-plugin@^1",
+    "@emotion/cache": "npm:@emotion/cache@^11",
+    "@emotion/react": "npm:@emotion/react@^11",
+    "@emotion/styled": "npm:@emotion/styled@^11.14.0",
+    "@mui/icons-material": "npm:@mui/icons-material@^6",
+    "@mui/material": "npm:@mui/material@^6",
+    "@mui/styled-engine": "npm:@mui/styled-engine@^6",
+    "@oak/oak": "jsr:@oak/oak@^17",
+    "@react-router/dev": "npm:@react-router/dev@^7.1.1",
+    "@react-router/node": "npm:@react-router/node@^7.1.1",
+    "@std/assert": "jsr:@std/assert@1",
+    "@tanstack/react-query": "npm:@tanstack/react-query@^5",
+    "@types/react": "npm:@types/react@^19",
+    "@types/react-dom": "npm:@types/react-dom@^19",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^4",
+    "blueimp-tmpl": "npm:blueimp-tmpl@^3",
+    "msw": "npm:msw@^2",
+    "mobx": "npm:mobx@^6",
+    "mobx-react": "npm:mobx-react@^9",
+    "@monaco-editor/react": "npm:@monaco-editor/react@^4.6.0",
+    "@types/react-timeago": "npm:@types/react-timeago@^4.1.7",
+    "rxjs": "npm:rxjs@^7.8.1",
+    "react": "npm:react@^19",
+    "react-dom": "npm:react-dom@^19",
+    "react-color": "npm:react-color@^2.19.3",
+    "react-intl": "npm:react-intl@^7.0.4",
+    "react-router": "npm:react-router@^7",
+    "react-timeago": "npm:react-timeago@^7.2.0",
+    "vite": "npm:vite@^6",
+    "vite-tsconfig-paths": "npm:vite-tsconfig-paths@^5"
+  },
+  "compilerOptions": {
+    "types": [
+      "react",
+      "react-dom",
+      "@types/react"
+    ],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "deno.ns"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  },
+  "nodeModulesDir": "auto",
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}

@@ -5,9 +5,13 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"saasexpress/admin-api/api"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kelseyhightower/envconfig"
 	"gorm.io/gorm"
 )
 
@@ -16,10 +20,44 @@ type Tenant struct {
 	Name string
 }
 
+type Specification struct {
+	UIProxyURL string `envconfig:"UI_PROXY_URL"`
+}
+
 //go:embed ui/*
 var static embed.FS
 
+func proxySetup(proxyUrl string) gin.HandlerFunc {
+
+	var theproxy = func(c *gin.Context) {
+		remote, err := url.Parse(proxyUrl)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println("Proxying to", strings.Join([]string{"/ui/", c.Param("proxyPath")}, ""))
+		proxy := httputil.NewSingleHostReverseProxy(remote)
+		proxy.Director = func(req *http.Request) {
+			req.Header = c.Request.Header
+			req.Host = remote.Host
+			req.URL.Scheme = remote.Scheme
+			req.URL.Host = remote.Host
+			req.URL.Path = strings.Join([]string{"/ui", c.Param("proxyPath")}, "")
+		}
+
+		proxy.ServeHTTP(c.Writer, c.Request)
+	}
+
+	return theproxy
+}
+
 func main() {
+	var s Specification
+	err := envconfig.Process("myapp", &s)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	var serverOptions api.GinServerOptions
 	serverOptions.BaseURL = "/api"
 
@@ -32,12 +70,23 @@ func main() {
 		c.Data(http.StatusOK, "text/html", []byte(`<html><head><meta http-equiv="refresh" content="0; url=/ui/"/></head></html>`))
 	})
 
-	contentStatic, _ := fs.Sub(static, "ui")
-	r.StaticFS("/ui", http.FS(contentStatic))
+	if s.UIProxyURL != "" {
+		log.Println("Proxying UI to", s.UIProxyURL)
+		r.Any("/ui/*proxyPath", proxySetup(s.UIProxyURL))
+	} else {
+		contentStatic, _ := fs.Sub(static, "ui")
+		r.StaticFS("/ui", http.FS(contentStatic))
+	}
+
+	// Catch-all route for SPA
+	r.NoRoute(func(c *gin.Context) {
+		indexhtml, _ := static.ReadFile("ui/index.html")
+		c.Data(http.StatusOK, "text/html", indexhtml)
+	})
 
 	api.RegisterHandlersWithOptions(r, server, serverOptions)
 
-	s := &http.Server{
+	serve := &http.Server{
 		Handler: r,
 		Addr:    "0.0.0.0:8081",
 	}
@@ -45,5 +94,5 @@ func main() {
 	log.Println("Listing on port 8081")
 
 	// And we serve HTTP until the world ends.
-	log.Fatal(s.ListenAndServe())
+	log.Fatal(serve.ListenAndServe())
 }

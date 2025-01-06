@@ -27,6 +27,7 @@ func (Server) GetTenants(ctx *gin.Context) {
 
 // (GET /tenant/{id})
 func (Server) GetTenant(ctx *gin.Context, id string) {
+	var dto Tenant
 	var tenant db.Tenant
 
 	tenant.ID = id
@@ -37,7 +38,10 @@ func (Server) GetTenant(ctx *gin.Context, id string) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, tenant)
+	dto.Id = &tenant.ID
+	dto.DisplayName = tenant.DisplayName
+
+	ctx.JSON(http.StatusOK, dto)
 }
 
 // (DELETE /tenant/{id})
