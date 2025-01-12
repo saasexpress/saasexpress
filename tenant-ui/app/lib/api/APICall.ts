@@ -76,9 +76,9 @@ function APICall() {
             };
           } else {
             paging = {
-              total_records: 50,
-              total_pages: 2,
-              current_page: 1,
+              total_records: 0,
+              total_pages: 0,
+              current_page: 0,
               page_size: 25,
             };
           }

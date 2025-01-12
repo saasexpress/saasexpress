@@ -20,6 +20,7 @@ func init() {
 
 	// Migrate the schema
 	db.AutoMigrate(&Tenant{})
+	db.AutoMigrate(&Activity{})
 
 	DB = db
 }

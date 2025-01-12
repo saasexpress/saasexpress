@@ -22,12 +22,13 @@ type Tenant struct {
 
 type Specification struct {
 	UIProxyURL string `envconfig:"UI_PROXY_URL"`
+	GWProxyURL string `envconfig:"GW_PROXY_URL"`
 }
 
 //go:embed ui/*
 var static embed.FS
 
-func proxySetup(proxyUrl string) gin.HandlerFunc {
+func proxySetup(proxyUrl string, basePath string) gin.HandlerFunc {
 
 	var theproxy = func(c *gin.Context) {
 		remote, err := url.Parse(proxyUrl)
@@ -35,14 +36,14 @@ func proxySetup(proxyUrl string) gin.HandlerFunc {
 			panic(err)
 		}
 
-		log.Println("Proxying to", strings.Join([]string{"/ui/", c.Param("proxyPath")}, ""))
+		log.Println("Proxying to", strings.Join([]string{basePath, c.Param("proxyPath")}, ""))
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		proxy.Director = func(req *http.Request) {
 			req.Header = c.Request.Header
 			req.Host = remote.Host
 			req.URL.Scheme = remote.Scheme
 			req.URL.Host = remote.Host
-			req.URL.Path = strings.Join([]string{"/ui", c.Param("proxyPath")}, "")
+			req.URL.Path = strings.Join([]string{basePath, c.Param("proxyPath")}, "")
 		}
 
 		proxy.ServeHTTP(c.Writer, c.Request)
@@ -72,10 +73,15 @@ func main() {
 
 	if s.UIProxyURL != "" {
 		log.Println("Proxying UI to", s.UIProxyURL)
-		r.Any("/ui/*proxyPath", proxySetup(s.UIProxyURL))
+		r.Any("/ui/*proxyPath", proxySetup(s.UIProxyURL, "/ui"))
 	} else {
 		contentStatic, _ := fs.Sub(static, "ui")
 		r.StaticFS("/ui", http.FS(contentStatic))
+	}
+
+	if s.GWProxyURL != "" {
+		log.Println("Proxying GW to", s.GWProxyURL)
+		r.Any("/gw/*proxyPath", proxySetup(s.GWProxyURL, "/gw"))
 	}
 
 	// Catch-all route for SPA

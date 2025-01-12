@@ -13,6 +13,7 @@ import { Box, Button, Grid } from "@mui/material";
 import MonacoEditor from "components/gold/monaco-editor";
 import YAMLDialog from "components/gold/yaml-dialog";
 import TagInput from "components/gold/tag-input";
+import GoldHorizontalTabs from "components/gold/horizontal-tabs";
 
 interface SettingsFormProps {
   id: string;
@@ -214,6 +215,22 @@ const SettingsForm = ({ id }: SettingsFormProps) => {
         </YAMLDialog>
 
         <TagInput />
+
+        <GoldHorizontalTabs
+          collection="blueprints"
+          tabs={[
+            { name: "details", label: "Details" },
+            { name: "yaml", label: "YAML" },
+            { name: "activity", label: "Activity" },
+          ]}
+          tab="details"
+          onClick={(d: any) => {
+            switch (d.name) {
+            }
+          }}
+          params={{}}
+        />
+
         {/* <div className="btn-toolbar btn-block">{btn}</div> */}
 
         {/* <form className="smart-form">

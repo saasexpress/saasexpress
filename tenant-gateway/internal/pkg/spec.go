@@ -5,14 +5,14 @@ import (
 )
 
 type Specification struct {
-	Debug             bool   `default:false`
-	Port              int    `required:true default:"8080"`
-	NamespaceLabel    string `required:"true"`
-	NamespaceClaim    string `required:"true"`
+	Debug             bool   `default:"false"`
+	Port              int    `required:"true" default:"8080"`
+	NamespaceLabel    string `required:"false"`
+	NamespaceClaim    string `required:"false"`
 	AdminRole         string
 	VerifyToken       bool   `default:"false"`
-	JwksUrl           string `required:"true"`
-	PrometheusUrl     string `required:"true"`
-	ResourceServerUrl string `required:"true"`
+	JwksUrl           string `required:"false"`
+	UpstreamUrl       string `required:"true"`
+	ResourceServerUrl string `required:"false"`
 	LCache            *cache.Cache
 }

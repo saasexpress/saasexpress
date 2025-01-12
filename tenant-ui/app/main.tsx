@@ -6,13 +6,13 @@ import enableMocking from "./mocks/init";
 import AppRoutes from "routes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppContextProvider } from "context";
-import InlineAlert from "lib/alerts/InlineAlert";
 
 // Create a query client and set it up to be used in the app
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       experimental_prefetchInRender: true,
+      refetchOnWindowFocus: true,
     },
   },
 });

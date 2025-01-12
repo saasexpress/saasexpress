@@ -51,10 +51,14 @@ export default function Item(item: TenantItemProps) {
               <Stack direction="row" spacing={1}>
                 <BackgroundAvatar>{item.displayName}</BackgroundAvatar>
                 <Typography
+                  title={item.displayName}
                   sx={{
                     fontSize: "180%",
+                    overflow: "hidden",
                     textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    whiteSpace: "initial",
+                    WebkitLineClamp: "1",
+                    WebkitBoxOrient: "vertical",
                   }}
                 >
                   {item.displayName}

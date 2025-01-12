@@ -11,11 +11,32 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Activity defines model for Activity.
+type Activity struct {
+	ActivityAt *string            `json:"activityAt,omitempty"`
+	Id         *int               `json:"id,omitempty"`
+	Message    *string            `json:"message,omitempty"`
+	Params     *map[string]string `json:"params,omitempty"`
+	Result     *string            `json:"result,omitempty"`
+}
+
 // Tenant defines model for Tenant.
 type Tenant struct {
 	DisplayName *string `json:"displayName,omitempty"`
 	Id          *string `json:"id,omitempty"`
 }
+
+// GetActivityParams defines parameters for GetActivity.
+type GetActivityParams struct {
+	Page           *int `form:"page,omitempty" json:"page,omitempty"`
+	RecordsPerPage *int `form:"recordsPerPage,omitempty" json:"recordsPerPage,omitempty"`
+}
+
+// CreateActivityJSONRequestBody defines body for CreateActivity for application/json ContentType.
+type CreateActivityJSONRequestBody = Activity
+
+// CreateActivityFormdataRequestBody defines body for CreateActivity for application/x-www-form-urlencoded ContentType.
+type CreateActivityFormdataRequestBody = Activity
 
 // CreateTenantJSONRequestBody defines body for CreateTenant for application/json ContentType.
 type CreateTenantJSONRequestBody = Tenant
@@ -31,6 +52,15 @@ type UpdateTenantFormdataRequestBody = Tenant
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get activity
+	// (GET /activity)
+	GetActivity(c *gin.Context, params GetActivityParams)
+	// 200
+	// (POST /activity)
+	CreateActivity(c *gin.Context)
+	// Delete activity
+	// (DELETE /activity/{id})
+	DeleteActivity(c *gin.Context, id int)
 	// Get tenants
 	// (GET /tenants)
 	GetTenants(c *gin.Context)
@@ -56,6 +86,77 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// GetActivity operation middleware
+func (siw *ServerInterfaceWrapper) GetActivity(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetActivityParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "recordsPerPage" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "recordsPerPage", c.Request.URL.Query(), &params.RecordsPerPage)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter recordsPerPage: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetActivity(c, params)
+}
+
+// CreateActivity operation middleware
+func (siw *ServerInterfaceWrapper) CreateActivity(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateActivity(c)
+}
+
+// DeleteActivity operation middleware
+func (siw *ServerInterfaceWrapper) DeleteActivity(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteActivity(c, id)
+}
 
 // GetTenants operation middleware
 func (siw *ServerInterfaceWrapper) GetTenants(c *gin.Context) {
@@ -93,7 +194,7 @@ func (siw *ServerInterfaceWrapper) DeleteTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -117,7 +218,7 @@ func (siw *ServerInterfaceWrapper) GetTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -141,7 +242,7 @@ func (siw *ServerInterfaceWrapper) UpdateTenant(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -182,6 +283,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/activity", wrapper.GetActivity)
+	router.POST(options.BaseURL+"/activity", wrapper.CreateActivity)
+	router.DELETE(options.BaseURL+"/activity/:id", wrapper.DeleteActivity)
 	router.GET(options.BaseURL+"/tenants", wrapper.GetTenants)
 	router.POST(options.BaseURL+"/tenants", wrapper.CreateTenant)
 	router.DELETE(options.BaseURL+"/tenants/:id", wrapper.DeleteTenant)

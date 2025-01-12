@@ -1,17 +1,17 @@
 import * as React from "react";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
-import { Stack, Box, useMediaQuery } from "@mui/material";
+import { Stack, Box, useMediaQuery, Theme } from "@mui/material";
 import { Button } from "@mui/material";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import styled from "@emotion/styled";
-// import { useTheme } from '@mui/material/styles';
+import { useTheme } from "@mui/material";
 
 export default function GoldHorizontalTabs({ tabs, tab, onClick }: any) {
-  // const theme = useTheme();
-  const isSmall = false; //useMediaQuery(theme.breakpoints.down('sm'));
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [value, setValue] = React.useState(0);
 
@@ -87,9 +87,7 @@ export default function GoldHorizontalTabs({ tabs, tab, onClick }: any) {
             }}
           >
             {tabs.map((tab: any) => (
-              <StyledTab>
-                <MenuItem>{tab.label}</MenuItem>
-              </StyledTab>
+              <MenuItem>{tab.label}</MenuItem>
             ))}
           </Menu>
         </Stack>
@@ -134,11 +132,10 @@ const StyledTabs = styled((props: any) => (
   },
 });
 
-const TabTheme = ({ theme }: any) => ({
-  textTransform: "none",
-  fontWeight: theme.typography.fontWeightRegular,
-  fontSize: theme.typography.pxToRem(18),
-  marginRight: theme.spacing(0),
+const TabTheme = ({ theme }: { theme?: Theme }) => ({
+  fontWeight: theme?.typography.fontWeightRegular,
+  fontSize: theme?.typography.pxToRem(18),
+  marginRight: theme?.spacing(0),
   color: "rgba(0, 0, 0, 0.7)",
 
   "&:hover": {
@@ -153,5 +150,4 @@ const TabTheme = ({ theme }: any) => ({
   },
 });
 
-const StyledTab = styled((props: any) => <Tab disableRipple {...props} />)();
-// TabTheme
+const StyledTab = styled(Tab)(TabTheme);

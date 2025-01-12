@@ -26,18 +26,19 @@ export default function Page() {
             </Typography>
           </Stack>
           <Typography variant="subtitle1" sx={{ mt: 0.5 }}>
-            Tenants are a way to group your users and resources.
+            Tenants provide a method to group resources, simplifying access
+            management for users and teams.
           </Typography>
         </Grid2>
         <Grid2 flex={1} textAlign="right">
           <NewDialog
             onCreated={(d: any) => {
               queryClient.invalidateQueries({ queryKey });
+              navigate(`/tenants/${d.id}/profile`);
               APIErrorHandler.notice({
                 title: "Tenant",
                 content: "Created successfully.",
               });
-              navigate(`/tenants/${d.id}/profile`);
             }}
           />
         </Grid2>

@@ -4,10 +4,100 @@ info:
   license:
     name: Apache License
     url: "https://www.apache.org/licenses/LICENSE-2.0"
-  title: Minimal ping API server
+  title: SaaS Express
 servers:
   - url: http://127.0.0.1:8081
 paths:
+  /activity:
+    get:
+      operationId: "get-activity"
+      summary: "Get activity"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: recordsPerPage
+          schema:
+            type: integer
+            default: 25
+      security: []
+      responses:
+        "200":
+          description: activity list response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Activity"
+        "400":
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                type: object
+
+    post:
+      summary: "200"
+      description: ""
+      operationId: "create-activity"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Activity"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/Activity"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Activity"
+      security: []
+
+      responses:
+        "200":
+          description: activity response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+        "400":
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                type: object
+        "422":
+          description: Validation exception
+
+  /activity/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    delete:
+      operationId: "delete-activity"
+      summary: "Delete activity"
+      security: []
+      responses:
+        "200":
+          description: activity response
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Activity not found
+          content:
+            application/json:
+              schema:
+                type: object
+
   /tenants:
     get:
       operationId: "get-tenants"
@@ -146,4 +236,25 @@ components:
           example: E38A8913ACD5
         displayName:
           type: string
-          example: E38A8913ACD5
+          example: New Tenant
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+          example: "{actor} {action} {entity}"
+        result:
+          type: string
+        activityAt:
+          type: string
+        params:
+          type: object
+          additionalProperties:
+            type: string
+          # patternProperties:
+          #   "^.*$":
+          #     anyOf:
+          #       - type: string
+          # additionalProperties: false

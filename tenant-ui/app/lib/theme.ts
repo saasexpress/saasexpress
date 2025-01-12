@@ -25,7 +25,7 @@ import { MuiAccordionSummary } from "./theme/components/MuiAccordion";
 
 import { MuiAutocomplete } from "./theme/components/MuiAutocomplete";
 
-import { MuiTableCell } from "./theme/components/MuiTable";
+import { MuiTableCell, MuiTablePagination } from "./theme/components/MuiTable";
 
 // const salmonBase = '#FF5733';
 // const salmonMain = alpha(salmonBase, 0.7);
@@ -101,6 +101,7 @@ const theme = createTheme({
     MuiRadio,
     MuiSwitch,
     MuiTableCell,
+    MuiTablePagination,
     MuiCssBaseline: {
       styleOverrides: {
         html: {

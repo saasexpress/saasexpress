@@ -20,8 +20,6 @@ export interface GetResult {
 const caller = APICall();
 
 const useAPIClient = () => {
-  //const { session } = useAppContext();
-
   return {
     post: caller.post,
     put: caller.put,

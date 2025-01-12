@@ -1,4 +1,4 @@
-import React, { ReactElement } from "react";
+import React, { FocusEvent, ChangeEvent, ReactElement } from "react";
 import styled from "@emotion/styled";
 import { FormControl, TextField, Typography } from "@mui/material";
 
@@ -29,7 +29,7 @@ class Input extends React.Component<any> {
   //   //console.log("INPUT - UNMOUNT " + this.props.value);
   // }
 
-  focus(t: any) {
+  focus(t: boolean) {
     this.setState({ focus: t });
   }
 
@@ -102,9 +102,9 @@ class Input extends React.Component<any> {
             placeholder={props?.placeholder}
             value={value}
             size="small"
-            onBlur={(_: Event) => this.focus(false)}
-            onFocus={(_: Event) => this.focus(true)}
-            onChange={(e: Event) => this._onChange(e)}
+            onBlur={(_: FocusEvent<HTMLInputElement>) => this.focus(false)}
+            onFocus={(_: FocusEvent<HTMLInputElement>) => this.focus(true)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => this._onChange(e)}
           />
           {note}
         </FormControl>
@@ -120,9 +120,9 @@ class Input extends React.Component<any> {
               placeholder={props?.placeholder}
               value={value}
               size="small"
-              onBlur={(_: Event) => this.focus(false)}
-              onFocus={(_: Event) => this.focus(true)}
-              onChange={(e: Event) => this._onChange(e)}
+              onBlur={(_: FocusEvent<HTMLInputElement>) => this.focus(false)}
+              onFocus={(_: FocusEvent<HTMLInputElement>) => this.focus(true)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => this._onChange(e)}
             />
             <i />
             {note}

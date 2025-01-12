@@ -8,6 +8,9 @@ WORKDIR /app
 
 COPY . .
 
+# Needs "node" if we run this
+# RUN deno install --allow-scripts=npm:msw@2.7.0
+
 RUN deno run build
 
 ENTRYPOINT ["file-server", "dist"]

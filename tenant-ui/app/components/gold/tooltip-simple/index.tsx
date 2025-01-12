@@ -9,7 +9,7 @@ const BootstrapTooltip = styled(({ className, ...props }: any) => (
   },
   [`& .${tooltipClasses.tooltip}`]: {
     backgroundColor: theme.palette.common.black,
-    fontSize: "100%",
+    fontSize: "1rem",
   },
 }));
 

@@ -6,17 +6,35 @@ const CustomTheme = {
   MuiTableCell: {
     styleOverrides: {
       root: {
-        color: red[900],
-        // fontSize: '1rem',
         padding: 16,
+        fontSize: "1rem",
+        "&.MuiTableCell-body": {},
         "&.MuiTableCell-head": {
-          color: grey[900],
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          color: "#005f73",
           textTransform: "uppercase",
-          //textDecoration: 'overline red',
+          // textDecoration: "overline red",
         },
+      },
+    },
+  },
+  MuiTablePagination: {
+    styleOverrides: {
+      root: {
+        fontSize: "1rem",
+      },
+      selectLabel: {
+        fontSize: "1rem",
+      },
+      select: {
+        fontSize: "1rem",
+      },
+      displayedRows: {
+        fontSize: "1rem",
       },
     },
   },
 } as Components<Theme>;
 
-export const { MuiTableCell } = CustomTheme;
+export const { MuiTableCell, MuiTablePagination } = CustomTheme;

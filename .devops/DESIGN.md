@@ -29,7 +29,16 @@ Dependencies:
 -     "net/http/httputil"
 - "net/url"
 
-Purpose: Provide a runtime authorization service for APIs.
+Purpose: Provide a runtime integration and authorization service for APIs.
+
+| Role                         | Benefit                                                                                                                                                             | Solution                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Directed Acyclic Graph (DAG) | Provide a flexible way for defining integration tasks.                                                                                                              | Home made (?)                                           |
+| AsyncAPI/Schema              | validation                                                                                                                                                          | Used for validation of input/output data between tasks. |
+| Caching (temporary)          | Storing state for a period of time while waiting for work to finish.                                                                                                | github.com/patrickmn/go-cache                           |
+| Expression evaluator         | Used for flexible mapping for translators                                                                                                                           | danielgtaylor/mexpr, expr-lang/expr                     |
+| Observable streams           | (?) Does this replace need for a DAG?  Could use both - each Node subscribes to children.  A Join Node subscribes to its parents to wait for data from all Parents. | reactivex/rxgo/v2                                       |
+| Metrics                      |                                                                                                                                                                     | Prometheus                                              |
 
 ### tenant-ui
 
@@ -56,3 +65,8 @@ npx create-docusaurus@latest website classic --typescript
 ```
 
 Purpose: Documentation for how to configure saasexpress with a new API
+
+### external
+
+- `nats`
+- `fluentbit`
