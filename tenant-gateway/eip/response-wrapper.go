@@ -14,7 +14,7 @@ type ResponseWriterWrapper struct {
 }
 
 func (rw *ResponseWriterWrapper) WriteHeader(code int) {
-	log.Printf("Codee = %d", code)
+	log.Printf("Status Code = %d", code)
 
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)

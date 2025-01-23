@@ -1,0 +1,5 @@
+{
+  "go.goroot": "/usr/local/go",
+  "go.gopath": "~/go/bin/go",
+  "deno.enable": false
+}

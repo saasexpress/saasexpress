@@ -1,0 +1,17 @@
+meta {
+  name: Submit DAG
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{SERVER}}/api/tenants
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "displayName": "Good"
+  }
+}

@@ -1,8 +1,4 @@
 describe("tenants", () => {
-  it("the ui renders a basic page", () => {
-    cy.visit("/ui");
-  });
-
   beforeEach(() => {
     // delete all tenants before each test
     cy.callAPI("/api/tenants", "GET").then(

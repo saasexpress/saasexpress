@@ -1,0 +1,128 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run ALL",
+      "type": "shell",
+      "command": "echo",
+      "args": ["Setting up admin-api, tenant-ui and tenant-gateway"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": [
+        "Run admin-api",
+        "Run tenant-gateway",
+        "Run tenant-ui",
+        "Run testsuite"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Run admin-api",
+      "type": "shell",
+      "command": "~/go/bin/gow",
+      "args": ["run", "./main.go"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/admin-api",
+        "env": {
+          // "GW_PROXY_URL": "http://localhost:5174",
+          // "UI_PROXY_URL": "http://localhost:5173"
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Run tenant-gateway",
+      "type": "shell",
+      "command": "~/go/bin/gow",
+      "args": ["run", "./cmd/main.go"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/tenant-gateway",
+        "env": {
+          "MYAPP_DEBUG": "true",
+          "MYAPP_PORT": "5174",
+          "MYAPP_UPSTREAMURL": "http://localhost:8081"
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Run tenant-ui",
+      "type": "shell",
+      "command": "deno",
+      "args": ["run", "dev"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/tenant-ui",
+        "env": {
+          "NODE_ENV": "integrated"
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Run testsuite",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "cypress:open"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/testsuite",
+        "env": {
+          "NODE_ENV": "integrated"
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    }
+  ]
+}

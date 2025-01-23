@@ -1,127 +1,68 @@
 package dag
 
 import (
-	"context"
 	"fmt"
-	"log"
+	"reflect"
+	"saasexpress/tenant-gateway/internal/pkg"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/reactivex/rxgo/v2"
+	"go.uber.org/zap"
 )
 
-func (dag *DAG) InitializeNodes(producerCtx context.Context, cancel context.CancelFunc, end chan rxgo.Item) {
+func (dagctx *DAGContext) Execute(in Message) (interface{}, error) {
+	log := pkg.GetLogger()
 
-	for _, node := range dag.Nodes {
-		producer(cancel, node, end)
-	}
-	for _, node := range dag.Nodes {
-		if node.HasParents() {
-			setupInboundObserver(node)
-		}
-	}
-	for _, node := range dag.Nodes {
-		node.producer.Connect(producerCtx)
-	}
-}
+	startNode := dagctx.DagModel.Nodes[dagctx.StartID]
+	totalLeafs := dagctx.DagModel.CountLeafs()
 
-func (dag *DAG) Execute(startNodeID string, input interface{}, end chan rxgo.Item) (interface{}, error) {
-	startNode := dag.Nodes[startNodeID]
-	totalLeafs := dag.countLeafs()
-
+	end := dagctx.End
 	endObservable := rxgo.FromChannel(end)
 
-	startNode.ch <- rxgo.Of(input)
+	startNode.ch <- rxgo.Of(in)
 
 	count := 0
 	var results []interface{}
 
-	for item := range endObservable.Observe() {
-		log.Println("End Observed", count)
-		count++
-		results = append(results, item.V)
+	tracer := in.Context.DagModel.Tracer
+	tracerContext := in.Context.DagModel.TracerContext
 
+	_, span := tracer.Start(tracerContext, "Execute")
+	defer span.End()
+
+	for item := range endObservable.Observe() {
+		message := item.V.(Message)
+
+		log.Debug("End Observed", zap.Int("Count", count), zap.Int("Expecting", totalLeafs))
+
+		count++
+
+		if message.Data != nil {
+			typ := reflect.TypeOf(message.Data).String()
+			log.Debug("Execute", zap.String("type", typ))
+		}
+
+		if message.Data != nil {
+			results = append(results, message.Data)
+		} else {
+			log.Debug("Message Value null, ignore")
+		}
+
+		// all leafs need to respond one way or another
+		// otherwise we will timeout waiting for response
 		if count == totalLeafs {
 			close(end)
-			if count == 1 {
+			log.Debug("Length = ", zap.Int("len", len(results)))
+			if len(results) == 0 {
+				log.Error("Did not get a response - returning error")
+				return nil, fmt.Errorf("did not get a response")
+			}
+			if len(results) == 1 {
 				return results[0], nil
 			} else {
 				return results, nil
 			}
 		}
 	}
+
 	return nil, fmt.Errorf("did not get a response")
-}
-
-func (dag *DAG) countLeafs() int {
-	counter := 0
-	for _, node := range dag.Nodes {
-		if len(node.Children) == 0 {
-			counter++
-		}
-	}
-	return counter
-}
-
-func producer(_ context.CancelFunc, node *Node, end chan rxgo.Item) {
-	fmt.Printf("[%s] Initialize Producer\n", node.ID)
-
-	transfer := make(chan rxgo.Item)
-
-	node.producer = rxgo.FromChannel(transfer, rxgo.WithPublishStrategy())
-
-	producerObservable := rxgo.FromChannel(node.ch)
-
-	producerObservable.DoOnNext(func(item interface{}) {
-
-		output, err := node.Action(node, item)
-
-		if err != nil {
-			nodeState.With(prometheus.Labels{"node": node.ID, "status": "error"}).Inc()
-			fmt.Println("ERROR", err)
-			end <- rxgo.Of(nil)
-			//cancel()
-			return
-		} else {
-			nodeState.With(prometheus.Labels{"node": node.ID, "status": "success"}).Inc()
-		}
-		log.Printf("Finished action for %s [%d] ch\n", node.ID, len(node.Children))
-
-		if len(node.Children) == 0 {
-			log.Println("Sending to end channel..")
-			end <- rxgo.Of(output)
-		} else {
-			transfer <- rxgo.Of(output)
-		}
-	})
-
-	// If it is a leaf node, send it to itself so that
-	// the action can run and then sent to the "end" channel
-	if len(node.Children) == 0 {
-		log.Println("Child setup for ending", node.ID)
-		node.producer.DoOnNext(func(item interface{}) {
-			log.Println("LEAF", node.ID)
-			node.ch <- rxgo.Of(item)
-		})
-	}
-}
-
-func setupInboundObserver(node *Node) {
-	observables := make([]rxgo.Observable, len(node.Parents))
-
-	var combined []interface{}
-
-	for i, parent := range node.Parents {
-		observables[i] = parent.producer
-
-		observables[i].DoOnNext(func(item interface{}) {
-			if len(node.Parents) == 1 {
-				node.ch <- rxgo.Of(item)
-			} else {
-				combined = append(combined, item)
-				if len(node.Parents) == len(combined) {
-					node.ch <- rxgo.Of(combined)
-				}
-			}
-		})
-	}
 }

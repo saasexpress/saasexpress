@@ -1,0 +1,20 @@
+#
+# - implement HTTPIn to match the route
+#
+name: tenant-ui
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /ui
+        - /ui/*restOfPath
+
+  - id: rp
+    action: ReverseProxy
+    config:
+      UpstreamServerURL: http://localhost:5173
+
+edges:
+  - { from: start, to: rp }

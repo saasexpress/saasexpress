@@ -1,0 +1,21 @@
+meta {
+  name: Delete Activity
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{SERVER}}/api/tenants/6SVBIZGJ2FURIGS
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "displayName": "Change 1"
+  }
+}
+
+vars:pre-request {
+  id: 9VUN4HPDS64CVYP
+}

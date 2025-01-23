@@ -6,10 +6,42 @@ import (
 	"slices"
 )
 
-func JoinStrings(node *dag.Node, input interface{}) (interface{}, error) {
-	data, ok := input.([]any)
+type JoinStringsSettings struct {
+}
+
+type JoinStrings struct {
+	BaseOperator
+}
+
+func (*JoinStrings) Register() error {
+	return nil
+}
+
+func (*JoinStrings) Deregister() {
+}
+
+func (*JoinStrings) HandleHook(hook dag.HookType, node *dag.Node, message *dag.Message) error {
+	return nil
+}
+
+func (*JoinStrings) Spec() *OperatorSpec {
+	return &OperatorSpec{
+		Name: "JoinStrings",
+	}
+}
+
+func (*JoinStrings) SetupNode(node *dag.Node) error {
+
+	settings := JoinStringsSettings{}
+	node.Config = settings
+
+	return nil
+}
+
+func (*JoinStrings) Process(node *dag.Node, message *dag.Message) (interface{}, error) {
+	data, ok := message.Data.([]any)
 	if !ok {
-		return nil, fmt.Errorf("input is not an array %s", input)
+		return nil, fmt.Errorf("input is not an array %s", message.Data)
 	}
 	var aggregatedData []string
 

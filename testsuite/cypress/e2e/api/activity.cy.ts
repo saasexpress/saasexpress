@@ -1,6 +1,6 @@
 describe("activity", () => {
   beforeEach(() => {
-    cy.callAPI("/api/activity", "GET").then(
+    cy.callAPI("/api/activity?page=0&recordsPerPage=50", "GET").then(
       ({ body: activity }: Cypress.Response<any>) => {
         activity.forEach((t: any) => {
           cy.callAPI(`/api/activity/${t.id}`, "DELETE").then(
@@ -39,7 +39,7 @@ describe("activity", () => {
       ({ body: newActivity, status }: Cypress.Response<any>) => {
         expect(status).to.be.equal(200);
 
-        cy.callAPI("/api/activity", "GET").then(
+        cy.callAPI("/api/activity?page=0&recordsPerPage=50", "GET").then(
           ({ body, status }: Cypress.Response<any>) => {
             expect(status).to.be.equal(200);
             expect(body.length).to.equal(1);

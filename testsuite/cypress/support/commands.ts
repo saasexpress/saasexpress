@@ -52,3 +52,15 @@ Cypress.Commands.add("callAPI", (endPoint: string, methodType: string) => {
     failOnStatusCode: false,
   });
 });
+
+Cypress.Commands.add("callDagAllInOne", (body: any, expected: any) => {
+  cy.setRequestBody(body);
+  return cy
+    .callAPI("/gw/dag", "POST")
+    .then(({ body, status }: Cypress.Response<any>) => {
+      expect(status).to.be.equal(200);
+      expect(JSON.stringify(JSON.parse(body))).to.be.equal(
+        JSON.stringify(expected)
+      );
+    });
+});

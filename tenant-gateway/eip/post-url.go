@@ -18,11 +18,11 @@ func postURL(url string, contentType string, body []byte, ch chan<- string) {
 	}
 	defer resp.Body.Close()
 
-	io.ReadAll(resp.Body)
+	respbody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		ch <- fmt.Sprintf("Error reading response from %s: %v", url, err)
 		return
 	}
 
-	ch <- fmt.Sprintf("Fetched %s with %d bytes", url, len(body))
+	ch <- fmt.Sprintf("Fetched %s with %d bytes", url, len(respbody))
 }

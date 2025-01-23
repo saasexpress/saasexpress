@@ -1,0 +1,16 @@
+name: tenant-ui
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /api/activity
+
+  - id: rp
+    action: ReverseProxy
+    config:
+      UpstreamServerURL: http://localhost:8081
+
+edges:
+  - { from: start, to: rp }

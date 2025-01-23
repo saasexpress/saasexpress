@@ -1,0 +1,54 @@
+#
+# - make the input and output available in content enricher
+# - have "variables" in the content-enricher
+#
+#
+name: activity-api-mutation
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(DELETE|POST)$
+      routes:
+        - /api/activity
+        - /api/activity/:id
+
+  - id: rp
+    action: ReverseProxy
+    config:
+      UpstreamServerURL: http://localhost:8081
+
+  - id: bufin
+    action: BufferToJSON
+
+  - id: in
+    action: ContentEnricher
+    config:
+      template: |
+        {
+          "message": "{action} {resource} ({id})",
+          "result":  "success",
+          "params": {
+            "action":   "{{ .http_method }}",
+            "resource": "Activity",
+            "id": "{{ .in.id }}{{ .params.id }}"
+          }
+        }
+
+  - id: done
+    action: NoOp
+
+  - id: terminate
+    action: Terminate
+
+  # - { id: bufout, action: JSONToBuffer }
+
+edges:
+  - { from: start, to: rp }
+  - { from: rp, to: bufin }
+  - { from: rp, to: done }
+  # - { from: start, to: bufin }
+  - { from: bufin, to: in }
+  - { from: in, to: terminate }
+
+  # - { from: bufin, to: bufout }

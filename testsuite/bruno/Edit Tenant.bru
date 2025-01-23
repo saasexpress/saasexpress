@@ -1,0 +1,21 @@
+meta {
+  name: Edit Tenant
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{SERVER}}/api/tenants/6SVBIZGJ2FURIGS
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "displayName": "Change 1"
+  }
+}
+
+vars:pre-request {
+  id: 9VUN4HPDS64CVYP
+}

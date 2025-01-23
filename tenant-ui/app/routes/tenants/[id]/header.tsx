@@ -42,7 +42,7 @@ export default function Header({ name, id }: HeaderProps) {
         <Stack direction="row" alignItems="center" justifyContent="left" mb={1}>
           <LayersIcon fontSize="large" />
 
-          <Typography variant="h3" paddingLeft={0}>
+          <Typography variant="h3" paddingLeft={1}>
             {name ? `Tenant ${name}` : "New Tenant"}
           </Typography>
         </Stack>

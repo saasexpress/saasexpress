@@ -1,14 +1,15 @@
 {
   "scripts": {
-    "cypress:open": "cypress open",
+    "cypress:open": "cypress open --e2e --browser electron",
     "cypress:run": "cypress run"
   },
   "devDependencies": {
-    "cypress": "^13",
-    "cypress-mochawesome-reporter": "^3",
-    "typescript": "^5"
+    "cypress": "^13.0.0",
+    "cypress-mochawesome-reporter": "^3.0.0",
+    "typescript": "^5.0.0"
   },
   "dependencies": {
+    "uuid": "^11.0.5",
     "yaml": "^2.7.0"
   }
 }

@@ -10,5 +10,7 @@ declare namespace Cypress {
       endPoint: string,
       methodType: string
     ): Chainable<Cypress.Response<any>>;
+
+    callDagAllInOne(body: any, expected: any): Chainable<Cypress.Response<any>>;
   }
 }

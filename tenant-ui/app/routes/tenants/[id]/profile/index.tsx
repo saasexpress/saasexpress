@@ -20,17 +20,17 @@ const Entry = () => {
     refetchOnMount: true,
   });
 
-  if (isPending) {
-    return <></>;
-  }
+  // if (isPending) {
+  //   return <></>;
+  // }
 
   const d = data?.data;
 
   return (
     <Container maxWidth="lg">
-      <Header name={d.displayName} id={d.id} />
+      <Header name={d?.displayName} id={d?.id} />
       <Grid2
-        key={d.id}
+        key={d?.id}
         container
         direction="row"
         spacing={3}
@@ -38,11 +38,11 @@ const Entry = () => {
         mt={1}
       >
         <Grid2>
-          <Nav tab="profile" params={{ id: d.id }} />
+          <Nav tab="profile" params={{ id: d?.id }} />
         </Grid2>
         <Grid2 flex={1}>
           <DetailHeader title="Profile" description="Tenant profile" />
-          <SettingsForm item={d} />
+          {d && <SettingsForm item={d} />}
         </Grid2>
       </Grid2>
     </Container>

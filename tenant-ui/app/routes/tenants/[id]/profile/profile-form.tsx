@@ -74,12 +74,18 @@ const ProfileForm = ({ item }: ProfileFormProps) => {
   let btn =
     mode === "edit"
       ? [
-          <Button onClick={() => setMode("ro")}>Cancel</Button>,
-          <Button type="submit" onClick={save}>
+          <Button key="cancel" onClick={() => setMode("ro")}>
+            Cancel
+          </Button>,
+          <Button key="save" type="submit" onClick={save}>
             Save
           </Button>,
         ]
-      : [<Button onClick={() => setMode("edit")}>Change</Button>];
+      : [
+          <Button key="change" onClick={() => setMode("edit")}>
+            Change
+          </Button>,
+        ];
 
   ui.elements.forEach((ui) => (ui.readonly = mode === "edit" ? false : true));
 

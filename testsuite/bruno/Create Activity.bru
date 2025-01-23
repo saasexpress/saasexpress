@@ -1,0 +1,17 @@
+meta {
+  name: Create Activity
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{SERVER}}/api/tenants
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "displayName": "Good"
+  }
+}

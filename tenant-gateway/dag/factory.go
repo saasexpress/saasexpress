@@ -6,19 +6,27 @@ import (
 	"github.com/reactivex/rxgo/v2"
 )
 
-func (dag *DAG) AddNode(id string, action NodeFunction) {
-	node := &Node{ID: id, Action: action}
+func (dag *DAG) AddNode(id string, name string, config *map[string]interface{}) *Node {
+	node := &Node{ID: id, Name: name, Config: config}
 	if dag.Nodes == nil {
 		dag.Nodes = map[string]*Node{}
 	}
 	node.ch = make(chan rxgo.Item)
 
 	dag.Nodes[id] = node
+	return node
 }
 
 func (dag *DAG) AddEdge(from, to string) error {
 	fromNode := dag.Nodes[from]
 	toNode := dag.Nodes[to]
+
+	if fromNode == nil {
+		return fmt.Errorf("invalid FROM node ID %s", from)
+	}
+	if toNode == nil {
+		return fmt.Errorf("invalid TO node ID %s", to)
+	}
 
 	// Check for cycles before adding the edge
 	if dag.hasCycle(fromNode, toNode) {
@@ -27,7 +35,7 @@ func (dag *DAG) AddEdge(from, to string) error {
 
 	fromNode.Children = append(fromNode.Children, toNode)
 	toNode.Parents = append(toNode.Parents, fromNode)
-	toNode.wg.Add(1)
+	// toNode.wg.Add(1)
 
 	return nil
 }

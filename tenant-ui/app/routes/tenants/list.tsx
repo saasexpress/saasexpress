@@ -20,7 +20,7 @@ function CheckEmptyList({
 }
 
 function ListItems({ results }: { results: any }) {
-  return results.data.map((d: any) => <Item {...d} />);
+  return results.data.map((d: any) => <Item key={d.id} {...d} />);
 }
 
 export default function List() {
@@ -31,17 +31,18 @@ export default function List() {
   });
 
   return (
-    <Grid2
-      container
-      direction="row"
-      spacing={2}
-      mt={2}
-      mb={2}
-      alignItems="stretch"
-    >
-      <React.Suspense fallback={<div>Loading...</div>}>
+    <React.Suspense fallback={<div>Loading...</div>}>
+      <Grid2
+        data-id="list-tenants"
+        container
+        direction="row"
+        spacing={2}
+        mt={2}
+        mb={2}
+        alignItems="stretch"
+      >
         <CheckEmptyList query={query} />
-      </React.Suspense>
-    </Grid2>
+      </Grid2>
+    </React.Suspense>
   );
 }
