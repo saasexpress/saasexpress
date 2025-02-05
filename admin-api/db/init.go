@@ -13,7 +13,7 @@ func init() {
 	log.Println("Using sqlite in-memory database")
 
 	// file::memory:?cache=shared
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("./sqlite.db"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -21,6 +21,8 @@ func init() {
 	// Migrate the schema
 	db.AutoMigrate(&Tenant{})
 	db.AutoMigrate(&Activity{})
+	db.AutoMigrate(&Service{})
+	db.AutoMigrate(&DAGVariant{})
 
 	DB = db
 }

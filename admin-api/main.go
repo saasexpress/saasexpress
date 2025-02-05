@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"saasexpress/admin-api/api"
+	"saasexpress/admin-api/bootstrap"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,9 @@ type Specification struct {
 	UIProxyURL string `envconfig:"UI_PROXY_URL"`
 	GWProxyURL string `envconfig:"GW_PROXY_URL"`
 }
+
+//go:embed api.yaml
+var openapi embed.FS
 
 //go:embed ui/*
 var static embed.FS
@@ -65,11 +69,16 @@ func main() {
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
 	server := api.NewServer()
 
+	// bootstrap the database
+	bootstrap.Bootstrap(server)
+
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html", []byte(`<html><head><meta http-equiv="refresh" content="0; url=/ui/"/></head></html>`))
 	})
+
+	r.StaticFileFS("/api/openapi.yaml", "api.yaml", http.FS(openapi))
 
 	if s.UIProxyURL != "" {
 		log.Println("Proxying UI to", s.UIProxyURL)

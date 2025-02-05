@@ -2,14 +2,14 @@ package dag
 
 import (
 	"context"
-	"embed"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"saasexpress/tenant-gateway/internal/pkg"
 
 	"go.uber.org/zap"
 )
-
-//go:embed core/*
-var embeddedFiles embed.FS
 
 type Config struct {
 	// Add fields like Port, DB Connection String, etc.
@@ -55,23 +55,50 @@ func (s *MyService) RegisterDAGS(config *pkg.Specification, operators map[string
 	log := pkg.GetLogger()
 	dags := []*DAG{}
 
-	// List all files in the embedded directory
-	entries, err := embeddedFiles.ReadDir("core")
+	// Call admin api to get all services
+	//var buffer = bytes.NewBuffer()
+
+	url := "http://localhost:8081/api/services"
+
+	client := &http.Client{}
+
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Error("Failed to read files", zap.Error(err))
+		return nil, err
 	}
 
-	for _, entry := range entries {
-		log.Debug("File name:", zap.String("name", entry.Name()))
+	req.Header.Add("ContentType", "application/json")
 
-		// If it's a file, read its content
-		if !entry.IsDir() {
-			content, err := embeddedFiles.ReadFile("core/" + entry.Name())
-			if err != nil {
-				log.Error("Failed to read file", zap.Error(err))
-			}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error("Fetching error", zap.String("url", url), zap.Error(err))
+		return nil, fmt.Errorf("fetching error")
+	}
+	defer resp.Body.Close()
 
-			if dag, err := PrepDAG(content); err == nil {
+	log.Info("", zap.String("url", url), zap.String("Status", resp.Status))
+
+	respbody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("Read error", zap.String("url", url), zap.Error(err))
+		return nil, fmt.Errorf("error reading response")
+	}
+
+	var services []Service
+
+	if err = json.Unmarshal(respbody, &services); err != nil {
+		log.Error("Failed to read files", zap.Error(err))
+		return nil, err
+	}
+
+	for _, service := range services {
+		log.Info("Service:", zap.String("id", service.ID))
+
+		for name, entry := range service.Variants {
+			log.Info("Service Variant:", zap.String("name", name))
+
+			if dag, err := PrepDAG(entry.Dag); err == nil {
 				dag.Tracer = config.Tracer
 				dag.TracerContext = nil
 
@@ -88,10 +115,10 @@ func (s *MyService) RegisterDAGS(config *pkg.Specification, operators map[string
 	return dags, nil
 }
 
-func PrepDAG(content []byte) (*DAG, error) {
+func PrepDAG(model JSONDAG) (*DAG, error) {
 	var aDag DAG
 
-	var err = aDag.BuildFromYAML(content)
+	var err = aDag.BuildFromModel(model)
 	if err != nil {
 		return nil, err
 	}

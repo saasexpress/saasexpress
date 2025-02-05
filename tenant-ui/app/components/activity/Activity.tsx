@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import TimeAgo from "react-timeago";
 import {
   Box,
@@ -11,19 +12,37 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  Typography,
 } from "@mui/material";
+import groupBy from "lodash/groupBy";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import styled from "@emotion/styled";
 import TableCell from "components/table-cell";
 import CustomizedTooltip from "components/gold/tooltip-simple";
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import ActivityItem, {
+  ActivitySortDate,
+  ActivitySummary,
+  uid,
+} from "./ActivityItem";
 
 // const StyledPaper = styled(Paper)(() => ({
 //   boxShadow: "none",
 // }));
 
-let ActivityItem = (a: any) => {
+const timeZone = "America/Vancouver";
+
+const sortFormat = new Intl.DateTimeFormat("en-CA", {
+  dateStyle: "short",
+  timeZone,
+});
+
+const headerFormat = new Intl.DateTimeFormat("en-CA", {
+  dateStyle: "long",
+  timeZone,
+});
+
+let ActivityItemRow = (a: any) => {
   // const { changes, version, count } = renderChanges(a.activity);
 
   let ts = <TimeAgo date={new Date(a.activityAt)} />;
@@ -60,8 +79,26 @@ let Activity = ({ data, handleChangePage, handleChangeRowsPerPage }: any) => {
     [paging]
   );
 
+  const feed: Record<string, ActivitySortDate[]> = useMemo(() => {
+    let result = {};
+    result = items
+      // .reduce((memo: any, page: any) => {
+      //   return memo.concat(page.getFilteredNamespaceActivity);
+      // }, [])
+      .filter((a: ActivitySummary) => a.activityAt)
+      .map((a: ActivitySummary) => {
+        const sortDate = new Date(a.activityAt);
+        return { ...a, sortDate: sortFormat.format(sortDate) };
+      });
+    return groupBy(result, "sortDate");
+  }, [items]);
+
+  const handleParamSelect = (key: string, value: string) => {
+    // addFilter(key, { value: value, name: value, multiple: true });
+  };
+
   return (
-    <Stack>
+    <Stack bgcolor="white" p={4} mt={4} mb={4} borderRadius={0}>
       <Stack direction="row" alignItems="center" justifyContent="right">
         <TablePagination
           width="100%"
@@ -80,7 +117,29 @@ let Activity = ({ data, handleChangePage, handleChangeRowsPerPage }: any) => {
         </Grid2>
       </Stack>
 
-      <TableContainer variant="outlined" component={Paper}>
+      {Object.keys(feed).map((date) => {
+        return (
+          <Box key={uid(date)}>
+            <Typography
+              variant="h6"
+              component="h2"
+              mb={4}
+              data-testid={`activity-feed-heading-${date}`}
+            >
+              {headerFormat.format(new Date(date.replaceAll("-", "/")))}
+            </Typography>
+            {feed[date].map((a) => (
+              <ActivityItem
+                key={uid(a.id)}
+                data={a}
+                onSelect={handleParamSelect}
+              />
+            ))}
+          </Box>
+        );
+      })}
+
+      {/* <TableContainer variant="outlined" component={Paper}>
         <Table sx={{ minWidth: 650 }} aria-label="activity list">
           <TableHead>
             <TableRow>
@@ -90,9 +149,9 @@ let Activity = ({ data, handleChangePage, handleChangeRowsPerPage }: any) => {
               <TableCell>Timestamp</TableCell>
             </TableRow>
           </TableHead>
-          <TableBody>{items.map(ActivityItem)}</TableBody>
+          <TableBody>{items.map(ActivityItemRow)}</TableBody>
         </Table>
-      </TableContainer>
+      </TableContainer> */}
     </Stack>
   );
 };

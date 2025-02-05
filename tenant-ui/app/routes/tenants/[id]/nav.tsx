@@ -3,7 +3,8 @@ import NavTabs from "@lib/navtabs";
 const collection = "tenants";
 
 const tabKeys = {
-  profile: "Profile",
+  //profile: "Profile",
+  services: "Services",
 };
 
 interface NavigationProps {

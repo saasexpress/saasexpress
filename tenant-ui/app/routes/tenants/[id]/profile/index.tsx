@@ -6,6 +6,7 @@ import Nav from "../nav";
 import DetailHeader from "@components/detail-header";
 import SettingsForm from "./profile-form";
 import useAPIClient from "lib/api/APIClient";
+import InPlaceEdit from "components/inplace-edit";
 
 const Entry = () => {
   const { id } = useParams();
@@ -29,6 +30,7 @@ const Entry = () => {
   return (
     <Container maxWidth="lg">
       <Header name={d?.displayName} id={d?.id} />
+
       <Grid2
         key={d?.id}
         container

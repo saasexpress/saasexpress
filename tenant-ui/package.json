@@ -1,3 +1,13 @@
 {
-  "dependencies": {}
+  "dependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/lodash": "^4.17.14",
+    "js-yaml": "^4.1.0",
+    "konva": "^9.3.18",
+    "lodash": "^4.17.21",
+    "react-konva": "^19.0.2",
+    "tailwindcss": "^4.0.0",
+    "yaml": "^2.7.0"
+  }
 }

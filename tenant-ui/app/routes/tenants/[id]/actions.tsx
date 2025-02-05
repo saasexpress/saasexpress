@@ -13,6 +13,7 @@ import SaveFormDialog from "components/gold/save-dialog";
 import NotificationDialog from "components/gold/notification-dialog";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useState } from "react";
+import BasicButton from "components/gold/basic-button";
 
 const NotifyIcon = styled(Stack)(({ theme }) => ({
   padding: theme.spacing(1),
@@ -65,7 +66,7 @@ export default function Actions({ handleDelete }: any) {
       >
         <Box>blah</Box>
       </NotificationDialog> */}
-      <Stack direction="column" spacing={0} alignItems="flex-end">
+      {/* <Stack direction="column" spacing={0} alignItems="flex-end">
         <Button
           id="basic-button"
           aria-controls={open ? "basic-menu" : undefined}
@@ -91,7 +92,7 @@ export default function Actions({ handleDelete }: any) {
             </Link>
           ))}
         </Menu>
-      </Stack>
+      </Stack> */}
     </Stack>
   );
 }

@@ -1,7 +1,8 @@
 import { Typography, Container, Grid2, Stack, Icon } from "@mui/material";
-import ActivityController from "@components/activity/Controller";
+import ActivityController from "components/activity/activity-controller";
 
-const ActivityIcon = <Icon baseClassName="fa" className="fa-stream" />;
+import HistoryIcon from "@mui/icons-material/History";
+//const ActivityIcon = <Icon baseClassName="fa" className="fa-stream" />;
 
 export default function ActivityPage() {
   return (
@@ -14,7 +15,7 @@ export default function ActivityPage() {
       >
         <Grid2>
           <Stack direction="row" alignItems="center" justifyContent="left">
-            {ActivityIcon}
+            <HistoryIcon fontSize="large" />
             <Typography paddingLeft={1} variant="h3">
               Activity
             </Typography>
@@ -24,6 +25,7 @@ export default function ActivityPage() {
           </Typography>
         </Grid2>
       </Grid2>
+
       <ActivityController />
     </Container>
   );

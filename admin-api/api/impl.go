@@ -8,15 +8,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ensure that we've conformed to the `ServerInterface` with a compile-time check
 var _ ServerInterface = (*Server)(nil)
 
-type Server struct{}
+type Server struct {
+	DB *gorm.DB
+}
 
 func NewServer() Server {
-	return Server{}
+	return Server{DB: db.DB}
 }
 
 // CreateActivity implements ServerInterface.
@@ -28,6 +31,7 @@ func (s Server) CreateActivity(ctx *gin.Context) {
 			ctx.AbortWithError(400, err)
 			return
 		}
+
 	} else {
 		if err := ctx.ShouldBindJSON(&newActivity); err != nil {
 			ctx.AbortWithError(400, err)

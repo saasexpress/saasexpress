@@ -63,8 +63,7 @@
         "cwd": "${workspaceFolder}/tenant-gateway",
         "env": {
           "MYAPP_DEBUG": "true",
-          "MYAPP_PORT": "5174",
-          "MYAPP_UPSTREAMURL": "http://localhost:8081"
+          "MYAPP_PORT": "2243"
         }
       },
       "presentation": {

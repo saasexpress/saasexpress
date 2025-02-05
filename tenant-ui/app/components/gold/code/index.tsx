@@ -10,7 +10,7 @@ const CodePre = styled(Box)(({}) => ({
   textAlign: "left",
   overflowWrap: "anywhere",
   fontFamily: "Menlo, Consolas",
-  fontSize: "12px",
+  fontSize: "0.8rem",
   // fontWeight: 600,
 }));
 

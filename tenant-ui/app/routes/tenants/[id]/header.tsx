@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import Actions from "./actions";
 import useAPIClient from "lib/api/APIClient";
 import APIErrorHandler from "lib/alerts/APIErrorHandler";
+import InPlaceEdit from "components/inplace-edit";
+import { useCallback } from "react";
 //import APIErrorHandler from "lib/alerts/APIErrorHandler";
 
 interface HeaderProps {
@@ -17,10 +19,27 @@ export default function Header({ name, id }: HeaderProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  const handleSaveName = useCallback(
+    async (displayName: string) => {
+      api.put(`/api/tenants/${id}`, { displayName }, () => {
+        queryClient.invalidateQueries({ queryKey: ["tenant", id] });
+        queryClient.invalidateQueries({ queryKey: ["tenants"] });
+        queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+        // does not work
+        APIErrorHandler.notice({
+          title: "Tenant",
+          content: "Updated successfully",
+        });
+      });
+    },
+    [name, id]
+  );
+
   const handleDelete = async () => {
     api.delete(`/api/tenants/${id}`, () => {
       queryClient.cancelQueries({ queryKey: ["tenant", id] });
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      queryClient.invalidateQueries({ queryKey: ["list-activity"] });
       // does not work
       APIErrorHandler.notice({
         title: "Tenant",
@@ -43,7 +62,7 @@ export default function Header({ name, id }: HeaderProps) {
           <LayersIcon fontSize="large" />
 
           <Typography variant="h3" paddingLeft={1}>
-            {name ? `Tenant ${name}` : "New Tenant"}
+            <InPlaceEdit key={id} initialValue={name} onSave={handleSaveName} />
           </Typography>
         </Stack>
         <Link to={{ pathname: "/tenants" }}>

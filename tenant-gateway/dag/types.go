@@ -36,6 +36,17 @@ type NodeOperator interface {
 
 type JSON map[string]interface{}
 
+type Service struct {
+	ID          string
+	DisplayName string
+	ServiceUrl  string
+	Variants    map[string]ServiceVariant
+}
+
+type ServiceVariant struct {
+	Dag JSONDAG
+}
+
 type Node struct {
 	ID              string
 	Name            string
@@ -58,6 +69,7 @@ type DAG struct {
 }
 
 type DAGContext struct {
+	Label      string
 	DagModel   DAG
 	StartID    string
 	End        chan rxgo.Item

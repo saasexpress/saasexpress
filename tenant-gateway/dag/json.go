@@ -24,23 +24,12 @@ type JSONDAG struct {
 }
 
 func (dag *DAG) BuildFromJSON(jsonData []byte) error {
-	var jsonModel JSONDAG
-	err := json.Unmarshal(jsonData, &jsonModel)
+	var model JSONDAG
+	err := json.Unmarshal(jsonData, &model)
 	if err != nil {
 		return err
 	}
-	dag.Name = jsonModel.Name
-	dag.StartID = jsonModel.Nodes[0].Id
-
-	for _, el := range jsonModel.Nodes {
-		dag.AddNode(el.Id, el.Action, el.Config)
-	}
-	for _, el := range jsonModel.Edges {
-		if err := dag.AddEdge(el.From, el.To); err != nil {
-			return err
-		}
-	}
-	return nil
+	return dag.BuildFromModel(model)
 }
 
 func (dag *DAG) BuildFromYAML(yamlData []byte) error {
@@ -49,6 +38,10 @@ func (dag *DAG) BuildFromYAML(yamlData []byte) error {
 	if err != nil {
 		return err
 	}
+	return dag.BuildFromModel(model)
+}
+
+func (dag *DAG) BuildFromModel(model JSONDAG) error {
 	dag.Name = model.Name
 	dag.StartID = model.Nodes[0].Id
 

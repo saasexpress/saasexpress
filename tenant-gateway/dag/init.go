@@ -12,11 +12,11 @@ import (
 func (dag *DAG) InitializeNodes(producerCtx context.Context, cancel context.CancelFunc, operators map[string]NodeOperator) {
 	log := pkg.GetLogger()
 
-	ctx, span := dag.Tracer.Start(dag.TracerContext, "run-dag")
-	defer span.End()
+	// ctx, span := dag.Tracer.Start(dag.TracerContext, "run-dag")
+	// defer span.End()
 
 	// Set so we get child spans
-	dag.TracerContext = ctx
+	// dag.TracerContext = dag.TracerContext
 
 	var producers = map[string]rxgo.Observable{}
 

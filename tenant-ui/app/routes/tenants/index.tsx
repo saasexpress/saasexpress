@@ -5,6 +5,7 @@ import NewDialog from "./new";
 import { useQueryClient } from "@tanstack/react-query";
 import APIErrorHandler from "lib/alerts/APIErrorHandler";
 import { useNavigate } from "react-router";
+import WorkspacesIcon from "@mui/icons-material/Workspaces";
 
 export default function Page() {
   const queryClient = useQueryClient();
@@ -20,7 +21,7 @@ export default function Page() {
       >
         <Grid2>
           <Stack direction="row" alignItems="center" justifyContent="left">
-            <LayersIcon fontSize="large" />
+            <WorkspacesIcon fontSize="large" />
             <Typography paddingLeft={1} variant="h3">
               List of Tenants
             </Typography>
@@ -34,7 +35,9 @@ export default function Page() {
           <NewDialog
             onCreated={(d: any) => {
               queryClient.invalidateQueries({ queryKey });
-              navigate(`/tenants/${d.id}/profile`);
+              queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+
+              navigate(`/tenants/${d.id}/services`);
               APIErrorHandler.notice({
                 title: "Tenant",
                 content: "Created successfully.",

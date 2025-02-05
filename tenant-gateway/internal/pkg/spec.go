@@ -15,7 +15,7 @@ type Specification struct {
 	AdminRole         string
 	VerifyToken       bool   `default:"false"`
 	JwksUrl           string `required:"false"`
-	UpstreamUrl       string `required:"true"`
+	UpstreamUrl       string `required:"false"`
 	ResourceServerUrl string `required:"false"`
 	LCache            *cache.Cache
 	Tracer            trace.Tracer

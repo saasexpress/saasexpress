@@ -1,8 +1,28 @@
-import { Suspense, use, useState } from "react";
-import { Box } from "@mui/material";
+import React, { Suspense, use, useState } from "react";
 import { UseQueryResult } from "@tanstack/react-query";
 import useAPIClient, { GetResult } from "@lib/api/APIClient";
-import Activity from "./Activity";
+import { Box } from "@mui/material";
+
+interface Service {
+  id: string;
+  name: string;
+}
+
+interface ServiceListProps {
+  services: Service[];
+  handleChangePage: any;
+  handleChangeRowsPerPage: any;
+}
+
+const ServiceList: React.FC<ServiceListProps> = ({ services }) => {
+  return (
+    <ul>
+      {services.map((service) => (
+        <li key={service.id}>{service.name}</li>
+      ))}
+    </ul>
+  );
+};
 
 function CheckEmptyList({
   query,
@@ -15,7 +35,7 @@ function CheckEmptyList({
 }) {
   const results = use(query.promise);
   if (results.data.length === 0) {
-    return <Box>No activity found</Box>;
+    return <Box>No services found</Box>;
   }
   const data = {
     items: results.data,
@@ -27,19 +47,15 @@ function CheckEmptyList({
     },
   };
   return (
-    <Activity
-      data={data}
+    <ServiceList
+      services={data.items}
       handleChangePage={handleChangePage}
       handleChangeRowsPerPage={handleChangeRowsPerPage}
     />
   );
 }
 
-// function ListItems({ results }: { results: any }) {
-//   return results.data.map((d: any) => <Item {...d} />);
-// }
-
-let ActivityList = () => {
+const ServiceListController = () => {
   const api = useAPIClient();
 
   const [paging, setPaging] = useState<any>({
@@ -53,11 +69,11 @@ let ActivityList = () => {
   const pageSize = paging.pageSize;
 
   const query = api.get(
-    ["list-activity", paging],
+    ["list-services", paging],
     `/api/activity?page=${page}&recordsPerPage=${pageSize}`
   );
 
-  const _handleActivity = (page: number, pageSize: number) => {
+  const _handleService = (page: number, pageSize: number) => {
     setPaging({ ...paging, ...{ page, pageSize } });
   };
 
@@ -66,14 +82,14 @@ let ActivityList = () => {
       <CheckEmptyList
         query={query}
         handleChangePage={(e: any, page: number) => {
-          _handleActivity(page, paging.pageSize);
+          _handleService(page, paging.pageSize);
         }}
         handleChangeRowsPerPage={(e: any) => {
-          _handleActivity(paging.page, e.target.value);
+          _handleService(paging.page, e.target.value);
         }}
       />
     </Suspense>
   );
 };
 
-export default ActivityList;
+export default ServiceListController;

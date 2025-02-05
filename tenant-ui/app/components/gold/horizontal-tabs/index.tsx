@@ -134,7 +134,7 @@ const StyledTabs = styled((props: any) => (
 
 const TabTheme = ({ theme }: { theme?: Theme }) => ({
   fontWeight: theme?.typography.fontWeightRegular,
-  fontSize: theme?.typography.pxToRem(18),
+  fontSize: "1rem",
   marginRight: theme?.spacing(0),
   color: "rgba(0, 0, 0, 0.7)",
 

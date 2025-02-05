@@ -7,7 +7,101 @@ info:
   title: SaaS Express
 servers:
   - url: http://127.0.0.1:8081
+security: []
 paths:
+  /services:
+    get:
+      summary: Get all services
+      operationId: getServices
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: recordsPerPage
+          schema:
+            type: integer
+            default: 25
+
+      responses:
+        "200":
+          description: A list of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+    post:
+      summary: Create a new service
+      operationId: createService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequest"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+  /services/{serviceId}:
+    get:
+      summary: Get a specific service
+      operationId: getService
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+    put:
+      summary: Update an existing service
+      operationId: updateService
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequest"
+      responses:
+        "200":
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+    delete:
+      summary: Delete a service
+      operationId: deleteService
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Service deleted
+
   /activity:
     get:
       operationId: "get-activity"
@@ -228,6 +322,52 @@ paths:
 
 components:
   schemas:
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the service
+        displayName:
+          type: string
+        serviceUrl:
+          type: string
+          description: Upstream endpoint URL for the service
+        variants:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DAGVariant"
+        # dag:
+        #   type: object
+        # visuals:
+        #   type: string
+    ServiceRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        serviceUrl:
+          type: string
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/DAGVariant"
+        # dag:
+        #   type: object
+        # visuals:
+        #   type: string
+      required:
+        - displayName
+        - serviceUrl
+        # - dag
+        # - visuals
+
+    DAGVariant:
+      type: object
+      properties:
+        dag:
+          type: object
+
     Tenant:
       type: object
       properties:

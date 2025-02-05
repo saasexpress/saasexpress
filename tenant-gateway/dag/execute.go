@@ -26,8 +26,9 @@ func (dagctx *DAGContext) Execute(in Message) (interface{}, error) {
 	tracer := in.Context.DagModel.Tracer
 	tracerContext := in.Context.DagModel.TracerContext
 
-	_, span := tracer.Start(tracerContext, "Execute")
+	tracerContext, span := tracer.Start(tracerContext, dagctx.Label)
 	defer span.End()
+	in.Context.DagModel.TracerContext = tracerContext
 
 	for item := range endObservable.Observe() {
 		message := item.V.(Message)

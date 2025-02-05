@@ -5,7 +5,12 @@ meta {
 }
 
 get {
-  url: {{SERVER}}/api/tenants
+  url: {{SERVER}}/api/activity?page=0&recordsPerPage=50
   body: none
   auth: none
+}
+
+query {
+  page: 0
+  recordsPerPage: 50
 }

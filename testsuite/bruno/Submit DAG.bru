@@ -5,13 +5,48 @@ meta {
 }
 
 post {
-  url: {{SERVER}}/api/tenants
+  url: {{SERVER}}/gw/dag
   body: json
   auth: none
 }
 
 body:json {
   {
-    "displayName": "Good"
+    "nodes": [
+      {
+        "id": "in",
+        "action": "BufferToJSON"
+      },
+      {
+        "id": "out",
+        "action": "JSONToBuffer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "in",
+        "to": "out"
+      }
+    ],
+    "input": {
+      "name": "Joe",
+      "replay": true,
+      "and_more": [
+        {
+          "source": "left"
+        }
+      ]
+    }
   }
+}
+
+body:xml {
+        nodes:
+        - { id: in, action: BufferToJSON }
+        - { id: out, action: JSONToBuffer }
+  
+        edges:
+        - { from: in, to: out }
+  
+        input: []
 }

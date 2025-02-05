@@ -63,7 +63,7 @@ func (s *GinHTTPInChannelService) Init(ctx context.Context, config *pkg.Specific
 
 					for _, route := range settings.Routes {
 						log.Info("GinRoute", zap.Any("Route", route))
-						methodFunc(route, DAGGinHandler(config, dag))
+						methodFunc(route, DAGGinHandler(config, route, dag))
 					}
 
 				}
@@ -92,7 +92,7 @@ func (s *GinHTTPInChannelService) Destroy() error {
 	return nil
 }
 
-func DAGGinHandler(config *pkg.Specification, aDag *dag.DAG) gin.HandlerFunc {
+func DAGGinHandler(config *pkg.Specification, route string, aDag *dag.DAG) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log := pkg.GetLogger()
 
@@ -105,7 +105,7 @@ func DAGGinHandler(config *pkg.Specification, aDag *dag.DAG) gin.HandlerFunc {
 		httpIn.SetParams(c)
 		httpIn.SetStatus = c.Status
 
-		outBuffer, err := doTheHandling(aDag, httpIn)
+		outBuffer, err := doTheHandling(aDag, route, httpIn)
 
 		if outBuffer != nil {
 			// prettyOutput(outBuffer)
@@ -120,11 +120,12 @@ func DAGGinHandler(config *pkg.Specification, aDag *dag.DAG) gin.HandlerFunc {
 	}
 }
 
-func doTheHandling(aDag *dag.DAG, httpIn channels.HTTPChannel) (*bytes.Buffer, error) {
+func doTheHandling(aDag *dag.DAG, route string, httpIn channels.HTTPChannel) (*bytes.Buffer, error) {
 	log := pkg.GetLogger()
 
 	// Using the DAG, perform the actual request
 	dagContext := dag.DAGContext{
+		Label:    fmt.Sprintf("%s %s", httpIn.Request.Method, route),
 		DagModel: *aDag,
 		StartID:  aDag.StartID,
 		Scratchpad: &dag.ScratchpadBase{

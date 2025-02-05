@@ -20,6 +20,30 @@ type Activity struct {
 	Result     *string            `json:"result,omitempty"`
 }
 
+// DAGVariant defines model for DAGVariant.
+type DAGVariant struct {
+	Dag *map[string]interface{} `json:"dag,omitempty"`
+}
+
+// Service defines model for Service.
+type Service struct {
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Id Unique identifier for the service
+	Id *string `json:"id,omitempty"`
+
+	// ServiceUrl Upstream endpoint URL for the service
+	ServiceUrl *string                `json:"serviceUrl,omitempty"`
+	Variants   *map[string]DAGVariant `json:"variants,omitempty"`
+}
+
+// ServiceRequest defines model for ServiceRequest.
+type ServiceRequest struct {
+	DisplayName string        `json:"displayName"`
+	ServiceUrl  string        `json:"serviceUrl"`
+	Variants    *[]DAGVariant `json:"variants,omitempty"`
+}
+
 // Tenant defines model for Tenant.
 type Tenant struct {
 	DisplayName *string `json:"displayName,omitempty"`
@@ -32,11 +56,23 @@ type GetActivityParams struct {
 	RecordsPerPage *int `form:"recordsPerPage,omitempty" json:"recordsPerPage,omitempty"`
 }
 
+// GetServicesParams defines parameters for GetServices.
+type GetServicesParams struct {
+	Page           *int `form:"page,omitempty" json:"page,omitempty"`
+	RecordsPerPage *int `form:"recordsPerPage,omitempty" json:"recordsPerPage,omitempty"`
+}
+
 // CreateActivityJSONRequestBody defines body for CreateActivity for application/json ContentType.
 type CreateActivityJSONRequestBody = Activity
 
 // CreateActivityFormdataRequestBody defines body for CreateActivity for application/x-www-form-urlencoded ContentType.
 type CreateActivityFormdataRequestBody = Activity
+
+// CreateServiceJSONRequestBody defines body for CreateService for application/json ContentType.
+type CreateServiceJSONRequestBody = ServiceRequest
+
+// UpdateServiceJSONRequestBody defines body for UpdateService for application/json ContentType.
+type UpdateServiceJSONRequestBody = ServiceRequest
 
 // CreateTenantJSONRequestBody defines body for CreateTenant for application/json ContentType.
 type CreateTenantJSONRequestBody = Tenant
@@ -61,6 +97,21 @@ type ServerInterface interface {
 	// Delete activity
 	// (DELETE /activity/{id})
 	DeleteActivity(c *gin.Context, id int)
+	// Get all services
+	// (GET /services)
+	GetServices(c *gin.Context, params GetServicesParams)
+	// Create a new service
+	// (POST /services)
+	CreateService(c *gin.Context)
+	// Delete a service
+	// (DELETE /services/{serviceId})
+	DeleteService(c *gin.Context, serviceId string)
+	// Get a specific service
+	// (GET /services/{serviceId})
+	GetService(c *gin.Context, serviceId string)
+	// Update an existing service
+	// (PUT /services/{serviceId})
+	UpdateService(c *gin.Context, serviceId string)
 	// Get tenants
 	// (GET /tenants)
 	GetTenants(c *gin.Context)
@@ -156,6 +207,125 @@ func (siw *ServerInterfaceWrapper) DeleteActivity(c *gin.Context) {
 	}
 
 	siw.Handler.DeleteActivity(c, id)
+}
+
+// GetServices operation middleware
+func (siw *ServerInterfaceWrapper) GetServices(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServicesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "recordsPerPage" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "recordsPerPage", c.Request.URL.Query(), &params.RecordsPerPage)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter recordsPerPage: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetServices(c, params)
+}
+
+// CreateService operation middleware
+func (siw *ServerInterfaceWrapper) CreateService(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateService(c)
+}
+
+// DeleteService operation middleware
+func (siw *ServerInterfaceWrapper) DeleteService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "serviceId" -------------
+	var serviceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "serviceId", c.Param("serviceId"), &serviceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteService(c, serviceId)
+}
+
+// GetService operation middleware
+func (siw *ServerInterfaceWrapper) GetService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "serviceId" -------------
+	var serviceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "serviceId", c.Param("serviceId"), &serviceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetService(c, serviceId)
+}
+
+// UpdateService operation middleware
+func (siw *ServerInterfaceWrapper) UpdateService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "serviceId" -------------
+	var serviceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "serviceId", c.Param("serviceId"), &serviceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateService(c, serviceId)
 }
 
 // GetTenants operation middleware
@@ -286,6 +456,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/activity", wrapper.GetActivity)
 	router.POST(options.BaseURL+"/activity", wrapper.CreateActivity)
 	router.DELETE(options.BaseURL+"/activity/:id", wrapper.DeleteActivity)
+	router.GET(options.BaseURL+"/services", wrapper.GetServices)
+	router.POST(options.BaseURL+"/services", wrapper.CreateService)
+	router.DELETE(options.BaseURL+"/services/:serviceId", wrapper.DeleteService)
+	router.GET(options.BaseURL+"/services/:serviceId", wrapper.GetService)
+	router.PUT(options.BaseURL+"/services/:serviceId", wrapper.UpdateService)
 	router.GET(options.BaseURL+"/tenants", wrapper.GetTenants)
 	router.POST(options.BaseURL+"/tenants", wrapper.CreateTenant)
 	router.DELETE(options.BaseURL+"/tenants/:id", wrapper.DeleteTenant)

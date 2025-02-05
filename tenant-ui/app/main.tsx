@@ -7,6 +7,8 @@ import AppRoutes from "routes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppContextProvider } from "context";
 
+import "./app.css";
+
 // Create a query client and set it up to be used in the app
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,15 +22,15 @@ const queryClient = new QueryClient({
 enableMocking().then(() => {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <BrowserRouter basename="ui">
-        <AppContextProvider>
-          <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter basename="ui">
+          <AppContextProvider>
             <Provider>
               <AppRoutes />
             </Provider>
-          </QueryClientProvider>
-        </AppContextProvider>
-      </BrowserRouter>
+          </AppContextProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
     </StrictMode>
   );
 });

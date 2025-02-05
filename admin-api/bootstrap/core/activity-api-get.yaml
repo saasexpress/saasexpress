@@ -1,4 +1,4 @@
-name: tenant-ui
+name: activity-api-get
 nodes:
   - id: start
     action: HTTPIn
@@ -13,4 +13,5 @@ nodes:
       UpstreamServerURL: http://localhost:8081
 
 edges:
-  - { from: start, to: rp }
+  - from: start
+    to: rp

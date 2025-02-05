@@ -4,7 +4,7 @@ const CustomTheme = {
   MuiListItemIcon: {
     styleOverrides: {
       root: {
-        color: "white",
+        // color: "black",
         minWidth: "2.5rem",
       },
     },
@@ -12,7 +12,7 @@ const CustomTheme = {
   MuiListItemText: {
     styleOverrides: {
       primary: {
-        color: "white",
+        // color: "black",
         // fontSize: '80%',
         // textTransform: 'uppercase',
       },
@@ -21,6 +21,17 @@ const CustomTheme = {
   MuiListItemButton: {
     styleOverrides: {
       root: {
+        //   ":hover": {
+        //     backgroundColor: "#005f73",
+        //   },
+        // "&.Mui-selected": {
+        //   backgroundColor: "#334c65",
+        // },
+        // "&.Mui-selected:hover": {
+        //   backgroundColor: "#334c65",
+        // },
+      },
+      dark: {
         ":hover": {
           backgroundColor: "#005f73",
         },

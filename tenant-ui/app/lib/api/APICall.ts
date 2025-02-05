@@ -184,7 +184,7 @@ function APICall() {
       });
   }
 
-  function post(path: string, values: any, dispatch: Function) {
+  async function post(path: string, values: any, dispatch: Function) {
     let method = "POST";
 
     let headers = {

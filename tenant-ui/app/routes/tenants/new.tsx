@@ -9,7 +9,7 @@ import BasicButton from "@components/gold/basic-button";
 import APIClient from "@lib/api/APIClient";
 import SimpleTextInput from "components/simple-text-input";
 
-export default function NewBlueprintDialog({ onCreated }: any) {
+export default function NewTenanttDialog({ onCreated }: any) {
   // const { session } = useAppContext();
   const [open, setOpen] = React.useState(false);
 

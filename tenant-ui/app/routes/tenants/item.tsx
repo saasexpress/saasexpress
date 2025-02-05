@@ -34,7 +34,7 @@ export interface TenantItemProps {
 export default function Item(item: TenantItemProps) {
   return (
     <Grid2 size={{ xs: 12, sm: 6, lg: 3, md: 3 }} key={item.id}>
-      <Link to={{ pathname: `/tenants/${item.id}/profile` }}>
+      <Link to={{ pathname: `/tenants/${item.id}/services` }}>
         <Card
           raised={false}
           sx={{
@@ -53,7 +53,7 @@ export default function Item(item: TenantItemProps) {
                 <Typography
                   title={item.displayName}
                   sx={{
-                    fontSize: "180%",
+                    fontSize: "1.2rem",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "initial",

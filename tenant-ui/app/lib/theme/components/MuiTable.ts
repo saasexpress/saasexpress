@@ -10,7 +10,7 @@ const CustomTheme = {
         fontSize: "1rem",
         "&.MuiTableCell-body": {},
         "&.MuiTableCell-head": {
-          fontSize: "0.8rem",
+          fontSize: "0.9rem",
           fontWeight: 600,
           color: "#005f73",
           textTransform: "uppercase",

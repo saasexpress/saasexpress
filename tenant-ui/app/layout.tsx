@@ -8,13 +8,18 @@ import {
   ListItemButton,
   ListItemText,
   AppBar as MuiAppBar,
+  Stack,
   styled,
-  Toolbar,
+  Toolbar as MuiToolbar,
   Typography,
 } from "@mui/material";
 import { Link, Outlet } from "react-router";
 import InlineAlert from "lib/alerts/InlineAlert";
 import { useAppContext } from "context";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import MenuIcon from "@mui/icons-material/Menu";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 const drawerWidth = 240;
 
@@ -55,6 +60,19 @@ const AppBar = styled(MuiAppBar, {
   }),
 }));
 
+const Toolbar = styled(MuiToolbar, {
+  shouldForwardProp: (prop) => prop !== "open",
+})(({ theme, open }: { theme?: any; open: boolean }) => ({
+  ...{ margin: 0 },
+  ...(open && {
+    marginLeft: `${drawerWidth}px`,
+    transition: theme.transitions.create(["margin", "width"], {
+      easing: theme.transitions.easing.easeOut,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+  }),
+}));
+
 const DrawerHeader = styled("div")(({ theme }) => ({
   display: "flex",
   alignItems: "center",
@@ -65,31 +83,69 @@ const DrawerHeader = styled("div")(({ theme }) => ({
 }));
 
 export default function AppLayout() {
-  const [open] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
   const { pathname } = useAppContext();
 
   return (
     <Box sx={{ display: "flex" }}>
       {/* <HideOnScroll {...props}> */}
-      <AppBar color="info" elevation={0}>
+      <AppBar color="transparent" elevation={0}>
         <Toolbar
+          open={open}
           sx={{
             backgroundColor: "white",
             color: "black",
             borderBottom: "1px solid #CCCCCC",
             padding: 0,
-            margin: 0,
+            verticalAlign: "middle",
           }}
         >
-          <IconButton
+          {/* <IconButton
             color="inherit"
             aria-label="open drawer"
-            onClick={() => false}
+            onClick={() => setOpen(true)}
             edge="start"
             sx={{ ml: 1, mr: 1, ...(open && { display: "none" }) }}
           >
-            X
-          </IconButton>
+            ...
+          </IconButton> */}
+          {!open && (
+            <IconButton sx={{ mt: 0.5, mr: 0 }} onClick={() => setOpen(true)}>
+              <MenuIcon sx={{ color: "black" }} />
+            </IconButton>
+          )}
+
+          <Stack
+            direction="row"
+            ml={2}
+            sx={{
+              flexGrow: 1,
+            }}
+          >
+            {[
+              { label: "Tenants", path: "/tenants" },
+              { label: "Services", path: "/services" },
+              { label: "Activity", path: "/activity" },
+            ].map(({ label, path }) => (
+              <Link to={path} key={label}>
+                <ListItemButton
+                  sx={{ mr: 1, p: 1 }}
+                  selected={
+                    (path === "/" && pathname === "/") ||
+                    (path != "/" && pathname.startsWith(path))
+                  }
+                  // onClick={isSmall && handleDrawerClose}
+                  // className={
+                  //   appContext.pathname == path ? 'ListItemSelected' : ''
+                  // }
+                >
+                  {/* {icon && <ListItemIcon>{icon}</ListItemIcon>} */}
+                  <ListItemText>{label}</ListItemText>
+                  <ExpandMoreIcon />
+                </ListItemButton>
+              </Link>
+            ))}
+          </Stack>
         </Toolbar>
       </AppBar>
       <Drawer
@@ -125,15 +181,38 @@ export default function AppLayout() {
           >
             SaaS Express
           </Typography>
+          <IconButton
+            onClick={() => setOpen(false)}
+            sx={{
+              ":hover": {
+                backgroundColor: "rgb(0, 95, 115)",
+              },
+            }}
+          >
+            <ChevronLeftIcon sx={{ color: "white" }} />
+          </IconButton>
         </DrawerHeader>
         <Divider />
         <List>
           {[
             { label: "Tenants", path: "/tenants" },
+            { label: "Services", path: "/services" },
             { label: "Activity", path: "/activity" },
           ].map(({ label, path }) => (
             <Link to={path} key={label}>
               <ListItemButton
+                sx={{
+                  color: "white",
+                  ":hover": {
+                    backgroundColor: "rgb(0, 95, 115)",
+                  },
+                  "&.Mui-selected": {
+                    backgroundColor: "#334c65",
+                  },
+                  "&.Mui-selected:hover": {
+                    backgroundColor: "#334c65",
+                  },
+                }}
                 selected={
                   (path === "/" && pathname === "/") ||
                   (path != "/" && pathname.startsWith(path))

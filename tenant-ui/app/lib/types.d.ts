@@ -51,3 +51,9 @@ declare module "@mui/material/Typography" {
     link: true;
   }
 }
+
+declare module "@mui/material/ListItemButton" {
+  interface ListItemButtonPropsVariantOverrides {
+    dark: true;
+  }
+}

@@ -164,7 +164,12 @@ func processNoRP(node *dag.Node, message *dag.Message) (interface{}, error) {
 		return nil, fmt.Errorf("[%s] %s", node.ID, resp.Status)
 	}
 
-	httpChannel.ResponseWriter.Header().Add("Content-Type", resp.Header.Get("Content-Type"))
+	// transfer over all headers
+	for key, values := range resp.Header {
+		for _, value := range values {
+			httpChannel.ResponseWriter.Header().Add(key, value)
+		}
+	}
 
 	httpChannel.SetStatus(resp.StatusCode)
 
