@@ -1,0 +1,57 @@
+meta {
+  name: Edit Service
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{SERVER}}/api/services/FFGX3YYDNPSIBWO
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "displayName": "Good 123",
+    "id": "FFGX3YYDNPSIBWO",
+    "serviceUrl": "http://localhost:8081",
+    "variants": [
+      {
+        "dag": {
+          "edges": [
+            {
+              "from": "start",
+              "to": "rp"
+            }
+          ],
+          "name": "services-api-get",
+          "nodes": [
+            {
+              "action": "HTTPIn",
+              "config": {
+                "method": "^(GET)$",
+                "routes": [
+                  "/api/services",
+                  "/api/services/:id"
+                ]
+              },
+              "id": "start"
+            },
+            {
+              "action": "ReverseProxy",
+              "config": {
+                "UpstreamServerURL": "http://localhost:8081"
+              },
+              "id": "rp"
+            }
+          ]
+        },
+        "name": "V1"
+      }
+    ]
+  }
+}
+
+vars:pre-request {
+  id: 9VUN4HPDS64CVYP
+}

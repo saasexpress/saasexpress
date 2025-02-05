@@ -1,0 +1,56 @@
+meta {
+  name: Create Service
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{SERVER}}/api/services
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "displayName": "Good",
+    "serviceUrl": "http://localhost:8081",
+    "variants": [
+      {
+        "name": "V1",
+        "dag": {
+          "name": "services-api-get",
+          "nodes": [
+            {
+              "id": "start",
+              "action": "HTTPIn",
+              "config": {
+                "method": "^(GET)$",
+                "routes": [
+                  "/api/services",
+                  "/api/services/:id"
+                ]
+              }
+            },
+            {
+              "id": "rp",
+              "action": "ReverseProxy",
+              "config": {
+                "UpstreamServerURL": "http://localhost:8081"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "rp"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
