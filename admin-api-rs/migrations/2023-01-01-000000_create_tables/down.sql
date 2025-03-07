@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS dag_variants;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS activities;
+DROP TABLE IF EXISTS tenants;
