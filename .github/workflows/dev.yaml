@@ -50,6 +50,7 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v6
         with:
+          platforms: linux/amd64,linux/arm64
           context: admin-api-rs
           file: admin-api-rs/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
@@ -89,6 +90,7 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v6
         with:
+          platforms: linux/amd64,linux/arm64
           context: tenant-gateway
           file: tenant-gateway/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
@@ -128,6 +130,7 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v6
         with:
+          platforms: linux/amd64,linux/arm64
           context: website
           file: website/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
