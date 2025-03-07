@@ -50,7 +50,7 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v6
         with:
-          context: admin-api
+          context: admin-api-rs
           file: admin-api-rs/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
