@@ -19,6 +19,7 @@ http-body = "0.4.5"
 diesel = { version = "2", features = ["sqlite", "chrono", "serde_json", "r2d2"] }
 diesel_migrations = "2"
 r2d2 = "0.8"
+libsqlite3-sys = { version = "0.18", features = ["bundled"]}
 
 # Serialization and data handling
 serde = { version = "1", features = ["derive"] }
