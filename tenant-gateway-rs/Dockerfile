@@ -10,8 +10,8 @@ WORKDIR /usr/src/tenant-gateway/tenant-gateway
 COPY Cargo.toml Cargo.lock* ./
 
 # Build dependencies only (this layer is cached if dependencies don't change)
-RUN cargo build --release
-RUN rm src/*.rs
+# RUN cargo build --release
+# RUN rm src/*.rs
 
 # Copy the actual source code
 COPY src ./src
