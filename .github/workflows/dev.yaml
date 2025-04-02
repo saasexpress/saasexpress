@@ -68,7 +68,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            quay.io/saasexpress/tenant-gateway
+            quay.io/saasexpress/saasexpress
           tags: |
             type=schedule
             type=ref,event=branch
@@ -91,8 +91,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64
-          context: tenant-gateway
-          file: tenant-gateway/Dockerfile
+          context: tenant-gateway-rs
+          file: tenant-gateway-rs/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
