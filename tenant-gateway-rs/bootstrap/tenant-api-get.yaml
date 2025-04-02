@@ -1,0 +1,23 @@
+#
+# - implement HTTPIn to match the route
+# - make the input and output available in content enricher
+# -
+#
+#
+name: tenant-api-get
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /api/tenants
+        - /api/tenants/{id}
+
+  - id: rp
+    action: APICall
+    config:
+      url: http://localhost:8081
+
+edges:
+  - { from: start, to: rp }

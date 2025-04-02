@@ -1,0 +1,330 @@
+patterns:
+  - name: Message Channel
+    category: Messaging Systems
+    short_description: A communication pathway used to send messages between systems.
+    long_description: A Message Channel is a logical pathway that connects messaging clients and allows them to send and receive messages. It decouples the sender and receiver, enabling asynchronous communication.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageChannel.html
+
+  - name: Message
+    category: Messaging Systems
+    short_description: A data structure used to encapsulate information being sent between systems.
+    long_description: A Message is the smallest unit of data transmitted in a messaging system. It typically consists of a header (metadata) and a body (payload).
+    reference_url: https://www.enterpriseintegrationpatterns.com/Message.html
+
+  - name: Pipes and Filters
+    category: Messaging Systems
+    short_description: A chain of processing steps where the output of one step is the input to the next.
+    long_description: Pipes and Filters is a pattern where a message passes through a series of processing steps (filters) connected by channels (pipes). Each filter performs a specific transformation or processing task.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PipesAndFilters.html
+
+  - name: Message Router
+    category: Messaging Systems
+    short_description: Routes messages to different channels based on specific criteria.
+    long_description: A Message Router examines incoming messages and directs them to the appropriate channel based on predefined rules or conditions.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageRouter.html
+
+  - name: Message Translator
+    category: Messaging Systems
+    short_description: Converts a message from one format to another.
+    long_description: A Message Translator transforms the content or structure of a message to ensure compatibility between different systems or components.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageTranslator.html
+
+  - name: Message Endpoint
+    category: Messaging Systems
+    short_description: A client-facing interface for sending or receiving messages.
+    long_description: A Message Endpoint encapsulates the messaging logic and provides a simple interface for applications to interact with the messaging system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageEndpoint.html
+
+  - name: Point-to-Point Channel
+    category: Messaging Channels
+    short_description: A channel that delivers a message to exactly one receiver.
+    long_description: A Point-to-Point Channel ensures that a message is consumed by only one receiver, even if multiple receivers are listening on the same channel.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PointToPointChannel.html
+
+  - name: Publish-Subscribe Channel
+    category: Messaging Channels
+    short_description: A channel that delivers a message to all interested receivers.
+    long_description: A Publish-Subscribe Channel broadcasts messages to all subscribers, enabling one-to-many communication.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PublishSubscribeChannel.html
+
+  - name: Datatype Channel
+    category: Messaging Channels
+    short_description: A channel that carries messages of a specific type.
+    long_description: A Datatype Channel ensures that only messages of a specific data type are transmitted, providing a level of type safety in the messaging system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DatatypeChannel.html
+
+  - name: Invalid Message Channel
+    category: Messaging Channels
+    short_description: A channel for handling messages that cannot be processed.
+    long_description: An Invalid Message Channel is used to route messages that are malformed or otherwise invalid, allowing for error handling and recovery.
+    reference_url: https://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html
+
+  - name: Dead Letter Channel
+    category: Messaging Channels
+    short_description: A channel for storing messages that cannot be delivered.
+    long_description: A Dead Letter Channel captures messages that cannot be delivered to their intended destination, enabling administrators to analyze and resolve issues.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DeadLetterChannel.html
+
+  - name: Guaranteed Delivery
+    category: Messaging Channels
+    short_description: Ensures that a message is delivered even in the event of system failures.
+    long_description: Guaranteed Delivery uses mechanisms like persistent storage and retries to ensure that a message is delivered to its destination, even if temporary failures occur.
+    reference_url: https://www.enterpriseintegrationpatterns.com/GuaranteedDelivery.html
+
+  - name: Channel Adapter
+    category: Messaging Channels
+    short_description: Connects an application to a messaging channel.
+    long_description: A Channel Adapter integrates an application with a messaging system, enabling it to send or receive messages without being tightly coupled to the messaging infrastructure.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ChannelAdapter.html
+
+  - name: Messaging Bridge
+    category: Messaging Channels
+    short_description: Connects two messaging systems to enable message exchange.
+    long_description: A Messaging Bridge links two separate messaging systems, allowing messages to flow between them while maintaining loose coupling.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessagingBridge.html
+
+  - name: Message Bus
+    category: Messaging Channels
+    short_description: A central backbone for integrating multiple applications via messaging.
+    long_description: A Message Bus provides a common communication infrastructure that allows multiple applications to exchange messages in a decoupled manner.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageBus.html
+
+  - name: Command Message
+    category: Message Construction
+    short_description: A message that represents a command to be executed.
+    long_description: A Command Message encapsulates a request to perform a specific action, typically targeting a specific component or system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CommandMessage.html
+
+  - name: Document Message
+    category: Message Construction
+    short_description: A message that carries a document or data structure.
+    long_description: A Document Message contains a self-contained piece of data, such as an XML document or JSON object, intended for processing by the receiver.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DocumentMessage.html
+
+  - name: Event Message
+    category: Message Construction
+    short_description: A message that represents an event or notification.
+    long_description: An Event Message communicates that something has happened, often triggering further processing or actions in the system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/EventMessage.html
+
+  - name: Request-Reply
+    category: Message Construction
+    short_description: A pattern for sending a request and receiving a response.
+    long_description: Request-Reply involves sending a message (request) and expecting a corresponding message (reply) in return, typically used for synchronous communication.
+    reference_url: https://www.enterpriseintegrationpatterns.com/RequestReply.html
+
+  - name: Return Address
+    category: Message Construction
+    short_description: Specifies where to send a reply message.
+    long_description: A Return Address is included in a message to indicate where the response should be sent, enabling asynchronous request-reply communication.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ReturnAddress.html
+
+  - name: Correlation Identifier
+    category: Message Construction
+    short_description: Links related messages together.
+    long_description: A Correlation Identifier is a unique identifier added to messages to associate them with a specific conversation or transaction.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CorrelationIdentifier.html
+
+  - name: Message Sequence
+    category: Message Construction
+    short_description: Groups related messages into a sequence.
+    long_description: A Message Sequence is used to manage a series of related messages, ensuring they are processed in the correct order.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageSequence.html
+
+  - name: Message Expiration
+    category: Message Construction
+    short_description: Specifies a time limit for message validity.
+    long_description: Message Expiration sets a time-to-live (TTL) for a message, after which it is considered invalid and may be discarded.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageExpiration.html
+
+  - name: Format Indicator
+    category: Message Construction
+    short_description: Indicates the format of the message content.
+    long_description: A Format Indicator specifies the structure or encoding of the message payload, helping the receiver interpret it correctly.
+    reference_url: https://www.enterpriseintegrationpatterns.com/FormatIndicator.html
+
+  - name: Content-Based Router
+    category: Message Routing
+    short_description: Routes messages based on their content.
+    long_description: A Content-Based Router examines the content of a message and routes it to the appropriate channel based on predefined rules or conditions.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentBasedRouter.html
+
+  - name: Message Filter
+    category: Message Routing
+    short_description: Filters messages based on specific criteria.
+    long_description: A Message Filter evaluates incoming messages and discards those that do not meet certain criteria, allowing only relevant messages to pass through.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageFilter.html
+
+  - name: Dynamic Router
+    category: Message Routing
+    short_description: Routes messages dynamically based on runtime conditions.
+    long_description: A Dynamic Router determines the destination of a message at runtime, often using information from the message itself or external sources.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DynamicRouter.html
+
+  - name: Recipient List
+    category: Message Routing
+    short_description: Routes a message to multiple recipients.
+    long_description: A Recipient List specifies a list of recipients for a message, allowing it to be sent to multiple destinations simultaneously.
+    reference_url: https://www.enterpriseintegrationpatterns.com/RecipientList.html
+
+  - name: Splitter
+    category: Message Routing
+    short_description: Splits a message into multiple parts for separate processing.
+    long_description: A Splitter breaks a composite message into smaller parts, each of which can be processed independently.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Splitter.html
+
+  - name: Aggregator
+    category: Message Routing
+    short_description: Combines multiple messages into a single message.
+    long_description: An Aggregator collects related messages and combines them into a single message, often after processing them individually.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Aggregator.html
+
+  - name: Resequencer
+    category: Message Routing
+    short_description: Reorders messages into a specific sequence.
+    long_description: A Resequencer ensures that messages are processed in the correct order, even if they arrive out of sequence.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Resequencer.html
+
+  - name: Composed Message Processor
+    category: Message Routing
+    short_description: Processes a message through multiple steps.
+    long_description: A Composed Message Processor orchestrates the processing of a message through a series of steps, often involving multiple components or systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ComposedMessageProcessor.html
+
+  - name: Scatter-Gather
+    category: Message Routing
+    short_description: Sends a message to multiple recipients and aggregates the responses.
+    long_description: Scatter-Gather involves sending a message to multiple recipients and collecting their responses into a single result.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ScatterGather.html
+
+  - name: Routing Slip
+    category: Message Routing
+    short_description: Specifies a sequence of processing steps for a message.
+    long_description: A Routing Slip attaches a list of processing steps to a message, ensuring it is routed through the correct sequence of components.
+    reference_url: https://www.enterpriseintegrationpatterns.com/RoutingSlip.html
+
+  - name: Process Manager
+    category: Message Routing
+    short_description: Coordinates the flow of messages across multiple steps.
+    long_description: A Process Manager oversees the execution of a multi-step process, ensuring that messages are routed and processed correctly at each stage.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ProcessManager.html
+
+  - name: Envelope Wrapper
+    category: Message Transformation
+    short_description: Wraps a message in an envelope for additional metadata.
+    long_description: An Envelope Wrapper encapsulates a message within an envelope, allowing additional metadata or headers to be included.
+    reference_url: https://www.enterpriseintegrationpatterns.com/EnvelopeWrapper.html
+
+  - name: Content Enricher
+    category: Message Transformation
+    short_description: Adds additional information to a message.
+    long_description: A Content Enricher enhances a message by adding missing or supplementary data, often by querying an external source.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentEnricher.html
+
+  - name: Content Filter
+    category: Message Transformation
+    short_description: Removes unnecessary data from a message.
+    long_description: A Content Filter removes irrelevant or sensitive information from a message, ensuring that only the necessary data is transmitted.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentFilter.html
+
+  - name: Claim Check
+    category: Message Transformation
+    short_description: Stores large data externally and references it in the message.
+    long_description: A Claim Check stores the payload of a message in an external repository and includes a reference (claim check) in the message itself, reducing message size.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ClaimCheck.html
+
+  - name: Normalizer
+    category: Message Transformation
+    short_description: Converts messages into a common format.
+    long_description: A Normalizer transforms messages from different formats into a single, standardized format, simplifying processing and integration.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Normalizer.html
+
+  - name: Canonical Data Model
+    category: Message Transformation
+    short_description: Defines a common data format for messages.
+    long_description: A Canonical Data Model establishes a standard format for messages, ensuring consistency and interoperability across systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CanonicalDataModel.html
+
+  - name: Messaging Gateway
+    category: Messaging Endpoints
+    short_description: Provides a simple interface for sending and receiving messages.
+    long_description: A Messaging Gateway encapsulates the complexity of messaging APIs, providing a clean and simple interface for applications to interact with the messaging system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessagingGateway.html
+
+  - name: Service Activator
+    category: Messaging Endpoints
+    short_description: Invokes a service based on an incoming message.
+    long_description: A Service Activator listens for incoming messages and triggers the execution of a service or business logic in response.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ServiceActivator.html
+
+  - name: Polling Consumer
+    category: Messaging Endpoints
+    short_description: Periodically checks for new messages.
+    long_description: A Polling Consumer actively queries a message channel at regular intervals to check for new messages, rather than waiting for notifications.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PollingConsumer.html
+
+  - name: Event-Driven Consumer
+    category: Messaging Endpoints
+    short_description: Reacts to messages as they arrive.
+    long_description: An Event-Driven Consumer listens for messages and processes them immediately upon arrival, enabling real-time or near-real-time processing.
+    reference_url: https://www.enterpriseintegrationpatterns.com/EventDrivenConsumer.html
+
+  - name: Competing Consumers
+    category: Messaging Endpoints
+    short_description: Multiple consumers process messages from the same channel.
+    long_description: Competing Consumers allow multiple instances of a consumer to process messages from the same channel, improving scalability and throughput.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CompetingConsumers.html
+
+  - name: Message Dispatcher
+    category: Messaging Endpoints
+    short_description: Distributes messages to multiple handlers.
+    long_description: A Message Dispatcher receives messages and routes them to the appropriate handlers or processors based on predefined rules.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageDispatcher.html
+
+  - name: Selective Consumer
+    category: Messaging Endpoints
+    short_description: Chooses which messages to process based on criteria.
+    long_description: A Selective Consumer evaluates incoming messages and processes only those that meet specific criteria, ignoring the rest.
+    reference_url: https://www.enterpriseintegrationpatterns.com/SelectiveConsumer.html
+
+  - name: Durable Subscriber
+    category: Messaging Endpoints
+    short_description: Ensures messages are not lost if the subscriber is offline.
+    long_description: A Durable Subscriber maintains a subscription to a channel even when offline, ensuring that messages are delivered once the subscriber reconnects.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DurableSubscriber.html
+
+  - name: Idempotent Receiver
+    category: Messaging Endpoints
+    short_description: Ensures duplicate messages are handled safely.
+    long_description: An Idempotent Receiver detects and handles duplicate messages, ensuring that processing logic is not affected by repeated deliveries.
+    reference_url: https://www.enterpriseintegrationpatterns.com/IdempotentReceiver.html
+
+  - name: Transactional Client
+    category: Messaging Endpoints
+    short_description: Ensures message operations are part of a transaction.
+    long_description: A Transactional Client ensures that message sending, receiving, and processing are performed within the context of a transaction, providing atomicity and consistency.
+    reference_url: https://www.enterpriseintegrationpatterns.com/TransactionalClient.html
+
+  - name: Messaging Mapper
+    category: Messaging Endpoints
+    short_description: Maps messages to domain objects and vice versa.
+    long_description: A Messaging Mapper translates between message formats and domain objects, ensuring that business logic remains decoupled from messaging details.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessagingMapper.html
+
+  - name: Control Bus
+    category: System Management
+    short_description: Manages and monitors the messaging system.
+    long_description: A Control Bus provides a channel for sending control messages to manage and monitor the behavior of the messaging system and its components.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ControlBus.html
+
+  - name: Detour
+    category: System Management
+    short_description: Temporarily reroutes messages for testing or debugging.
+    long_description: A Detour allows messages to be temporarily redirected to an alternative path, often for testing, debugging, or maintenance purposes.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Detour.html
+
+  - name: Wire Tap
+    category: System Management
+    short_description: Intercepts and monitors messages without affecting the flow.
+    long_description: A Wire Tap captures a copy of a message as it passes through a channel, allowing for monitoring or logging without disrupting the message flow.
+    reference_url: https://www.enterpriseintegrationpatterns.com/WireTap

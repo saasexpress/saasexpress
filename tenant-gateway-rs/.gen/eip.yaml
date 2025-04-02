@@ -1,0 +1,301 @@
+patterns:
+  - category: Message Construction
+    name: Message
+    short_description: A discrete unit of data transmitted between systems.
+    description: |
+      A Message is the fundamental unit of communication in a messaging system. It consists of a header, which contains metadata, and a body, which contains the actual data. Messages can be of various types, such as command, event, or document, and are used to encapsulate information for transmission between systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Message.html
+
+  - category: Message Construction
+    name: Correlation Identifier
+    short_description: A unique identifier used to correlate related messages.
+    description: |
+      A Correlation Identifier is a unique identifier that is used to correlate related messages within a system. This pattern is essential for tracking and managing message flows, especially in systems where messages are processed asynchronously.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CorrelationIdentifier.html
+
+  - category: Message Construction
+    name: Return Address
+    short_description: A mechanism for specifying where a response message should be sent.
+    description: |
+      A Return Address is a mechanism for specifying where a response message should be sent. This pattern is used in request-reply messaging scenarios, where the sender of a message expects a response from the receiver.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ReturnAddress.html
+
+  - category: Message Construction
+    name: Message Expiration
+    short_description: A mechanism for specifying when a message should be considered invalid.
+    description: |
+      Message Expiration is a mechanism for specifying when a message should be considered invalid and no longer processed. This pattern is useful for ensuring that stale or outdated messages are not processed, which can be critical in time-sensitive systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageExpiration.html
+
+  - category: Message Construction
+    name: Format Indicator
+    short_description: A mechanism for specifying the format of a message.
+    description: |
+      A Format Indicator is a mechanism for specifying the format of a message, such as XML, JSON, or binary. This pattern is useful for ensuring that messages are interpreted correctly by the receiving system, especially in heterogeneous environments.
+    reference_url: https://www.enterpriseintegrationpatterns.com/FormatIndicator.html
+
+  - category: Message Construction
+    name: Message Sequence
+    short_description: A sequence of related messages that must be processed in order.
+    description: |
+      A Message Sequence is a sequence of related messages that must be processed in a specific order. This pattern ensures that messages are processed correctly, even if they arrive out of order or are processed by different components.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageSequence.html
+
+  - category: Message Routing
+    name: Content-Based Router
+    short_description: A router that routes messages based on their content.
+    description: |
+      A Content-Based Router is a message router that routes messages to different channels based on the content of the message. This pattern is useful for implementing complex routing logic that depends on the data within the message.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentBasedRouter.html
+
+  - category: Message Routing
+    name: Message Filter
+    short_description: A component that filters messages based on specific criteria.
+    description: |
+      A Message Filter is a component that filters messages based on specific criteria, allowing only certain messages to pass through. This pattern is useful for reducing the number of messages that need to be processed by downstream components.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageFilter.html
+
+  - category: Message Routing
+    name: Dynamic Router
+    short_description: A router that determines the routing path at runtime.
+    description: |
+      A Dynamic Router is a message router that determines the routing path for a message at runtime, based on dynamic conditions or rules. This pattern is useful for implementing flexible and adaptive routing logic.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DynamicRouter.html
+
+  - category: Message Routing
+    name: Recipient List
+    short_description: A list of recipients to which a message should be sent.
+    description: |
+      A Recipient List is a list of recipients to which a message should be sent, typically determined at runtime. This pattern is useful for scenarios where the set of recipients is not known in advance or may change dynamically.
+    reference_url: https://www.enterpriseintegrationpatterns.com/RecipientList.html
+
+  - category: Message Routing
+    name: Splitter
+    short_description: A component that splits a message into multiple messages.
+    description: |
+      A Splitter is a component that splits a single message into multiple messages, each of which can be processed independently. This pattern is useful for breaking down complex messages into smaller, more manageable parts.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Splitter.html
+
+  - category: Message Routing
+    name: Aggregator
+    short_description: A component that combines multiple messages into a single message.
+    description: |
+      An Aggregator is a component that combines multiple related messages into a single message. This pattern is useful for reassembling messages that have been split or processed independently.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Aggregator.html
+
+  - category: Message Routing
+    name: Resequencer
+    short_description: A component that reorders messages into a specific sequence.
+    description: |
+      A Resequencer is a component that reorders messages into a specific sequence, ensuring that they are processed in the correct order. This pattern is useful when messages arrive out of order but must be processed in a specific sequence.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Resequencer.html
+
+  - category: Message Routing
+    name: Composed Message Processor
+    short_description: A component that processes a message by splitting, routing, and aggregating it.
+    description: |
+      A Composed Message Processor is a component that processes a message by splitting it into smaller parts, routing each part to the appropriate processor, and then aggregating the results. This pattern is useful for handling complex message processing workflows.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ComposedMessageProcessor.html
+
+  - category: Message Transformation
+    name: Message Translator
+    short_description: A component that transforms messages from one format to another.
+    description: |
+      A Message Translator converts messages from one format to another to ensure that the receiving system can understand the message. This pattern is essential in heterogeneous environments where different systems use different data formats.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageTranslator.html
+
+  - category: Message Transformation
+    name: Content Enricher
+    short_description: A component that adds additional information to a message.
+    description: |
+      A Content Enricher is a component that adds additional information to a message, typically by querying an external data source. This pattern is useful for enhancing messages with additional context or data before they are processed further.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentEnricher.html
+
+  - category: Message Transformation
+    name: Content Filter
+    short_description: A component that removes unnecessary data from a message.
+    description: |
+      A Content Filter is a component that removes unnecessary data from a message, reducing its size and complexity. This pattern is useful for optimizing message processing and reducing bandwidth usage.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ContentFilter.html
+
+  - category: Message Transformation
+    name: Claim Check
+    short_description: A mechanism for storing large message data externally and referencing it in the message.
+    description: |
+      The Claim Check pattern allows for the storage of large message data externally, with only a reference (or "claim check") included in the message itself. This pattern is useful for reducing message size and improving performance when dealing with large data payloads.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ClaimCheck.html
+
+  - category: Message Transformation
+    name: Normalizer
+    short_description: A component that converts messages with different formats into a common format.
+    description: |
+      A Normalizer is a component that converts messages with different formats into a common format, making it easier to process them uniformly. This pattern is essential in systems where multiple data formats are used.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Normalizer.html
+
+  - category: Message Transformation
+    name: Canonical Data Model
+    short_description: A common data format used across different systems.
+    description: |
+      A Canonical Data Model is a common data format used across different systems to simplify integration. This pattern reduces the need for complex transformations and ensures that all systems can understand the data being exchanged.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CanonicalDataModel.html
+
+  - category: Messaging Channels
+    name: Message Channel
+    short_description: A communication conduit through which messages are transmitted.
+    description: |
+      A Message Channel is a logical pathway that connects message producers and consumers. It abstracts the physical communication mechanism, allowing systems to communicate without being tightly coupled. Channels can be point-to-point or publish-subscribe, enabling flexible and scalable communication architectures.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageChannel.html
+
+  - category: Messaging Channels
+    name: Point-to-Point Channel
+    short_description: A channel that delivers a message to exactly one consumer.
+    description: |
+      A Point-to-Point Channel ensures that a message is delivered to exactly one consumer. This pattern is useful for scenarios where only one consumer should process a message, such as in task distribution systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PointToPointChannel.html
+
+  - category: Messaging Channels
+    name: Publish-Subscribe Channel
+    short_description: A channel that delivers a message to all interested consumers.
+    description: |
+      A Publish-Subscribe Channel delivers a message to all consumers that have expressed interest in receiving messages from that channel. This pattern is useful for broadcasting messages to multiple consumers.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PublishSubscribeChannel.html
+
+  - category: Messaging Channels
+    name: Dead Letter Channel
+    short_description: A channel for messages that cannot be delivered or processed.
+    description: |
+      A Dead Letter Channel is a special channel for messages that cannot be delivered or processed. This pattern ensures that problematic messages are not lost and can be analyzed or reprocessed later.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DeadLetterChannel.html
+
+  - category: Messaging Channels
+    name: Guaranteed Delivery
+    short_description: A mechanism for ensuring that a message is delivered at least once.
+    description: |
+      Guaranteed Delivery is a mechanism for ensuring that a message is delivered at least once, even in the face of system failures. This pattern is essential for reliable messaging, where message loss is unacceptable.
+    reference_url: https://www.enterpriseintegrationpatterns.com/GuaranteedDelivery.html
+
+  - category: Messaging Channels
+    name: Channel Adapter
+    short_description: A component that connects an application to a messaging channel.
+    description: |
+      A Channel Adapter is a component that connects an application to a messaging channel, allowing the application to send or receive messages without being aware of the messaging system. It adapts the application's interface to the messaging system's interface.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ChannelAdapter.html
+
+  - category: Messaging Endpoints
+    name: Message Endpoint
+    short_description: A client of the messaging system that sends or receives messages.
+    description: |
+      A Message Endpoint is a client application or service that interacts with the messaging system to send or receive messages. It encapsulates the messaging-specific code, allowing the rest of the application to remain unaware of the underlying messaging infrastructure.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageEndpoint.html
+
+  - category: Messaging Endpoints
+    name: Polling Consumer
+    short_description: A consumer that periodically checks a channel for new messages.
+    description: |
+      A Polling Consumer is a message consumer that periodically checks a channel for new messages and processes them. This pattern is useful in scenarios where messages are produced infrequently or where immediate processing is not required.
+    reference_url: https://www.enterpriseintegrationpatterns.com/PollingConsumer.html
+
+  - category: Messaging Endpoints
+    name: Event-Driven Consumer
+    short_description: A consumer that processes messages as soon as they arrive.
+    description: |
+      An Event-Driven Consumer is a message consumer that processes messages as soon as they arrive on a channel. This pattern is useful for real-time or near-real-time message processing, where low latency is critical.
+    reference_url: https://www.enterpriseintegrationpatterns.com/EventDrivenConsumer.html
+
+  - category: Messaging Endpoints
+    name: Competing Consumers
+    short_description: Multiple consumers process messages from the same channel concurrently.
+    description: |
+      The Competing Consumers pattern allows multiple consumers to process messages from the same channel concurrently, increasing throughput and improving load balancing. This pattern is useful for scaling out message processing in high-volume systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/CompetingConsumers.html
+
+  - category: Messaging Endpoints
+    name: Message Dispatcher
+    short_description: A component that distributes messages to multiple consumers.
+    description: |
+      A Message Dispatcher is a component that distributes messages to multiple consumers, ensuring that each message is processed by only one consumer. This pattern is useful for load balancing and parallel processing in a messaging system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageDispatcher.html
+
+  - category: Messaging Endpoints
+    name: Selective Consumer
+    short_description: A consumer that processes only specific messages from a channel.
+    description: |
+      A Selective Consumer is a message consumer that processes only specific messages from a channel, based on certain criteria. This pattern allows for more fine-grained control over message processing and can be used to implement complex routing logic.
+    reference_url: https://www.enterpriseintegrationpatterns.com/SelectiveConsumer.html
+
+  - category: Messaging Endpoints
+    name: Durable Subscriber
+    short_description: A subscriber that receives messages even if it is not active when the message is published.
+    description: |
+      A Durable Subscriber is a message consumer that continues to receive messages even if it is not active when the message is published. This pattern ensures that no messages are lost, even if the subscriber is temporarily unavailable.
+    reference_url: https://www.enterpriseintegrationpatterns.com/DurableSubscriber.html
+
+  - category: Messaging Endpoints
+    name: Idempotent Receiver
+    short_description: A receiver that ensures a message is processed only once.
+    description: |
+      An Idempotent Receiver is a message consumer that ensures a message is processed only once, even if it is received multiple times. This pattern is essential for ensuring data consistency in systems where duplicate messages may occur.
+    reference_url: https://www.enterpriseintegrationpatterns.com/IdempotentReceiver.html
+
+  - category: Messaging Endpoints
+    name: Transactional Client
+    short_description: A client that sends or receives messages within a transaction.
+    description: |
+      A Transactional Client is a message producer or consumer that sends or receives messages within the context of a transaction. This pattern ensures that message processing is atomic and consistent with other transactional operations.
+    reference_url: https://www.enterpriseintegrationpatterns.com/TransactionalClient.html
+
+  - category: System Management
+    name: Wire Tap
+    short_description: A component that intercepts messages on a channel for monitoring or logging.
+    description: |
+      A Wire Tap is a component that intercepts messages on a channel for monitoring or logging purposes. This pattern is useful for debugging, auditing, and monitoring message flows in a messaging system.
+    reference_url: https://www.enterpriseintegrationpatterns.com/WireTap.html
+
+  - category: System Management
+    name: Message Store
+    short_description: A repository for storing messages persistently.
+    description: |
+      A Message Store is a repository for storing messages persistently, ensuring that they are not lost even if the messaging system fails. This pattern is essential for reliable messaging, where message loss is unacceptable.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageStore.html
+
+  - category: System Management
+    name: Smart Proxy
+    short_description: A proxy that adds additional functionality to a message channel.
+    description: |
+      A Smart Proxy is a component that adds additional functionality to a message channel, such as message transformation, validation, or logging. This pattern allows for the extension of message channels without modifying the underlying messaging infrastructure.
+    reference_url: https://www.enterpriseintegrationpatterns.com/SmartProxy.html
+
+  - category: System Management
+    name: Test Message
+    short_description: A message used to test the functionality of a messaging system.
+    description: |
+      A Test Message is a message used to test the functionality of a messaging system, such as verifying that a channel is working correctly or that a consumer is processing messages as expected. This pattern is useful for debugging and testing messaging systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/TestMessage.html
+
+  - category: System Management
+    name: Channel Purger
+    short_description: A component that removes messages from a channel.
+    description: |
+      A Channel Purger is a component that removes messages from a channel, typically for cleanup or maintenance purposes. This pattern is useful for managing message channels and ensuring that they do not become clogged with stale or unwanted messages.
+    reference_url: https://www.enterpriseintegrationpatterns.com/ChannelPurger.html
+
+  - category: Other Patterns
+    name: Detour
+    short_description: A mechanism for diverting messages to an alternative processing path.
+    description: |
+      A Detour is a mechanism for diverting messages to an alternative processing path, typically for testing, debugging, or handling special cases. This pattern allows for flexible message routing without modifying the main processing logic.
+    reference_url: https://www.enterpriseintegrationpatterns.com/Detour.html
+
+  - category: Other Patterns
+    name: Message History
+    short_description: A record of the path a message has taken through a system.
+    description: |
+      Message History is a record of the path a message has taken through a system, including the components that have processed it. This pattern is useful for debugging, auditing, and tracing message flows in complex systems.
+    reference_url: https://www.enterpriseintegrationpatterns.com/MessageHistory.html
+
+  - category: Other Patterns
+    name: Envelope Wrapper
+    short_description: A mechanism for wrapping a message in an envelope with additional metadata.
+    description: |
+      An Envelope Wrapper is a mechanism for wrapping a message in an envelope that contains additional metadata, such as routing information or security credentials. This pattern is useful for adding context to messages without modifying their content.
+    reference_url: https://www.enterpriseintegrationpatterns.com/EnvelopeWrapper.html
