@@ -15,6 +15,7 @@ COPY Cargo.toml Cargo.lock* ./
 
 # Copy the actual source code
 COPY src ./src
+COPY bootstrap ./bootstrap
 
 # Build the application
 RUN touch src/main.rs && cargo build --release
