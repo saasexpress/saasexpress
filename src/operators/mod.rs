@@ -9,7 +9,6 @@ pub(crate) mod message_translator;
 
 pub(crate) mod noop;
 pub(crate) mod op_actor;
-pub(crate) mod op_actor_arc;
 pub(crate) mod op_actor_handle;
 pub(crate) mod passthrough;
 pub(crate) mod template;

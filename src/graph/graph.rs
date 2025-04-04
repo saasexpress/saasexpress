@@ -9,7 +9,7 @@ use axum::{Json, Router};
 use futures::channel::{mpsc, oneshot};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 //use crate::ports::ports::Ports;
 
@@ -247,6 +247,8 @@ impl Graph {
         }
 
         operator.init(self);
+
+        info!("Node: {}({})", operator.name(), id.to_string());
 
         match operator._type() {
             OperatorType::Endpoint => {

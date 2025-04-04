@@ -18,6 +18,12 @@ pub(crate) fn parse_commands() -> ArgMatches {
             )
             .action(ArgAction::SetTrue),
         )
+        .arg(
+            arg!(
+                -s --samples ... "Load predefined sample graphs"
+            )
+            .action(ArgAction::SetTrue),
+        )
         .arg(arg!(
             -d --debug ... "Turn debugging information on"
         ))

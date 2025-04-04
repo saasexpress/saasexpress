@@ -20,7 +20,7 @@ pub fn bootstrap(graphs: Vec<Value>) {
     singleton.start();
 }
 
-fn build_graph(yaml: Value) {
+pub fn build_graph(yaml: Value) {
     let graph_name = yaml["name"].as_str().unwrap().to_string();
 
     let mut graph = Graph::new(graph_name);

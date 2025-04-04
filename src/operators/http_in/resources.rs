@@ -222,7 +222,7 @@ impl Singleton {
             let addr = SocketAddr::from(([127, 0, 0, 1], 2500));
             let listener = TcpListener::bind(addr).await.unwrap();
 
-            debug!("[HTTPIn] Listening on: {}", addr);
+            info!("[HTTPIn] Listening on: {}", addr);
 
             let serve = axum::serve(listener, service);
 
@@ -238,7 +238,11 @@ pub fn get_instance() -> &'static Mutex<Singleton> {
 }
 
 async fn default_fallback(request: Request) -> impl IntoResponse {
-    warn!("Default fallback! {:?}", request);
+    warn!(
+        "Default fallback! {:?} {:?}",
+        request.method(),
+        request.uri()
+    );
     (
         StatusCode::BAD_REQUEST,
         format!(

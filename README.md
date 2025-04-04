@@ -1,23 +1,42 @@
+# SaaS Express
+
+## Getting Started
+
+Download latest binary for your operating system from https://github.com/saasexpress/saasexpress/releases/latest
+
+```console
+saasexpress -i
+```
+
+Paste a simple graph that creates an API on port 2500, returning static JSON data.
+
+```yaml
+name: sample
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /hello
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      template: |
+        {
+          "action":  input.http_method,
+          "message": "Hello",
+          "data": data
+        }
+edges:
+  - { from: start, to: translate }
+```
+
+Go to: http://localhost:2500/hello
+
 ## Development
-
-https://dev.to/jorgecastro/hot-reload-in-rust-with-cargo-watch-5bon
-
-> NOTE: Added `"rust-analyzer.linkedProjects": ["rust-example/Cargo.toml"]` to `settings.json`
 
 ```sh
 cargo watch -w src -x run
-```
-
-http://127.0.0.1:8080/static/index.html
-
-## Releasing
-
-```sh
-cargo build --release
-```
-
-This will produce an executable that can be run:
-
-```sh
-target/release/cargo-watch-example
 ```
