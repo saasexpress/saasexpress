@@ -37,4 +37,4 @@ RUN useradd -m appuser
 USER appuser
 
 # Run the application
-CMD ["/app/saasexpress"]
+ENTRYPOINT [ "/app/saasexpress" ]
