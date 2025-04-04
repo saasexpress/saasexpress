@@ -1,12 +1,11 @@
 use std::{
     fmt::{Display, Formatter},
-    ops::Deref,
     sync::{Arc, Mutex},
 };
 
 use cel_interpreter::{Context, Program};
 use serde_json::{Value as JsonValue, json};
-use tracing::{debug, error, info, warn};
+use tracing::debug;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
 use crate::graph::graph::{Message, Operator};

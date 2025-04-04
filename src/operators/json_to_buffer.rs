@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 

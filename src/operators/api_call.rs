@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use hyper::Method;
-use reqwest::{Client, Request, RequestBuilder, Url};
+use reqwest::Client;
 use tracing::error;
 use tracing::{debug, warn};
 
@@ -665,7 +665,7 @@ impl Operator for APICall {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, start, .. } => {
+            Message::Init {   .. } => {
                 // start reverse proxy server
                 debug!("Configuring RP {}", self.url);
             }

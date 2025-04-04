@@ -17,27 +17,22 @@
 //! ```
 
 use axum::{
-    Router,
-    body::Bytes,
     extract::{
         State,
         ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
-    routing::any,
 };
 use std::{
     net::SocketAddr,
-    sync::{Arc, Mutex, OnceLock},
+    sync::Arc,
 };
 
 use axum_extra::{TypedHeader, headers};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use std::ops::ControlFlow;
-use tower_http::services::ServeDir;
 
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 //allows to extract the IP of connecting user
 use axum::extract::connect_info::ConnectInfo;

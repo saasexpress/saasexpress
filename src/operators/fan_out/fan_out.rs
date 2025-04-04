@@ -5,7 +5,6 @@ use tokio::sync::mpsc;
 use futures::channel::oneshot;
 use futures::future::join_all;
 use futures_util::SinkExt;
-use std::collections::HashMap;
 use tracing::{error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
@@ -62,7 +61,7 @@ impl Operator for FanOut {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, start, .. } => {
+            Message::Init { next,  .. } => {
                 for n in next {
                     self.add_next(n);
                 }

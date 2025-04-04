@@ -7,8 +7,8 @@ use crate::graph::graph::{Message, Operator};
 use crate::operators::http_in::websocket::ws_handler;
 use axum::{
     Json, Router,
-    body::{Body, to_bytes},
-    extract::{ConnectInfo, Request, State, WebSocketUpgrade, path},
+    body::to_bytes,
+    extract::{ConnectInfo, Request, State, WebSocketUpgrade},
     response::IntoResponse,
     routing::{any, delete, get, post, put},
 };
