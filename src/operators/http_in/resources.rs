@@ -3,6 +3,8 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
+use crate::graph::graph::{Message, Operator};
+use crate::operators::http_in::websocket::ws_handler;
 use axum::{
     Json, Router,
     body::{Body, to_bytes},
@@ -16,11 +18,6 @@ use hyper::{Method, StatusCode};
 use serde_json::json;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
-
-use crate::graph::{
-    graph::{Message, Operator},
-    operators::http_in::websocket::ws_handler,
-};
 
 #[derive(Debug)]
 pub struct MySharedState {

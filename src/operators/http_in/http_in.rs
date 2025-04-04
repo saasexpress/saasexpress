@@ -9,11 +9,8 @@ use tracing::{debug, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use super::{
-    super::super::graph::{Message, Operator},
-    resources::get_instance,
-    websocket::ws_handler,
-};
+use super::{resources::get_instance, websocket::ws_handler};
+use crate::graph::graph::{Message, Operator};
 use core::panic;
 use std::{
     fmt::{Display, Formatter},

@@ -1,27 +1,30 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
-use tracing::{debug, info, warn};
+use tracing::warn;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
-#[derive(Debug)]
-pub(crate) struct JSONToBuffer;
+#[derive(Clone, Debug)]
+pub(crate) struct Template;
 
-impl From<serde_yaml::Value> for JSONToBuffer {
+impl From<serde_yaml::Value> for Template {
     fn from(value: serde_yaml::Value) -> Self {
-        JSONToBuffer {}
+        Template {}
     }
 }
 
-impl Operator for JSONToBuffer {
+impl Operator for Template {
     fn _type(&self) -> OperatorType {
         OperatorType::Filter
     }
 
     fn name(&self) -> String {
-        "JSONToBuffer".to_string()
+        "Template".to_string()
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -29,24 +32,23 @@ impl Operator for JSONToBuffer {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        let (json, origin) = match _message {
-            Message::JSON { message, origin } => (message, origin),
-            _ => panic!("Unexpected message type {}", _message),
-        };
-
-        let response_message = serde_json::to_vec(&json).expect("JSON serialization error");
-        Message::Standard {
-            message: response_message,
-            origin,
+        match _message {
+            Message::Standard { message, origin } => {
+                return Message::Standard {
+                    message: message.to_owned(),
+                    origin,
+                };
+            }
+            _ => panic!("Unexpected message type"),
         }
     }
 
     fn init(&mut self, _: &mut Graph) {
-        debug!("Not implemented");
+        warn!("Not implemented");
     }
 
     fn control(&mut self, _: Message) {
-        debug!("Not implemented");
+        warn!("Not implemented");
     }
 
     fn send(&self, _: Message) {

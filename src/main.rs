@@ -1,26 +1,26 @@
+//use crate::bootstrap;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use serde_json::json;
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
 };
-use tenant_gateway::{all_in_one::gw_dag, bootstrap, operators::register, proto::test};
+// use tenant_gateway::{all_in_one::gw_dag, bootstrap, operators::register, proto::test};
 use tokio::net::TcpListener;
-use tracing::{info, Level};
+use tracing::{Level, info};
 
 use crate::graph::graph::GraphRun;
-use graph::{
-    graph::{Graph, Message},
-    operators::{
-        api_call::APICall, buffer_to_json::BufferToJSON, http_in::http_in::HTTPIn,
-        json_to_buffer::JSONToBuffer,
-    },
+use graph::graph::{Graph, Message};
+use operators::{
+    api_call::APICall, buffer_to_json::BufferToJSON, http_in::http_in::HTTPIn,
+    json_to_buffer::JSONToBuffer,
 };
 
 mod graph;
+mod operators;
 
 #[tokio::main]
 async fn main() {
@@ -33,7 +33,7 @@ async fn main() {
     let http_in = HTTPIn::from(js);
     info!("HTTPIn: {:?}", http_in);
 
-    bootstrap::bootstrap();
+    //bootstrap::bootstrap();
 
     //unit_test().await;
 

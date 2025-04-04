@@ -1,5 +1,5 @@
 [package]
-name = "tenant-gateway"
+name = "saasexpress"
 version = "0.1.0"
 edition = "2024"
 description = "A low-code enterprise integration framework for microservice orchestration"

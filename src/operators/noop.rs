@@ -10,7 +10,7 @@ use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 #[derive(Debug)]
 pub(crate) struct NOOP {

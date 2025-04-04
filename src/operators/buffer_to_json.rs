@@ -1,312 +1,107 @@
-use log::{error, info};
-use std::{any::Any, collections::HashSet, error::Error, f32::consts::E, rc::Rc, sync::Arc};
-use tokio::sync::{mpsc, oneshot};
-use tracing::warn;
+use core::panic;
+use std::sync::{Arc, Mutex};
 
-use crate::{
-    dag::dag::Node,
-    dag_context::execute::GraphContext,
-    dag_setup::{actor::ActorMessage, actor_handle::MyActorHandle},
-};
+use serde_json::Value;
+use tracing::{debug, warn};
 
-use super::{
-    enums::OperatorType,
-    operator::{Message, Operator, OperatorExecutor, OperatorNode, OperatorSpec},
-    Settings,
-};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
 
-// Define the struct for the template operator
-#[derive(Clone)]
-pub struct BufferToJSON {
-    pub width: u32,
-}
+use crate::graph::graph::{Message, Operator};
+use chrono::{DateTime, NaiveDate, Utc};
 
-#[derive(Clone)]
-pub struct BufferToJSONNode {
-    id: String,
-    settings: BufferToJSONSettings,
-    actors: Vec<MyActorHandle<BufferToJSONDo>>,
-    children: HashSet<String>,
-}
+#[derive(Debug)]
+pub(crate) struct BufferToJSON;
 
-impl OperatorExecutor for BufferToJSONNode {
-    // fn process(&self, message: &Message) -> Message {
-    //     info!("BufferToJSON PROCESSED: pass through");
-    //     //        Ok(Some(message.clone()))
-
-    //     let mut m = message.clone();
-    //     m.log.push("Buffer to JSON".to_string());
-    //     m
-    // }
-    fn notify(&self, context: &GraphContext, message: Message) {
-        println!("Notify node of a new message");
-        let actor = self.actors.get(0).unwrap();
-
-        //let rp = context.find(&"rp".to_string()).unwrap();
-
-        //error!("Found Child {}", rp.name());
-
-        let fut = async {
-            //actor.get_unique_id().await;
-            actor.process(message);
-        };
-        async_std::task::block_on(fut);
-    }
-
-    // fn node(&self) -> Arc<Node> {
-    //     Arc::clone(&self.node)
-    // }
-}
-
-impl OperatorNode for BufferToJSONNode {
-    fn speak(&self) {
-        println!("[BufferToJSONNode] TEMPLATE SPEAK!")
-    }
-
-    fn name(&self) -> &str {
-        return &self.id;
-    }
-
-    fn operator(&self) -> &str {
-        return "BufferToJSON";
-    }
-
-    // fn actors(&self) -> Vec<MyActorHandle> {
-    //     return self.actors.to_vec();
-    // }
-
-    fn children(&self) -> HashSet<String> {
-        return self.children.clone();
-    }
-
-    // fn node(&self) -> Arc<Node> {
-    //     Arc::clone(&self.node)
-    // }
-    fn as_any(&self) -> Arc<&dyn Any> {
-        Arc::new(self)
-    }
-    fn as_executor_2(&self) -> OperatorType {
-        return OperatorType::BufferToJSON { node: self.clone() };
-    }
-
-    fn as_executor(&self) -> Box<dyn OperatorExecutor> {
-        let executor: Box<dyn OperatorExecutor> = Box::new(self.clone());
-
-        return executor;
-
-        // let executor: Box<dyn OperatorExecutor> = Box::new(BufferToJSONNode {
-        //     id: self.id.clone(),
-        //     actors: Vec::new(),
-        //     children: HashSet::new(),
-        //     settings: self.settings,
-        // });
-
-        // return executor;
-    }
-
-    // fn prepare(&self) {
-    //     tokio::spawn(async move {
-    //         info!("prepare");
-    //         // message_handler(pnd.to_string(), receiver, executor);
-    //     });
-    // }
-
-    fn process1(&self, message: &Message) -> Result<Option<Message>, Box<dyn Error>> {
-        println!("Not implemented yet");
-        Ok(Some(message.clone()))
-    }
-
-    fn setup_actors(&mut self, context: GraphContext) {
-        let actor = MyActorHandle::<BufferToJSONDo>::new(context);
-        self.actors.push(actor);
+impl From<serde_yaml::Value> for BufferToJSON {
+    fn from(value: serde_yaml::Value) -> Self {
+        BufferToJSON {}
     }
 }
 
-// Implement the operator trait for the template
 impl Operator for BufferToJSON {
-    fn get_name(&self) -> &str {
-        "BufferToJSON"
+    fn _type(&self) -> OperatorType {
+        OperatorType::Filter
     }
 
-    fn register(&self) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    fn name(&self) -> String {
+        "BufferToJSON".to_string()
     }
 
-    fn deregister(&self) {}
-
-    // fn handle_hook(
-    //     &self,
-    //     hook: HookType,
-    //     node: &Node,
-    //     message: &Message,
-    // ) -> Result<(), Box<dyn Error>> {
-    //     Ok(())
-    // }
-
-    fn spec(&self) -> OperatorSpec {
-        OperatorSpec {
-            name: "BufferToJSON".to_string(),
-        }
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
     }
 
-    fn setup_node_2(&self, node: &Node) -> Result<OperatorType, Box<dyn Error>> {
-        return Err(("Not implemented").into());
-    }
-    //     let mut actors = Vec::new();
+    fn handle(&self, _message: Message) -> Message {
+        debug!("BufferToJSON Processing...");
 
-    //     let actor = MyActorHandle::<BufferToJSONDo>::new();
+        match _message {
+            Message::ReqReply {
+                message,
+                respond_to,
+                ..
+            } => {
+                debug!("Passthrough message");
 
-    //     actors.push(actor);
+                let mut result: Value = serde_json::from_slice(&message).expect("JSON parse error");
 
-    //     let settings = BufferToJSONSettings::default();
-
-    //     let otype: OperatorType = OperatorType::BufferToJSON {
-    //         node: BufferToJSONNode {
-    //             id: node.get_id().to_string(),
-    //             actors,
-    //             children: node.children(),
-    //             settings,
-    //         },
-    //     };
-
-    //     // let vec = self.nodes.get_mut();
-    //     // vec.push(nd);
-
-    //     // self.nodes.set(vec.to_vec());
-
-    //     Ok(otype)
-    // }
-
-    fn setup_node(&self, node: &Node) -> Result<Box<dyn OperatorNode + Send>, Box<dyn Error>> {
-        let settings = BufferToJSONSettings::default();
-        // Assuming MapSettings is a function that maps settings from node.config to BufferToJSONSettings
-        //map_settings(&node.config, &settings)?;
-        //node.config = settings;
-        let actors = Vec::new();
-
-        //actors.push(MyActorHandle::<String>::new());
-
-        Ok(Box::new(BufferToJSONNode {
-            id: node.get_id().clone(),
-            actors,
-            children: node.children(),
-            settings,
-        }))
-    }
-}
-
-// Define other necessary structs and enums
-// #[derive(Clone)]
-// pub struct BaseOperator;
-
-#[derive(Default, Clone)]
-
-struct BufferToJSONSettings;
-
-// struct Node {
-//     config: BufferToJSONSettings,
-// }
-
-enum HookType {
-    // Define your hook types here
-    ExampleHookType,
-}
-
-// Assume a function that maps settings from one type to another
-fn map_settings<T, U>(source: &T, target: &U) -> Result<(), Box<dyn Error>> {
-    // Implement the mapping logic
-    Ok(())
-}
-
-#[derive(Clone)]
-pub struct BufferToJSONDo {
-    something: String,
-}
-
-impl MyActorHandle<BufferToJSONDo> {
-    pub fn new(graph_context: GraphContext) -> Self {
-        let (sender, receiver) = mpsc::channel(8);
-        let mut actor = BufferToJSONActor::new(graph_context, receiver);
-        tokio::spawn(async move { actor.run().await });
-
-        let handle = BufferToJSONDo {
-            something: "Huh".to_string(),
-        };
-
-        Self { sender, handle }
-    }
-
-    pub fn process(&self, message: Message) {
-        info!("[BufferToJSONDo] Publish to MPSC {}", message.state);
-        let msg = ActorMessage::Process {
-            message,
-            actors: Vec::new(),
-        };
-        match self.sender.try_send(msg) {
-            Ok(_) => println!("Message sent!"),
-            Err(e) => println!("Failed to send: {}", e),
-        }
-    }
-
-    pub async fn get_unique_id(&self) -> u32 {
-        let (send, recv) = oneshot::channel();
-        let msg = ActorMessage::GetUniqueId { respond_to: send };
-
-        //let a = self.sender.try_send(msg);
-
-        match self.sender.try_send(msg) {
-            Ok(_) => println!("Message sent!"),
-            Err(e) => println!("Failed to send: {}", e),
-        }
-
-        match recv.await {
-            Ok(msg) => {
-                info!("Message returned! {}", msg);
-                msg
-            }
-            Err(e) => {
-                println!("Failed to send: {}", e);
-                0
-            }
-        }
-    }
-}
-
-pub struct BufferToJSONActor {
-    graph_context: GraphContext,
-    receiver: mpsc::Receiver<ActorMessage>,
-}
-
-impl BufferToJSONActor {
-    pub fn new(graph_context: GraphContext, receiver: mpsc::Receiver<ActorMessage>) -> Self {
-        BufferToJSONActor {
-            graph_context,
-            receiver,
-        }
-    }
-
-    pub async fn run(&mut self) {
-        while let Some(msg) = self.receiver.recv().await {
-            self.handle_message(msg);
-        }
-    }
-
-    fn handle_message(&mut self, msg: ActorMessage) {
-        match msg {
-            ActorMessage::Process { message, actors } => {
-                warn!(
-                    "We got a BufferToJSON actor message {} (actors={})",
-                    message.state,
-                    actors.len()
+                let dt = DateTime::<Utc>::from_utc(
+                    NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11),
+                    Utc,
                 );
 
-                // do the processing here..
+                result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("_ts".to_string(), Value::String(dt.to_rfc3339()));
 
-                actors.iter().for_each(|f| {
-                    f.notify(&self.graph_context, message.clone());
-                });
+                return Message::JSON {
+                    message: result,
+                    origin: Some(OriginMessage { respond_to }),
+                };
             }
-            ActorMessage::GetUniqueId { respond_to } => todo!(),
-        }
+            Message::Standard { message, origin } => {
+                debug!("Standard not expected");
+                let mut result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+
+                let dt = DateTime::<Utc>::from_utc(
+                    NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11),
+                    Utc,
+                );
+
+                result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("_ts".to_string(), Value::String(dt.to_rfc3339()));
+
+                return Message::JSON {
+                    message: result,
+                    origin,
+                };
+            }
+            Message::JSON { .. } => {
+                return _message;
+            }
+            _ => panic!("Unexpected message type {}", _message),
+        };
+    }
+
+    fn init(&mut self, _: &mut Graph) {
+        debug!("Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        debug!("Not implemented");
+    }
+
+    fn send(&self, _: Message) {
+        panic!("Not implemented");
+    }
+
+    fn wait(&self) -> Message {
+        panic!("Not implemented");
+    }
+
+    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
+        panic!("Not implemented");
     }
 }

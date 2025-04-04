@@ -1,12 +1,9 @@
 use core::panic;
 
+use crate::graph::graph::{Graph, GraphMod, Message};
+use crate::operators::noop::NOOP;
 use tokio::sync::mpsc::{self, Receiver};
 use tracing::warn;
-
-use crate::graph::{
-    graph::{Graph, GraphMod, Message},
-    operators::noop::NOOP,
-};
 
 use super::XProcessor;
 

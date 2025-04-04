@@ -3,7 +3,6 @@ use graph::Operator;
 //pub(crate) mod actor;
 //pub(crate) mod actor_operator;
 pub(crate) mod graph;
-pub(crate) mod operators;
 pub(crate) mod processors;
 pub(crate) mod serde;
 

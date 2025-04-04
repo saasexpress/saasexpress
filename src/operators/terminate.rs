@@ -3,28 +3,28 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use tracing::warn;
+use tracing::{debug, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 #[derive(Clone, Debug)]
-pub(crate) struct Template;
+pub(crate) struct Terminate;
 
-impl From<serde_yaml::Value> for Template {
+impl From<serde_yaml::Value> for Terminate {
     fn from(value: serde_yaml::Value) -> Self {
-        Template {}
+        Terminate {}
     }
 }
 
-impl Operator for Template {
+impl Operator for Terminate {
     fn _type(&self) -> OperatorType {
         OperatorType::Filter
     }
 
     fn name(&self) -> String {
-        "Template".to_string()
+        "Terminate".to_string()
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -32,23 +32,15 @@ impl Operator for Template {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        match _message {
-            Message::Standard { message, origin } => {
-                return Message::Standard {
-                    message: message.to_owned(),
-                    origin,
-                };
-            }
-            _ => panic!("Unexpected message type"),
-        }
+        _message
     }
 
     fn init(&mut self, _: &mut Graph) {
-        warn!("Not implemented");
+        debug!("Not implemented");
     }
 
     fn control(&mut self, _: Message) {
-        warn!("Not implemented");
+        debug!("Not implemented");
     }
 
     fn send(&self, _: Message) {

@@ -5,10 +5,10 @@ use std::fs;
 use std::io;
 use std::sync::Arc;
 
+use super::super::operators::http_in::http_in::HTTPIn;
 use super::graph::Graph;
 use super::graph::Operator;
 use super::graph::OperatorType;
-use super::operators::http_in::http_in::HTTPIn;
 
 /// Raw representation of a Graph as loaded from YAML
 #[derive(Deserialize)]

@@ -3,10 +3,8 @@ use core::panic;
 use tokio::sync::mpsc::{self, Receiver};
 use tracing::{debug, warn};
 
-use crate::graph::{
-    graph::{Graph, GraphMod, Message},
-    operators::noop::NOOP,
-};
+use crate::graph::graph::{Graph, GraphMod, Message};
+use crate::operators::noop::NOOP;
 
 #[derive(Debug)]
 pub struct BasicProcessor {

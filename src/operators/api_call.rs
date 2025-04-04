@@ -5,9 +5,9 @@ use reqwest::{Client, Request, RequestBuilder, Url};
 use tracing::error;
 use tracing::{debug, warn};
 
-use super::super::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 // Extends the `reqwest::RequestBuilder` to allow WebSocket upgrades.
 use futures::future;

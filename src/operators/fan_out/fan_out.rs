@@ -10,7 +10,7 @@ use tracing::{error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
 
-use super::super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 #[derive(Debug)]
 pub(crate) struct FanOut {

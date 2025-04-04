@@ -1,12 +1,10 @@
 use std::collections::HashSet;
 
+use crate::operators::noop::NOOP;
 use tokio::sync::mpsc::{self, Receiver};
 use tracing::warn;
 
-use crate::graph::{
-    graph::{Graph, GraphMod, Message},
-    operators::noop::NOOP,
-};
+use crate::graph::graph::{Graph, GraphMod, Message};
 
 #[derive(Debug)]
 pub struct Port {

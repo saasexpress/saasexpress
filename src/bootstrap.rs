@@ -3,23 +3,14 @@ use rust_embed::Embed;
 use serde_yaml::Value;
 use tracing::info;
 
-use crate::graph::{
-    graph::Operator,
-    operators::{
-        factory::{self, add_node_to_graph, OpXX},
-        http_in::{http_in::HTTPIn, resources::get_instance},
-    },
-};
+use crate::operators::factory::{self, OpXX, add_node_to_graph};
+use crate::{graph::graph::Operator, operators::http_in::resources::get_instance};
 
 use super::graph;
 
 #[derive(Embed)]
 #[folder = "bootstrap"]
 struct Asset;
-
-pub fn aa(config: Value) -> impl Operator {
-    HTTPIn::from(config)
-}
 
 pub fn bootstrap() {
     for file_name in Asset::iter() {

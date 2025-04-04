@@ -3,28 +3,28 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 #[derive(Clone, Debug)]
-pub(crate) struct Terminate;
+pub(crate) struct Passthrough;
 
-impl From<serde_yaml::Value> for Terminate {
+impl From<serde_yaml::Value> for Passthrough {
     fn from(value: serde_yaml::Value) -> Self {
-        Terminate {}
+        Passthrough {}
     }
 }
 
-impl Operator for Terminate {
+impl Operator for Passthrough {
     fn _type(&self) -> OperatorType {
         OperatorType::Filter
     }
 
     fn name(&self) -> String {
-        "Terminate".to_string()
+        "Passthrough".to_string()
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {

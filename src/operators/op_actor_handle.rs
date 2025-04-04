@@ -5,10 +5,9 @@ use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use super::{
-    super::graph::{Message, Operator},
-    op_actor::OpActor,
-};
+use crate::graph::graph::{Message, Operator};
+
+use super::op_actor::OpActor;
 
 #[derive(Debug)]
 pub(crate) struct OperatorActorHandle {

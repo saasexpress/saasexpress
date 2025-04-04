@@ -8,12 +8,9 @@ use cel_interpreter::{Context, Program};
 use serde_json::{Value as JsonValue, json};
 use tracing::{debug, error, info, warn};
 
-use crate::graph::{
-    graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage},
-    operators::message_translator::cel_to_json::cel_value_to_json,
-};
-
-use super::super::super::graph::{Message, Operator};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
+use crate::graph::graph::{Message, Operator};
+use crate::operators::message_translator::cel_to_json::cel_value_to_json;
 
 #[derive(Clone, Debug)]
 pub(crate) enum MessageTranslatorEngine {

@@ -5,7 +5,7 @@ use tracing::{debug, error, warn};
 
 use crate::graph::graph::OriginMessage;
 
-use super::super::graph::{Message, Operator};
+use crate::graph::graph::{Message, Operator};
 
 #[derive(Debug)]
 pub(crate) struct OpActor {
