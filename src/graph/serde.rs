@@ -78,7 +78,7 @@ impl From<RawGraph> for Graph {
     fn from(raw_graph: RawGraph) -> Self {
         let mut graph = Graph::new(raw_graph.name);
 
-        for node in raw_graph.nodes {
+        for _node in raw_graph.nodes {
             // let op: Arc<dyn Operator + 'static>;
 
             // let operator = OperatorType::from(node);

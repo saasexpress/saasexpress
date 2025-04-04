@@ -54,7 +54,7 @@ impl AsyncHandleTrait for APICall {
     )]
     fn async_handle_ptr<'life0, 'async_trait>(
         &'life0 self,
-        message: Arc<Message>,
+        _message: Arc<Message>,
     ) -> ::core::pin::Pin<
         Box<
             dyn ::core::future::Future<Output = Arc<Message>> + ::core::marker::Send + 'async_trait,
@@ -604,7 +604,7 @@ impl Operator for APICall {
 
     fn handle(&self, _message: Message) -> Message {
         match _message {
-            Message::Standard { message, origin } => {
+            Message::Standard { message: _, origin } => {
                 warn!("APICall handle (passthrough)... {}", self.url);
 
                 // Create a client

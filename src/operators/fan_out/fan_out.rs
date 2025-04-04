@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 
 use futures::channel::oneshot;
 use futures::future::join_all;
-use futures_util::SinkExt;
 use tracing::{error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
@@ -18,7 +17,7 @@ pub(crate) struct FanOut {
 }
 
 impl From<serde_yaml::Value> for FanOut {
-    fn from(value: serde_yaml::Value) -> Self {
+    fn from(_value: serde_yaml::Value) -> Self {
         FanOut {
             next: Vec::new(),
             senders: Vec::new(),
@@ -286,7 +285,7 @@ impl FanOut {
     //         .collect::<Vec<Message>>();
     // }
 
-    fn setup_routes(&self, start: Arc<Mutex<dyn Operator + 'static>>) {}
+    fn setup_routes(&self, _start: Arc<Mutex<dyn Operator + 'static>>) {}
 }
 // /// Distributes a message to three receivers, collects all their responses,
 // /// and sends the combined result back through the original oneshot sender.

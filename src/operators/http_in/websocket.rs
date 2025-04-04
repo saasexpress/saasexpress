@@ -41,7 +41,6 @@ use axum::extract::ws::CloseFrame;
 //allows to split the websocket stream into separate TX and RX branches
 use futures::{sink::SinkExt, stream::StreamExt};
 
-use crate::graph::graph::Operator;
 
 use super::resources::MySharedState;
 

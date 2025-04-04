@@ -182,14 +182,6 @@ impl Singleton {
                             .with_state(shared_state),
                     );
                 }
-                "^(DELETE|POST)$" => {
-                    self.router = main_router.nest(
-                        path,
-                        Router::new()
-                            .route("/".to_string().as_str(), delete(handler))
-                            .with_state(shared_state),
-                    );
-                }
                 "^(ANY)$" => {
                     info!("Adding ANY route: {}", path);
                     if ws {

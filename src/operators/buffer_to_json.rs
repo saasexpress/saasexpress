@@ -7,13 +7,13 @@ use tracing::debug;
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
 
 use crate::graph::graph::{Message, Operator};
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 
 #[derive(Debug)]
 pub(crate) struct BufferToJSON;
 
 impl From<serde_yaml::Value> for BufferToJSON {
-    fn from(value: serde_yaml::Value) -> Self {
+    fn from(_value: serde_yaml::Value) -> Self {
         BufferToJSON {}
     }
 }
@@ -82,7 +82,9 @@ impl Operator for BufferToJSON {
 }
 
 fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
-    let dt = DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11), Utc);
+    let naive_date = NaiveDate::from_ymd_opt(2016, 7, 8).unwrap();
+    let naive_datetime = naive_date.and_hms_opt(9, 10, 11).unwrap();
+    let dt = Utc.from_utc_datetime(&naive_datetime);
 
     data.as_object_mut()
         .unwrap()

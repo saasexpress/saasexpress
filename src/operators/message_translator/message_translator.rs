@@ -64,14 +64,9 @@ impl Operator for MessageTranslator {
             Message::JSON { message, origin } => {
                 let cel_value = self.parse(&message);
 
-                match self.engine {
-                    MessageTranslatorEngine::CelInterpreter => Message::JSON {
-                        message: cel_value,
-                        origin,
-                    },
-                    _ => {
-                        panic!("Unknown engine: {}", self.engine);
-                    }
+                Message::JSON {
+                    message: cel_value,
+                    origin,
                 }
             }
             Message::ReqReply {
@@ -81,12 +76,7 @@ impl Operator for MessageTranslator {
             } => {
                 let json = serde_json::to_value(message).unwrap();
 
-                let cel_value = match self.engine {
-                    MessageTranslatorEngine::CelInterpreter => self.parse(&json),
-                    _ => {
-                        panic!("Unknown engine: {}", self.engine);
-                    }
-                };
+                let cel_value = self.parse(&json);
 
                 Message::JSON {
                     message: cel_value,

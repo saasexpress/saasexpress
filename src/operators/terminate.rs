@@ -10,7 +10,7 @@ use crate::graph::graph::{Message, Operator};
 pub(crate) struct Terminate;
 
 impl From<serde_yaml::Value> for Terminate {
-    fn from(value: serde_yaml::Value) -> Self {
+    fn from(_value: serde_yaml::Value) -> Self {
         Terminate {}
     }
 }

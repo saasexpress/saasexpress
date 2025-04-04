@@ -10,7 +10,7 @@ use crate::graph::graph::{Message, Operator};
 pub(crate) struct JSONToBuffer;
 
 impl From<serde_yaml::Value> for JSONToBuffer {
-    fn from(value: serde_yaml::Value) -> Self {
+    fn from(_value: serde_yaml::Value) -> Self {
         JSONToBuffer {}
     }
 }
