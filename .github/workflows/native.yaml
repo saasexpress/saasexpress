@@ -1,0 +1,164 @@
+name: Rust Native Build and Release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to attach artifacts to"
+        required: true
+        type: string
+      build_linux:
+        description: "Build for Linux"
+        required: false
+        default: true
+        type: boolean
+      build_macos:
+        description: "Build for macOS (Intel)"
+        required: false
+        default: true
+        type: boolean
+      build_macos_arm:
+        description: "Build for macOS (Apple Silicon)"
+        required: false
+        default: true
+        type: boolean
+      build_windows:
+        description: "Build for Windows"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-and-release:
+    name: Build and Release for ${{ matrix.artifact_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: app-linux-amd64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: app-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: app-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: app-windows-amd64.exe
+
+    steps:
+      - name: Check if should run
+        id: check
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ github.event.inputs.build_linux }}" == "true" ]] || \
+               [[ "${{ matrix.os }}" == "macos-latest" && "${{ matrix.target }}" == "x86_64-apple-darwin" && "${{ github.event.inputs.build_macos }}" == "true" ]] || \
+               [[ "${{ matrix.os }}" == "macos-latest" && "${{ matrix.target }}" == "aarch64-apple-darwin" && "${{ github.event.inputs.build_macos_arm }}" == "true" ]] || \
+               [[ "${{ matrix.os }}" == "windows-latest" && "${{ github.event.inputs.build_windows }}" == "true" ]]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        if: steps.check.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        if: steps.check.outputs.should_run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        if: steps.check.outputs.should_run == 'true'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare binary for upload
+        if: steps.check.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/*.exe release-artifacts/${{ matrix.artifact_name }}
+          else
+            # Find the binary with the same name as the package in Cargo.toml
+            BINARY_NAME=$(grep -m 1 "name" Cargo.toml | cut -d '"' -f 2 | tr -d '\r')
+            cp target/${{ matrix.target }}/release/$BINARY_NAME release-artifacts/${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload binary to GitHub Release
+        if: steps.check.outputs.should_run == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-artifacts/${{ matrix.artifact_name }}
+          tag_name: ${{ github.event.release.tag_name || github.event.inputs.release_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-release-arm:
+    name: Build and Release for ARM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if should run
+        id: check
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.build_linux }}" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        if: steps.check.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        if: steps.check.outputs.should_run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Install cross-compilation dependencies
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build for ARM64
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          cargo build --release --target aarch64-unknown-linux-gnu
+
+      - name: Prepare binary for upload
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          mkdir -p release-artifacts
+          # Find the binary with the same name as the package in Cargo.toml
+          BINARY_NAME=$(grep -m 1 "name" Cargo.toml | cut -d '"' -f 2 | tr -d '\r')
+          cp target/aarch64-unknown-linux-gnu/release/$BINARY_NAME release-artifacts/app-linux-arm64
+
+      - name: Upload binary to GitHub Release
+        if: steps.check.outputs.should_run == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-artifacts/app-linux-arm64
+          tag_name: ${{ github.event.release.tag_name || github.event.inputs.release_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
