@@ -1,3 +1,5 @@
+use crate::bootstrap::{bootstrap, build_graph};
+
 pub(crate) fn stdin() {
     let mut buffer = String::new();
     loop {
@@ -15,5 +17,6 @@ pub(crate) fn stdin() {
             buffer.push_str(&line);
         }
     }
-    println!("Read from stdin: {}", buffer.trim());
+    let yaml = serde_yaml::from_slice::<serde_yaml::Value>(buffer.as_bytes()).unwrap();
+    build_graph(yaml);
 }

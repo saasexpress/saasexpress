@@ -12,12 +12,10 @@ mod ports;
 
 #[tokio::main]
 async fn main() {
-    // install global collector configured based on RUST_LOG env var.
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
-
     let matches = parse_commands();
+
+    // install global collector configured based on RUST_LOG env var.
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     if matches.get_flag("stdin") {
         stdin();
