@@ -17,7 +17,7 @@ RUN rm src/*.rs
 COPY src ./src
 
 # Build the application
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 # Runtime image
 FROM debian:bookworm-slim
