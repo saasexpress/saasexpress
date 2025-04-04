@@ -211,7 +211,7 @@ impl Singleton {
 
         let service = router.into_make_service_with_connect_info::<SocketAddr>();
         tokio::spawn(async move {
-            let addr = SocketAddr::from(([127, 0, 0, 1], 2500));
+            let addr = SocketAddr::from(([0, 0, 0, 0], 2500));
             let listener = TcpListener::bind(addr).await.unwrap();
 
             info!("[HTTPIn] Listening on: {}", addr);
