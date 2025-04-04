@@ -1,26 +1,14 @@
 //use crate::bootstrap;
-use axum::{
-    Router,
-    routing::{get, post},
-};
-use serde_json::json;
-use std::{
-    collections::{HashMap, HashSet},
-    net::SocketAddr,
-};
-// use tenant_gateway::{all_in_one::gw_dag, bootstrap, operators::register, proto::test};
-use tokio::net::TcpListener;
-use tracing::{Level, info};
+use commands::samples::samples;
+use commands::stdin::stdin;
+use commands::{args::parse_commands, get::get};
+use tracing::Level;
 
-use crate::graph::graph::GraphRun;
-use graph::graph::{Graph, Message};
-use operators::{
-    api_call::APICall, buffer_to_json::BufferToJSON, http_in::http_in::HTTPIn,
-    json_to_buffer::JSONToBuffer,
-};
-
+mod bootstrap;
+mod commands;
 mod graph;
 mod operators;
+mod ports;
 
 #[tokio::main]
 async fn main() {
@@ -29,89 +17,24 @@ async fn main() {
         .with_max_level(Level::DEBUG)
         .init();
 
-    let js = json!({"routes":["/abc"], "method":"POST"});
-    let http_in = HTTPIn::from(js);
-    info!("HTTPIn: {:?}", http_in);
+    let matches = parse_commands();
 
-    //bootstrap::bootstrap();
+    if matches.get_flag("stdin") {
+        stdin();
+    }
+    if matches.get_flag("samples") {
+        samples();
+    }
+    match matches.subcommand() {
+        Some(("get", sub_matches)) => {
+            get(sub_matches);
+        }
+        _ => {}
+    }
 
-    //unit_test().await;
+    bootstrap::bootstrap(Vec::new());
 
     loop {
-        // This will loop forever
-        std::thread::sleep(std::time::Duration::from_secs(3600)); // Optional sleep to reduce CPU usage
+        std::thread::sleep(std::time::Duration::from_secs(3600));
     }
-}
-
-async fn unit_test() {
-    let mut graph = Graph::new("sample".to_string());
-    // graph
-    //     .add_node(
-    //         "start",
-    //         HTTPIn::new(vec!["/gw/flow".to_string()], "POST".to_string()).await,
-    //     )
-    //     .add_node("in", BufferToJSON)
-    //     .add_node("out", JSONToBuffer)
-    //     .add_node(
-    //         "rp",
-    //         APICall {
-    //             url: "http://localhost:8081".to_string(),
-    //             forward: true,
-    //             ws: false,
-    //         },
-    //     )
-    //     .add_edge("start".to_string(), "in".to_string())
-    //     .add_edge("in".to_string(), "out".to_string())
-    //     .add_edge("out".to_string(), "rp".to_string())
-    //     .no_processor()
-    //     .init();
-    graph
-        .add_node(
-            "start",
-            HTTPIn::new(vec!["/gw/flow".to_string()], "POST".to_string()).await,
-        )
-        .add_node("in", BufferToJSON)
-        .add_node("out", JSONToBuffer)
-        .add_node(
-            "rp",
-            APICall {
-                url: "http://localhost:2243/ws".to_string(),
-                path: "".to_string(),
-                forward: true,
-                ws: true,
-                method: None,
-                content_type: None,
-            },
-        )
-        .add_edge("start".to_string(), "in".to_string())
-        .add_edge("in".to_string(), "out".to_string())
-        .add_edge("out".to_string(), "rp".to_string())
-        .no_processor()
-        .init();
-
-    // Simulate a request
-    let message = Message::Standard {
-        message: "{\"a\":\"b\"}".to_string().into_bytes(),
-        origin: None,
-    };
-
-    // Process the request
-    let response = graph.process(message).await;
-
-    let message = match response {
-        Message::Standard {
-            message,
-            origin: None,
-        } => {
-            println!(
-                "Received a Standard message: {:?}",
-                String::from_utf8_lossy(&message)
-            );
-            message
-        }
-        _ => panic!("Expected a Standard response"),
-    };
-
-    // // Output response
-    println!("End: {}", String::from_utf8_lossy(&message));
 }

@@ -1,9 +1,6 @@
-use std::{
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
@@ -46,9 +43,11 @@ impl Operator for Terminate {
     fn send(&self, _: Message) {
         panic!("Not implemented");
     }
+
     fn wait(&self) -> Message {
         panic!("Not implemented");
     }
+
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }

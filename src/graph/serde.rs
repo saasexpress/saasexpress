@@ -3,12 +3,8 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::fs;
 use std::io;
-use std::sync::Arc;
 
-use super::super::operators::http_in::http_in::HTTPIn;
 use super::graph::Graph;
-use super::graph::Operator;
-use super::graph::OperatorType;
 
 /// Raw representation of a Graph as loaded from YAML
 #[derive(Deserialize)]
@@ -75,18 +71,6 @@ impl RawGraph {
         })?;
 
         Ok(raw_dag)
-    }
-}
-
-impl From<RawNode> for OperatorType {
-    fn from(node: RawNode) -> Self {
-        let config = serde_json::to_value(node.config).unwrap();
-        HTTPIn::from(config);
-        match node.action.as_str() {
-            // "BufferToJSON" => OperatorType::BufferToJSON { node },
-            // "JSONToBuffer" => OperatorType::JSONToBuffer { node },
-            _ => panic!("Unknown operator type: {}", node.action),
-        }
     }
 }
 

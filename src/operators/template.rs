@@ -1,7 +1,4 @@
-use std::{
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use tracing::warn;
 
@@ -54,9 +51,11 @@ impl Operator for Template {
     fn send(&self, _: Message) {
         panic!("Not implemented");
     }
+
     fn wait(&self) -> Message {
         panic!("Not implemented");
     }
+
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }

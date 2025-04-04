@@ -1,6 +1,7 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
+use futures::channel::oneshot;
 use serde_json::Value;
 use tracing::{debug, warn};
 
@@ -42,41 +43,16 @@ impl Operator for BufferToJSON {
             } => {
                 debug!("Passthrough message");
 
-                let mut result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+                let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
 
-                let dt = DateTime::<Utc>::from_utc(
-                    NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11),
-                    Utc,
-                );
+                let origin = Some(OriginMessage { respond_to });
 
-                result
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("_ts".to_string(), Value::String(dt.to_rfc3339()));
-
-                return Message::JSON {
-                    message: result,
-                    origin: Some(OriginMessage { respond_to }),
-                };
+                return to_json(result, origin);
             }
             Message::Standard { message, origin } => {
                 debug!("Standard not expected");
-                let mut result: Value = serde_json::from_slice(&message).expect("JSON parse error");
-
-                let dt = DateTime::<Utc>::from_utc(
-                    NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11),
-                    Utc,
-                );
-
-                result
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("_ts".to_string(), Value::String(dt.to_rfc3339()));
-
-                return Message::JSON {
-                    message: result,
-                    origin,
-                };
+                let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+                return to_json(result, origin);
             }
             Message::JSON { .. } => {
                 return _message;
@@ -104,4 +80,17 @@ impl Operator for BufferToJSON {
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }
+}
+
+fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
+    let dt = DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2016, 7, 8).and_hms(9, 10, 11), Utc);
+
+    data.as_object_mut()
+        .unwrap()
+        .insert("_ts".to_string(), Value::String(dt.to_rfc3339()));
+
+    return Message::JSON {
+        message: data,
+        origin,
+    };
 }

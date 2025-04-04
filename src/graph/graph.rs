@@ -1,27 +1,26 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
-use std::future::Future;
 use std::net::SocketAddr;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use axum::body::Body;
 use axum::extract::State;
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::{Json, Router};
 use futures::channel::{mpsc, oneshot};
-use hyper::Method;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tracing::{debug, error};
 
+//use crate::ports::ports::Ports;
+
+use crate::ports::ports::Ports;
+
 use super::super::operators::buffer_to_json::BufferToJSON;
-use super::super::operators::factory::{OpXX, OperatorSpec};
 use super::super::operators::http_in::http_in::HTTPIn;
 use super::super::operators::json_to_buffer::JSONToBuffer;
 use super::super::operators::noop::NOOP;
 use super::super::operators::op_actor_handle::OperatorActorHandle;
-use super::processors::XProcessor;
+
 use super::processors::basic::BasicProcessor;
 use super::processors::port::Port;
 use async_trait::async_trait;
@@ -99,10 +98,8 @@ pub enum Message {
     },
     Init {
         next: Vec<Arc<Mutex<dyn Operator>>>,
-        //_end: Option<Port>,
         end: Arc<Mutex<dyn Operator + 'static>>,
         start: Arc<Mutex<dyn Operator + 'static>>,
-        //processor: Arc<Mutex<dyn XProcessor + 'static>>,
     },
     Error {
         error: String,
@@ -126,21 +123,6 @@ pub trait GraphMod {
     fn add_new_node<O>(&mut self, id: &str, operator: O) -> &mut Self
     where
         O: Operator + 'static;
-}
-
-#[derive(Debug)]
-pub struct Ports {
-    pub ports: HashMap<String, Port>,
-}
-
-impl Ports {
-    pub fn new_port(&mut self, id: String) -> NOOP {
-        let id = format!("{}-ext", id);
-        let port = Port::create();
-
-        self.ports.insert(id, port.0);
-        return port.1;
-    }
 }
 
 #[derive(Debug)]
@@ -401,124 +383,5 @@ impl GraphRun for Graph {
         let message = b.req_reply().await;
         //return processor.req_reply().await;
         message
-    }
-}
-
-#[derive(Debug)]
-struct MySharedState {
-    a: String,
-    //start_node: String,
-    prep: Arc<Mutex<dyn Operator + 'static>>,
-}
-
-impl Graph {
-    async fn build(&mut self) -> Graph {
-        let mut graph = Graph::new("simple-graph".to_string());
-
-        graph
-            .no_processor()
-            .add_node(
-                "start",
-                HTTPIn::new(vec!["/gw/flow".to_string()], "POST".to_string()).await,
-            )
-            .add_node("in", BufferToJSON)
-            .add_node("out", JSONToBuffer)
-            .add_edge("start".to_string(), "in".to_string())
-            .add_edge("in".to_string(), "out".to_string())
-            .init();
-        return graph;
-    }
-
-    pub async fn process2(&mut self, _message: Message) -> Message {
-        let new_g = self.build().await;
-        let start = new_g.start_node.clone();
-        let node = new_g.nodes.get(&start);
-
-        debug!("Node: {:?}", node);
-        debug!("Starting with {}", new_g.start_node);
-        //let prep = node.unwrap();
-        let prep = node.unwrap().clone();
-
-        let shared_state = Arc::new(MySharedState {
-            a: "12".to_string(),
-            prep,
-        });
-
-        let handler = async |state: State<Arc<MySharedState>>, body: String| {
-            //let shared_state = Arc::clone(shared_state);
-            let a = &state.a;
-            debug!("Received request with body: {}", body);
-
-            //let p = graph.processor.unwrap().lock().unwrap();
-
-            let (send, recv) = oneshot::channel();
-
-            let message = Message::ReqReply {
-                message: "{\"a\":\"b\"}".to_string().into_bytes(),
-                respond_to: send,
-                path: "/".to_string(),
-                query: "".to_string(),
-                method: "GET".to_string(),
-            };
-
-            //let b = prep.lock();
-
-            //b.unwrap().send(message);
-            state.prep.lock().unwrap().send(message);
-
-            // let the_processor = graph.processor.as_mut().unwrap();
-            // let mut b = the_processor.lock().unwrap();
-            // let message = b.req_reply().await;
-
-            match recv.await {
-                Ok(msg) => match msg {
-                    Message::Standard {
-                        message,
-                        origin: None,
-                    } => {
-                        println!(
-                            "Received a Standard message: {:?}",
-                            String::from_utf8_lossy(&message)
-                        );
-                        Json(json!({ "a": String::from_utf8_lossy(&message) }))
-                    }
-                    _ => panic!("Expected a Standard response"),
-                },
-                Err(e) => {
-                    error!("Failed to send - returning error: {}", e);
-                    Json(json!({ "a": a }))
-                }
-            }
-
-            // let response = futures::executor::block_on(recv).unwrap();
-            // println!("Got response");
-
-            // Since we're done, we can drop the sender to signal workers to finish
-            //drop(recv);
-        };
-
-        let app = Router::new()
-            .route("/", post(handler))
-            .with_state(shared_state);
-
-        let addr = SocketAddr::from(([127, 0, 0, 1], 2243));
-        let listener = TcpListener::bind(addr).await.unwrap();
-
-        debug!("Listening on: {}", addr);
-
-        let serve = axum::serve(listener, app);
-
-        serve.await.expect("Failed to start server");
-
-        drop(new_g);
-
-        Message::Standard {
-            message: b"Hello, world!".to_vec(),
-            origin: None,
-        }
-    }
-
-    async fn create_user(&mut self, Json(payload): Json<Value>, state: Arc<MySharedState>) {
-        debug!("Create user!");
     }
 }

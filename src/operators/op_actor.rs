@@ -1,10 +1,7 @@
-use core::panic;
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
-
-use crate::graph::graph::OriginMessage;
+use tracing::debug;
 
 use crate::graph::graph::{Message, Operator};
 
@@ -40,15 +37,13 @@ impl OpActor {
                     self.handle.control(Message::Init {
                         next: Vec::new(),
                         start,
-
                         end,
                     });
                 }
 
                 _ => {
                     let hdl = self.handle.get();
-                    let hdl2 = hdl.as_ref();
-                    if hdl2.is_none() {
+                    if hdl.is_none() {
                         let response = self.handle.handle(msg);
                         self.next(response);
                     } else {
@@ -68,61 +63,9 @@ impl OpActor {
             node.lock().unwrap().send(_message);
             break;
         }
-
-        /*
-        let counter = 0;
-        for node in &self.next {
-            if counter == 0 {
-                let msg = msg.clone();
-                // let msg = match msg.clone() {
-                //     Message::Standard { message, .. } => Message::Standard {
-                //         message,
-                //         origin: None,
-                //     },
-                //     Message::JSON { message, .. } => Message::JSON {
-                //         message,
-                //         origin: None,
-                //     },
-                //     _ => panic!("Unexpected message type"),
-                // };
-
-                match node.lock() {
-                    Ok(next_op) => next_op.send(msg),
-                    Err(e) => {
-                        error!("Error locking node: {}", e);
-                    }
-                }
-            } else {
-                let msg = match msg.clone() {
-                    Message::Standard { message, .. } => Message::Standard {
-                        message,
-                        origin: None,
-                    },
-                    Message::JSON { message, .. } => Message::JSON {
-                        message,
-                        origin: None,
-                    },
-                    _ => panic!("Unexpected message type"),
-                };
-
-                match node.lock() {
-                    Ok(next_op) => next_op.send(msg),
-                    Err(e) => {
-                        error!("Error locking node: {}", e);
-                    }
-                }
-            }
-            //break;
-        }
-        drop(_message);
-        */
-        //if &self.next.len() > &1 {
-        //    warn!("Some operators are not being called");
-        //}
     }
 
     fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
-        // let op = operator.as_ref();
         self.next.push(operator);
     }
 }
