@@ -342,13 +342,13 @@ impl AsyncHandleTrait for APICall {
                                 );
                                 return Message::Standard {
                                     message: b"Error".to_vec(),
-                                    origin: Some(OriginMessage { respond_to }),
+                                    origin: Some(OriginMessage::new(respond_to)),
                                 };
                             } else {
                                 return Message::JSON {
                                     message: response.json().await.unwrap(),
                                     //message: response.bytes().await.unwrap().to_vec(),
-                                    origin: Some(OriginMessage { respond_to }),
+                                    origin: Some(OriginMessage::new(respond_to)),
                                 };
                             }
                         }
@@ -356,7 +356,7 @@ impl AsyncHandleTrait for APICall {
                             warn!("Error making request: {}", e);
                             return Message::Standard {
                                 message: b"Error".to_vec(),
-                                origin: Some(OriginMessage { respond_to }),
+                                origin: Some(OriginMessage::new(respond_to)),
                             };
                         }
                     }
@@ -665,7 +665,7 @@ impl Operator for APICall {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init {   .. } => {
+            Message::Init { .. } => {
                 // start reverse proxy server
                 debug!("Configuring RP {}", self.url);
             }

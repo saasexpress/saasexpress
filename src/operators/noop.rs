@@ -7,6 +7,8 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
 use crate::graph::graph::{Message, Operator};
 
+use futures::SinkExt;
+
 #[derive(Debug)]
 pub(crate) struct NOOP {
     sender: mpsc::Sender<Message>,
@@ -61,16 +63,29 @@ impl Operator for NOOP {
             }
             Message::JSON { message, origin } => {
                 if let Some(origin_message) = origin {
-                    let respond_to = origin_message.respond_to;
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::JSON {
+                                    message: message.to_owned(),
+                                    origin: None,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
+                    } else {
+                        let respond_to = origin_message.respond_to;
 
-                    respond_to
-                        .send(Message::JSON {
-                            message: message.to_owned(),
-                            origin: None,
-                        })
-                        .expect("[JSON] Failed to send response");
+                        respond_to
+                            .send(Message::JSON {
+                                message: message.to_owned(),
+                                origin: None,
+                            })
+                            .expect("[JSON] Failed to send response");
+                    }
                 } else {
-                    warn!("No respond_to channel to send to");
+                    warn!("No origin provided - so no channel to send to {}", message);
                 }
             }
 

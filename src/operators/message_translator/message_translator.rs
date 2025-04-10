@@ -80,7 +80,7 @@ impl Operator for MessageTranslator {
 
                 Message::JSON {
                     message: cel_value,
-                    origin: Some(OriginMessage { respond_to }),
+                    origin: Some(OriginMessage::new(respond_to)),
                 }
             }
             // Message::ReqReply {

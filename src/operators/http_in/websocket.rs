@@ -23,28 +23,31 @@ use axum::{
     },
     response::IntoResponse,
 };
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{io::Read, net::SocketAddr, sync::Arc};
+use tokio::sync::mpsc;
 
 use axum_extra::{TypedHeader, headers};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use std::ops::ControlFlow;
-
 
 //allows to extract the IP of connecting user
 use axum::extract::connect_info::ConnectInfo;
 use axum::extract::ws::CloseFrame;
 
 //allows to split the websocket stream into separate TX and RX branches
-use futures::{sink::SinkExt, stream::StreamExt};
-
+use futures::{
+    channel::oneshot,
+    sink::SinkExt,
+    stream::{SplitSink, StreamExt},
+};
 
 use super::resources::MySharedState;
 
-use crate::graph::graph::Message as GraphMessage;
+use crate::{
+    graph::graph::{Message as GraphMessage, OriginMessage},
+    operators::http_in::session::SocketSession,
+};
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
 /// of websocket negotiation). After this completes, the actual switching from HTTP to
@@ -63,7 +66,9 @@ pub async fn ws_handler(
     } else {
         String::from("Unknown browser")
     };
-    debug!("`{user_agent}` at {addr} connected.");
+
+    let ip = addr.ip();
+    debug!("`{user_agent}` ({ip}) at {addr} connected.");
     // finalize the upgrade process by returning upgrade callback.
     // we can customize the callback by sending additional debug such as address.
 
@@ -74,74 +79,9 @@ pub async fn ws_handler(
 async fn handle_socket(state: State<Arc<MySharedState>>, socket: WebSocket, who: SocketAddr) {
     // By splitting socket we can send and receive at the same time. In this example we will send
     // unsolicited messages to client based on some sort of server's internal event (i.e .timer).
-    let (mut sender, mut receiver) = socket.split();
-    // send message to the first operator of the flow
 
-    state.start.lock().unwrap().send(GraphMessage::Standard {
-        message: format!("WebSocket connection from {who}").into_bytes(),
-        origin: None,
-    });
-
-    // Spawn a task that will push several messages to the client (does not matter what client does)
-    let mut send_task = tokio::spawn(async move {
-        let n_msg = 5;
-        for i in 0..n_msg {
-            // In case of any websocket error, we exit.
-            if sender
-                .send(Message::Text(format!("Server message {i} ...").into()))
-                .await
-                .is_err()
-            {
-                error!("Error sending message to {who}");
-                return i;
-            }
-
-            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        }
-
-        debug!("Sending close to {who}...");
-        if let Err(e) = sender
-            .send(Message::Close(Some(CloseFrame {
-                code: axum::extract::ws::close_code::NORMAL,
-                reason: Utf8Bytes::from_static("Goodbye from SaaS Express Gateway"),
-            })))
-            .await
-        {
-            println!("Could not send Close due to {e}, probably it is ok?");
-        }
-        n_msg
-    });
-
-    // This second task will receive messages from client and print them on server console
-    let mut recv_task = tokio::spawn(async move {
-        let mut cnt = 0;
-        while let Some(Ok(msg)) = receiver.next().await {
-            cnt += 1;
-            // print message and break if instructed to do so
-            if process_message(msg, who).is_break() {
-                break;
-            }
-        }
-        cnt
-    });
-
-    // If any one of the tasks exit, abort the other.
-    tokio::select! {
-        rv_a = (&mut send_task) => {
-            match rv_a {
-                Ok(a) => debug!("{a} messages sent to {who}"),
-                Err(a) => debug!("Error sending messages {a:?}")
-            }
-            recv_task.abort();
-        },
-        rv_b = (&mut recv_task) => {
-            match rv_b {
-                Ok(b) => debug!("Received {b} messages"),
-                Err(b) => debug!("Error receiving messages {b:?}")
-            }
-            send_task.abort();
-        }
-    }
+    let session = SocketSession::new(socket, state, who);
+    session.process().await;
 
     // returning from the handler closes the websocket connection
     debug!("Websocket context {who} destroyed");

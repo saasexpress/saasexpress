@@ -1,14 +1,13 @@
 use core::panic;
 use std::sync::Arc;
 
-
 use crate::graph::graph::{Graph, Operator};
 
 use super::{
     api_call::APICall, buffer_to_json::BufferToJSON, fan_out::fan_out::FanOut,
     http_in::http_in::HTTPIn, json_to_buffer::JSONToBuffer,
     message_translator::message_translator::MessageTranslator, passthrough::Passthrough,
-    terminate::Terminate,
+    shell::shell::Shell, terminate::Terminate,
 };
 
 // pub fn operation(name: &str, config: Value) -> impl Operator {
@@ -49,6 +48,7 @@ pub enum OperatorSpec {
     Passthrough(Passthrough),
     Terminate(Terminate),
     FanOut(FanOut),
+    Shell(Shell),
 }
 
 // impl OperatorSpec {
@@ -93,6 +93,7 @@ impl From<&serde_yaml::Value> for OperatorSpec {
             "Passthrough" => OperatorSpec::Passthrough(Passthrough::from(value)),
             "Terminate" => OperatorSpec::Terminate(Terminate::from(value)),
             "FanOut" => OperatorSpec::FanOut(FanOut::from(value)),
+            "Shell" => OperatorSpec::Shell(Shell::from(value)),
             _ => panic!("Unknown operator: {}", name),
         }
     }
@@ -111,6 +112,7 @@ impl Into<OpXX> for OperatorSpec {
             OperatorSpec::Passthrough(op) => Arc::new(op),
             OperatorSpec::Terminate(op) => Arc::new(op),
             OperatorSpec::FanOut(op) => Arc::new(op),
+            OperatorSpec::Shell(op) => Arc::new(op),
         }
     }
 }
@@ -128,6 +130,7 @@ pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
         "Passthrough" => graph.add_node(id, Passthrough::from(value)),
         "Terminate" => graph.add_node(id, Terminate::from(value)),
         "FanOut" => graph.add_node(id, FanOut::from(value)),
+        "Shell" => graph.add_node(id, Shell::from(value)),
         _ => panic!("Unknown operator: {}", name),
     };
 }

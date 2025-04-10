@@ -2,8 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::sync::{Arc, Mutex};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use serde_json::Value;
+
+use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::ports::ports::Ports;
@@ -61,6 +63,32 @@ impl<T> From<Origin<T>> for Arc<T> {
 #[derive(Debug)]
 pub struct OriginMessage {
     pub respond_to: oneshot::Sender<Message>,
+    pub session: Option<String>,
+    pub mpsc_respond_to: Option<mpsc::Sender<Message>>,
+}
+
+// impl Drop for OriginMessage {
+//     fn drop(&mut self) {
+//         println!("Dropping OriginMessage {:?}!", self);
+//     }
+// }
+
+impl OriginMessage {
+    pub fn new(respond_to: oneshot::Sender<Message>) -> Self {
+        OriginMessage {
+            respond_to,
+            session: None,
+            mpsc_respond_to: None,
+        }
+    }
+    pub fn session(mut self, session: String) -> Self {
+        self.session = Some(session);
+        self
+    }
+    pub fn mpsc_respond_to(mut self, mpsc_respond_to: mpsc::Sender<Message>) -> Self {
+        self.mpsc_respond_to = Some(mpsc_respond_to);
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -68,6 +96,9 @@ pub enum Message {
     Split {
         message: Vec<u8>,
         respond_to: Arc<mpsc::Sender<Message>>,
+        origin: Option<OriginMessage>,
+    },
+    Exit {
         origin: Option<OriginMessage>,
     },
     Standard {
@@ -98,6 +129,7 @@ pub enum Message {
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Message::Exit { .. } => write!(f, "Exit message"),
             Message::Split { .. } => write!(f, "Split message"),
             Message::Standard { message, .. } => write!(f, "Standard message: {:?}", message),
             Message::JSON { message, .. } => write!(f, "JSON message: {:?}", message),

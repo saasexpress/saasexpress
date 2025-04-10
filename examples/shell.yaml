@@ -1,0 +1,24 @@
+#
+# curl -v http://localhost:2500/shell -d 'ls'
+name: shell
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: POST
+      routes:
+        - /shell
+
+  - id: buf_json
+    action: BufferToJSON
+
+  - id: shell_node
+    action: Shell
+    config:
+      command: bash
+      args:
+        - "-i"
+
+edges:
+  - { from: start, to: buf_json }
+  - { from: buf_json, to: shell_node }

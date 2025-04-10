@@ -13,12 +13,15 @@ mod graph;
 mod operators;
 mod ports;
 
+//#[tokio::main(flavor = "multi_thread", worker_threads = 100)]
 #[tokio::main]
 async fn main() {
     let matches = parse_commands();
 
     // install global collector configured based on RUST_LOG env var.
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     if matches.get_flag("stdin") {
         stdin();

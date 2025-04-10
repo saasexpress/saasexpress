@@ -44,7 +44,7 @@ impl Operator for BufferToJSON {
 
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
 
-                let origin = Some(OriginMessage { respond_to });
+                let origin = Some(OriginMessage::new(respond_to));
 
                 return to_json(result, origin);
             }

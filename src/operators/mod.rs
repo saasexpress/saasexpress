@@ -11,5 +11,6 @@ pub(crate) mod noop;
 pub(crate) mod op_actor;
 pub(crate) mod op_actor_handle;
 pub(crate) mod passthrough;
+pub(crate) mod shell;
 pub(crate) mod template;
 pub(crate) mod terminate;

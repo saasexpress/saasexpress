@@ -60,7 +60,7 @@ impl Operator for FanOut {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next,  .. } => {
+            Message::Init { next, .. } => {
                 for n in next {
                     self.add_next(n);
                 }
@@ -123,9 +123,7 @@ impl FanOut {
                 let result = s
                     .send(Message::JSON {
                         message: data.0.to_owned(),
-                        origin: Some(OriginMessage {
-                            respond_to: resp_tx1,
-                        }),
+                        origin: Some(OriginMessage::new(resp_tx1)),
                     })
                     .await;
                 if let Err(e) = result {
@@ -230,7 +228,7 @@ impl FanOut {
 
                         operator.lock().unwrap().send(Message::Standard {
                             message,
-                            origin: Some(OriginMessage { respond_to: r_to }),
+                            origin: Some(OriginMessage::new(r_to)),
                         });
 
                         // r_to.send(Message::Standard {
@@ -247,7 +245,7 @@ impl FanOut {
 
                         operator.lock().unwrap().send(Message::JSON {
                             message,
-                            origin: Some(OriginMessage { respond_to: r_to }),
+                            origin: Some(OriginMessage::new(r_to)),
                         });
 
                         // r_to.send(Message::JSON {
