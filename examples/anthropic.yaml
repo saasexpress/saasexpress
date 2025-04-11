@@ -39,7 +39,7 @@ nodes:
       routes:
         - /prompt
 
-  - id: translate
+  - id: anthropic
     action: MessageTranslator
     config:
       template: |
@@ -55,7 +55,8 @@ nodes:
             "messages": [
                 {"role": "user", "content": input.query.prompt}
             ]
-          }
+          },
+          "data": data
         }
 
   - id: rp
@@ -65,5 +66,5 @@ nodes:
       method: POST
 
 edges:
-  - { from: start, to: translate }
-  - { from: translate, to: rp }
+  - { from: start, to: anthropic }
+  - { from: anthropic, to: rp }

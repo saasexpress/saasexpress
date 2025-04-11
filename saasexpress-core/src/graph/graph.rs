@@ -12,6 +12,7 @@ use crate::ports::ports::Ports;
 use super::super::operators::op_actor_handle::OperatorActorHandle;
 
 use super::message::{Message, OriginMessage};
+use super::meta::NodeMeta;
 use super::processors::basic::BasicProcessor;
 use super::processors::port::Port;
 use async_trait::async_trait;
@@ -110,6 +111,7 @@ pub enum OperatorType {
 pub trait Operator: Send + Sync + Debug {
     fn _type(&self) -> OperatorType;
     fn name(&self) -> String;
+    //fn meta(&self) -> NodeMeta;
     fn handle(&self, message: Message) -> Message;
     fn control(&mut self, message: Message);
     fn send(&self, message: Message);
@@ -290,6 +292,7 @@ impl Graph {
             // tell the operator to initialize itself
             operator.lock().unwrap().control(Message::Init {
                 next: childs,
+                id: id.to_string(),
                 end: Arc::clone(end),
                 start: Arc::clone(start),
                 //processor: Arc::new(Mutex::new(processor)),

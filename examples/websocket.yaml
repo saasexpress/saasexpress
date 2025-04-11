@@ -1,4 +1,4 @@
-#
+# (use the client)
 # curl -v http://localhost:2500/ws -d 'ls'
 name: shell
 nodes:

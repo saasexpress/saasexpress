@@ -67,6 +67,7 @@ pub enum Message {
         respond_to: oneshot::Sender<Message>,
     },
     Init {
+        id: String,
         next: Vec<Arc<Mutex<dyn Operator>>>,
         end: Arc<Mutex<dyn Operator + 'static>>,
         start: Arc<Mutex<dyn Operator + 'static>>,

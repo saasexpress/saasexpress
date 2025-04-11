@@ -1,5 +1,5 @@
-# DOES NOT WORK!
-
+# cargo run -- -c examples/faker.yaml
+#
 # curl -v http://localhost:2500/faker -d '{}'
 name: shell
 nodes:

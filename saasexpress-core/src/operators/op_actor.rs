@@ -31,11 +31,17 @@ impl OpActor {
         debug!("OperatorActor is running for {}", self.handle.name());
         while let Some(msg) = self.receiver.recv().await {
             match msg {
-                Message::Init { next, start, end } => {
+                Message::Init {
+                    id,
+                    next,
+                    start,
+                    end,
+                } => {
                     for n in next {
                         self.add_next(n);
                     }
                     self.handle.control(Message::Init {
+                        id,
                         next: Vec::new(),
                         start,
                         end,
