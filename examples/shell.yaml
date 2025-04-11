@@ -1,4 +1,5 @@
-#
+# DOES NOT WORK!
+
 # curl -v http://localhost:2500/shell -d 'ls'
 name: shell
 nodes:
@@ -9,9 +10,6 @@ nodes:
       routes:
         - /shell
 
-  - id: buf_json
-    action: BufferToJSON
-
   - id: shell_node
     action: Shell
     config:
@@ -20,5 +18,4 @@ nodes:
         - "-i"
 
 edges:
-  - { from: start, to: buf_json }
-  - { from: buf_json, to: shell_node }
+  - { from: start, to: shell_node }

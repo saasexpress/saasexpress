@@ -3,12 +3,15 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
-use crate::graph::graph::{Message, Operator};
+use saasexpress_core::graph::graph::Operator;
+
+use saasexpress_core::graph::message::Message;
+
 use crate::operators::http_in::websocket::ws_handler;
 use axum::{
     Json, Router,
     body::to_bytes,
-    extract::{ConnectInfo, Request, State, WebSocketUpgrade},
+    extract::{ConnectInfo, Path, Request, State, WebSocketUpgrade},
     response::IntoResponse,
     routing::{any, delete, get, post, put},
 };
@@ -64,7 +67,7 @@ impl Singleton {
 
             let handler =
                 async |state: State<Arc<MySharedState>>, method: Method, request: Request| {
-                    debug!("Received request with body");
+                    //debug!("Received request with body (paths = {})", path);
 
                     let query = request
                         .uri()
@@ -73,7 +76,10 @@ impl Singleton {
                         .query()
                         .unwrap_or_default()
                         .to_string();
-                    debug!("Using path : {}", path);
+                    //debug!("Using path : {}", path);
+
+                    debug!("Path = {}", request.uri().path());
+                    let path = request.uri().path().to_string();
 
                     let body = request.into_body();
                     let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
@@ -166,10 +172,9 @@ impl Singleton {
                 "GET" | "^(GET)$" => {
                     debug!("Adding GET route: {}", path);
 
-                    self.router = main_router.nest(
-                        path,
+                    self.router = main_router.merge(
                         Router::new()
-                            .route("/".to_string().as_str(), get(handler))
+                            .route(path.to_string().as_str(), get(handler))
                             .with_state(shared_state),
                     );
                 }

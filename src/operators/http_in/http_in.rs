@@ -1,16 +1,19 @@
+use saasexpress_core::{
+    graph::{
+        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        message::Message,
+    },
+    settings::settings::{Setting, env_settings},
+};
 use serde_json::Value;
 use tracing::{debug, info};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
-
 use super::resources::get_instance;
-use crate::graph::graph::{Message, Operator};
 use core::panic;
 use std::{
     fmt::{Display, Formatter},
     sync::{Arc, Mutex},
 };
-
 
 #[derive(Clone, Debug)]
 pub(crate) enum Engine {
@@ -32,6 +35,7 @@ pub(crate) struct HTTPIn {
     routes: Vec<String>,
     method: String,
     next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    settings: Vec<Setting>,
 }
 
 impl From<Value> for HTTPIn {
@@ -59,6 +63,7 @@ impl From<Value> for HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 }
@@ -88,6 +93,7 @@ impl From<serde_yaml::Value> for HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 }
@@ -189,6 +195,7 @@ impl HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 

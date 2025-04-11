@@ -6,6 +6,9 @@ WORKDIR /usr/src/app
 RUN cargo new --bin saasexpress
 WORKDIR /usr/src/app/saasexpress
 
+# Copy the dependent modules
+COPY saasexpress-core ./saasexpress-core
+
 # Copy Cargo files for dependency caching
 COPY Cargo.toml Cargo.lock* ./
 

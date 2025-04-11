@@ -1,15 +1,22 @@
 use std::{
+    collections::HashMap,
     fmt::{Display, Formatter},
     sync::{Arc, Mutex},
 };
 
 use cel_interpreter::{Context, Program};
 use serde_json::{Value as JsonValue, json};
-use tracing::debug;
+use tracing::{debug, info};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, OriginMessage};
-use crate::graph::graph::{Message, Operator};
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
+use saasexpress_core::settings::settings::ToHashMap;
+use saasexpress_core::{
+    graph::{
+        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        message::{Message, OriginMessage},
+    },
+    settings::settings::{Setting, env_settings},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) enum MessageTranslatorEngine {
@@ -28,12 +35,14 @@ impl Display for MessageTranslatorEngine {
 pub(crate) struct MessageTranslator {
     template: String,
     engine: MessageTranslatorEngine,
+    settings: Vec<Setting>,
 }
 
 impl From<serde_yaml::Value> for MessageTranslator {
     fn from(value: serde_yaml::Value) -> Self {
         MessageTranslator {
             template: value["template"].as_str().unwrap_or("").to_string(),
+            settings: env_settings("MESSAGE_TRANSLATOR".to_string()),
             engine: value
                 .get("engine")
                 .and_then(|v| v.as_str())
@@ -133,10 +142,18 @@ impl MessageTranslator {
         let input = json!({
             "resource": "Tenant",
             "http_method": "POST",
+            "query": {
+                "prompt": "Hello World"
+            }
         });
 
         context
             .add_variable("data", cel_data)
+            .expect("Variable data problem");
+
+        info!("Settings {:?}", self.settings.to_hash_map());
+        context
+            .add_variable("settings", self.settings.to_hash_map())
             .expect("Variable data problem");
 
         context

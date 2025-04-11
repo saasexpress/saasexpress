@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use commands::config::config;
-//use crate::bootstrap;
 use commands::samples::samples;
 use commands::stdin::stdin;
 use commands::{args::parse_commands, get::get};
@@ -9,9 +8,7 @@ use tracing::Level;
 
 mod bootstrap;
 mod commands;
-mod graph;
 mod operators;
-mod ports;
 
 //#[tokio::main(flavor = "multi_thread", worker_threads = 100)]
 #[tokio::main]

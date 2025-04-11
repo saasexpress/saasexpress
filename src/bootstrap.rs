@@ -1,12 +1,10 @@
-use graph::graph::Graph;
 use rust_embed::Embed;
+use saasexpress_core::graph::graph::Graph;
 use serde_yaml::Value;
 use tracing::info;
 
-use crate::operators::factory::{add_node_to_graph};
+use crate::operators::factory::add_node_to_graph;
 use crate::operators::http_in::resources::get_instance;
-
-use super::graph;
 
 #[derive(Embed)]
 #[folder = "src/commands"]

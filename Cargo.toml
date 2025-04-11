@@ -6,14 +6,17 @@ description = "A low-code enterprise integration framework for microservice orch
 license = "Apache-2.0"
 
 [dependencies]
+saasexpress-core = { path = "./saasexpress-core"}
+saasexpress-faker = { path = "./src/operators/faker"}
 async-nats = "0.38.0"
 async-std = "1.13.0"
 async-trait = "0.1.88"
-axum = { version="0.8", features = ["macros", "ws"] }
+axum = { version="0.8.3", features = ["macros", "ws"] }
 axum-extra = {version = "0.10.1", features = ["typed-header"]}
 cel-interpreter = "0.9.0"
 chrono = "0.4.40"
 clap = { version = "4.5.35", features = ["cargo"] }
+dotenv = "0.15.0"
 futures = "0.3.31"
 futures-util = "0.3.31"
 hyper = { version = "1.6.0", features = ["server"]}

@@ -1,0 +1,69 @@
+#
+# curl -v http://localhost:2500/v1/b8840c-nonprod/data/dev/tfvars
+#
+# API_CALL_REQWEST_X_API_KEY=
+# API_CALL_REQWEST_ANTHROPIC_VERSION=2023-06-01
+#
+# curl https://api.anthropic.com/v1/messages \
+#      --header "x-api-key: $ANTHROPIC_API_KEY" \
+#      --header "anthropic-version: 2023-06-01" \
+#      --header "content-type: application/json" \
+#      --data \
+# '{
+#     "model": "claude-3-7-sonnet-20250219",
+#     "max_tokens": 1024,
+#     "messages": [
+#         {"role": "user", "content": "Hello, world"}
+#     ]
+# }'
+#
+#
+#
+# curl http://localhost:2500/v1/messages \
+#      --header "content-type: application/json" \
+#      --data \
+# '{
+#     "model": "claude-3-7-sonnet-20250219",
+#     "max_tokens": 1024,
+#     "messages": [
+#         {"role": "user", "content": "Hello, world"}
+#     ]
+# }'
+
+name: shell
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: POST
+      routes:
+        - /prompt
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      template: |
+        { 
+          "headers": {
+            "x-api-key": settings.X_API_KEY,
+            "anthropic-version": settings.ANTHROPIC_VERSION,
+            "content-type": "application/json"
+          },
+          "body": {
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "user", "content": input.query.prompt}
+            ]
+          }
+        }
+
+  - id: rp
+    action: APICall
+    config:
+      url: https://api.anthropic.com/v1/messages
+      method: POST
+
+edges:
+  - { from: start, to: translate }
+  - { from: translate, to: rp }

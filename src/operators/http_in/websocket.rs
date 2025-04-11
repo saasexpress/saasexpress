@@ -44,10 +44,9 @@ use futures::{
 
 use super::resources::MySharedState;
 
-use crate::{
-    graph::graph::{Message as GraphMessage, OriginMessage},
-    operators::http_in::session::SocketSession,
-};
+use saasexpress_core::graph::message::{Message as GraphMessage, OriginMessage};
+
+use crate::operators::http_in::session::SocketSession;
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
 /// of websocket negotiation). After this completes, the actual switching from HTTP to

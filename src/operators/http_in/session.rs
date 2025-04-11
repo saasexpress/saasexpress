@@ -32,7 +32,7 @@ use futures::{
 
 use super::resources::MySharedState;
 
-use crate::graph::graph::{Message as GraphMessage, OriginMessage};
+use saasexpress_core::graph::message::{Message as GraphMessage, OriginMessage};
 
 /**
  *
