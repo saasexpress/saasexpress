@@ -18,7 +18,8 @@ jobs:
       - name: Static UI
         uses: actions/checkout@v2
         with:
-          repository: saasexpress/saasexpress-blueprints
+          repository: saasexpress/saasexpress
+          ref: feature/server-side-events
           path: tenant-ui
 
       - name: Prep Static UI
