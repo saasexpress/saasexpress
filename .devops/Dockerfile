@@ -13,8 +13,8 @@ COPY saasexpress-core ./saasexpress-core
 COPY Cargo.toml Cargo.lock* ./
 
 # Build dependencies only (this layer is cached if dependencies don't change)
-RUN touch src/main.rs && cargo build --release
-RUN rm src/*.rs
+# RUN touch src/main.rs && cargo build --release
+# RUN rm src/*.rs
 
 # Copy the actual source code
 COPY src ./src
