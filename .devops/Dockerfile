@@ -8,6 +8,7 @@ WORKDIR /usr/src/app/saasexpress
 
 # Copy the dependent modules
 COPY saasexpress-core ./saasexpress-core
+COPY saasexpress-tenants ./saasexpress-tenants
 
 # Copy Cargo files for dependency caching
 COPY Cargo.toml Cargo.lock* ./

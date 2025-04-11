@@ -19,7 +19,7 @@
 #
 #
 #
-# curl http://localhost:2500/v1/messages \
+# curl http://localhost:2500/prompt \
 #      --header "content-type: application/json" \
 #      --data \
 # '{

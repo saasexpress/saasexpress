@@ -4,7 +4,8 @@ use commands::config::config;
 use commands::samples::samples;
 use commands::stdin::stdin;
 use commands::{args::parse_commands, get::get};
-use tracing::Level;
+use saasexpress_tenants::TenantsService;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod bootstrap;
 mod commands;
@@ -15,9 +16,13 @@ mod operators;
 async fn main() {
     let matches = parse_commands();
 
-    // install global collector configured based on RUST_LOG env var.
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| {
+                "saasexpress_tenants=debug,saasexpress_core=info,saasexpress=info,tower_http=debug".into()
+            }),
+        ))
+        .with(tracing_subscriber::fmt::layer())
         .init();
 
     if matches.get_flag("stdin") {
@@ -26,6 +31,8 @@ async fn main() {
     if matches.get_flag("samples") {
         samples();
     }
+
+    tokio::spawn(TenantsService::start());
 
     // get config file
 

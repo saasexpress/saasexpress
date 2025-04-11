@@ -2,3 +2,4 @@ target
 graph.yaml
 bootstrap
 .env
+sqlite.db

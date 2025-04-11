@@ -1,7 +1,6 @@
 use graph::graph::Graph;
 use operators::factory::add_node_to_graph;
 use serde_yaml::Value;
-use tracing::info;
 
 pub mod graph;
 pub mod operators;

@@ -14,6 +14,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
+      - name: Static UI
+        uses: actions/checkout@v2
+        with:
+          repository: saasexpress/saasexpress-blueprints
+          path: tenant-ui
+
+      - name: Prep Static UI
+        run: |
+          docker build --tag ui -f tenant-ui/tenant-ui/Dockerfile tenant-ui/tenant-ui
+
+          id=$(docker create ui)
+          docker cp $id:/app/dist/. saasexpress-tenants/ui
+          docker rm -v $id
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
