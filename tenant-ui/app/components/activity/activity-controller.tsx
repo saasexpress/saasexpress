@@ -1,10 +1,10 @@
 import { Suspense, use, useState } from "react";
-import { Box } from "@mui/material";
+import { Box, Grid2, Stack } from "@mui/material";
 import { UseQueryResult } from "@tanstack/react-query";
 import useAPIClient, { GetResult } from "@lib/api/APIClient";
 import Activity from "./Activity";
 
-function CheckEmptyList({
+function ActivityList({
   query,
   handleChangePage,
   handleChangeRowsPerPage,
@@ -62,17 +62,28 @@ let ActivityController = () => {
   };
 
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <CheckEmptyList
-        query={query}
-        handleChangePage={(e: any, page: number) => {
-          _handleActivity(page, paging.pageSize);
-        }}
-        handleChangeRowsPerPage={(e: any) => {
-          _handleActivity(paging.page, e.target.value);
-        }}
-      />
-    </Suspense>
+    <Grid2 container spacing={2}>
+      <Grid2 size={{ md: 3, sm: 4, xs: 12 }}>
+        <Stack bgcolor="white" p={4} mt={4} mb={0} borderRadius={0}>
+          <Stack direction="column" alignItems="start" justifyContent="start">
+            <Box>Searching..</Box>
+          </Stack>
+        </Stack>
+      </Grid2>
+      <Grid2 size={{ md: 9, sm: 8, xs: 12 }}>
+        <Suspense fallback={<div>Loading...</div>}>
+          <ActivityList
+            query={query}
+            handleChangePage={(e: any, page: number) => {
+              _handleActivity(page, paging.pageSize);
+            }}
+            handleChangeRowsPerPage={(e: any) => {
+              _handleActivity(paging.page, e.target.value);
+            }}
+          />
+        </Suspense>
+      </Grid2>
+    </Grid2>
   );
 };
 

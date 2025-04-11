@@ -18,7 +18,7 @@ import Nav from "../nav";
 import DetailHeader from "@components/detail-header";
 import useAPIClient from "lib/api/APIClient";
 import DynamicGraph from "./graph";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Close from "components/gold/close";
 import BasicButton from "components/gold/basic-button";
 import GoldHorizontalTabs from "components/gold/horizontal-tabs";
@@ -37,6 +37,8 @@ const Entry = () => {
 
   const container = useRef(null);
 
+  const [variant, setVariant] = useState("");
+
   const [showDetail, setShowDetail] = useState(false);
   const [list, setList] = useState(12);
 
@@ -53,12 +55,18 @@ const Entry = () => {
   // if (isPending) {
   //   return <></>;
   // }
-
   const d = data?.data;
 
+  useEffect(() => {
+    if (data?.data) {
+      setVariant(Object.keys(data?.data.variants).pop() as string);
+    }
+  }, [data]);
+
   const setNewCode = (code: string) => {
-    alert("new " + code);
+    console.log(code);
   };
+
   return (
     <Container maxWidth="lg">
       <Header name={d?.displayName} id={d?.id} />
@@ -92,18 +100,21 @@ const Entry = () => {
             spacing={2}
           >
             <Grid2 size={{ md: list }} overflow="clip">
-              <DynamicGraph
-                id={id}
-                data={data?.data}
-                variant={"activity-api-mutation.yaml"}
-                onSelected={(node: Node) => {
-                  setSelected(node);
-                  setShowDetail(true);
-                  setList(6);
-                }}
-              />
+              {data?.data && (
+                <DynamicGraph
+                  key={id + variant}
+                  id={id}
+                  data={data?.data}
+                  variant={variant}
+                  onSelected={(node: Node) => {
+                    setSelected(node);
+                    setShowDetail(true);
+                    setList(4);
+                  }}
+                />
+              )}
             </Grid2>
-            <Grid2 size={{ md: 6 }} pl={0}>
+            <Grid2 size={{ md: 8 }} pl={0}>
               <Slide
                 direction="left"
                 in={showDetail}
@@ -158,7 +169,11 @@ const Entry = () => {
                       collection="services"
                       tabs={
                         id
-                          ? [{ name: "yaml", label: "YAML" }]
+                          ? [
+                              { name: "yaml", label: "YAML" },
+                              { name: "in", label: "Inputs" },
+                              { name: "out", label: "Outputs" },
+                            ]
                           : [{ name: "yaml", label: "Details" }]
                       }
                       tab="yaml"
@@ -183,21 +198,35 @@ const Entry = () => {
                       <Grid2 p={1} size={{ xs: 12 }}>
                         <MonacoEditor
                           key={selectedNode?.id}
-                          defaultValue={stringify(selectedNode, null, 4)}
+                          defaultValue={stringify(
+                            selectedNode?.config,
+                            null,
+                            4
+                          )}
                           language="yaml"
-                          options={{
-                            selectOnLineNumbers: true,
-                            roundedSelection: false,
-                            lineNumbers: "off",
-                            scrollBeyondLastLine: false,
-                            readOnly: false,
-                            theme: "vs",
-                            renderLineHighlight: "none",
-                            fontFamily: "Menlo, Consolas",
-                            fontSize: "14px",
-                            fontWeight: 600,
-                          }}
+                          theme="vs-dark"
                           onChange={setNewCode}
+                          options={{
+                            automaticLayout: true,
+                            autoIndent: true,
+                            cursorStyle: "line",
+                            fontFamily: "-apple-system, Menlo, Consolas",
+                            fontSize: "14px",
+                            fontWeight: 400,
+                            foldingHighlight: false,
+                            formatOnPaste: true,
+                            lineNumbers: true,
+                            minimap: { enabled: false },
+                            occurrencesHighlight: false,
+                            readOnly: false,
+                            renderLineHighlight: "none",
+                            roundedSelection: false,
+                            scrollBeyondLastLine: false,
+                            selectOnLineNumbers: false,
+                            showFoldingControls: "mouseover",
+                            tabIndex: 2,
+                            wordWrap: false,
+                          }}
                         />
                       </Grid2>
                     </Grid2>

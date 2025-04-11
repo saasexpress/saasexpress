@@ -72,7 +72,7 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
   const GRID_SIZE = 20; // Base grid size
 
   useEffect(() => {
-    if (data) {
+    if (data && variant) {
       const dagVariant: DAGVariant = data.variants[variant];
       console.log(dagVariant);
       dagVariant.dag.nodes.map((nd, idx) => {
@@ -97,19 +97,15 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
         });
       }
     }
-  }, [data]);
+  }, [data, variant]);
 
   // useEffect(() => {
   //   updateVisuals(stagePosition, stageScale, nodes);
   // }, [stageScale]);
 
   // Graph data: nodes and edges
-  const [nodes, setNodes] = useState<Node[]>([
-    { id: "A", x: 100, y: 100, label: "A" },
-    { id: "B", x: 300, y: 100, label: "B" },
-  ]);
-
-  const [edges, setEdges] = useState<Edge[]>([{ from: "A", to: "B" }]);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
   const updateVisuals = (
     stagePosition: any,
@@ -450,23 +446,6 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
 
   return (
     <div>
-      <Stack direction="row" style={{ marginBottom: "10px" }} spacing={1}>
-        <button onClick={addNode} style={{}}>
-          Add Node
-        </button>
-        <button onClick={addEdge} style={{}}>
-          Add Edge
-        </button>
-        <button onClick={removeNode}>Remove Node</button>
-        <button onClick={() => handleZoom(1.2)}>Zoom In</button>
-        <button onClick={() => handleZoom(0.8)}>Zoom Out</button>
-        <button onClick={() => handlePan(-50, 0)}>Left</button>
-        <button onClick={() => handlePan(50, 0)}>Right</button>
-        <button onClick={() => handlePan(0, -50)}>Up</button>
-        <button onClick={() => handlePan(0, 50)}>Down</button>
-        <button onClick={handleCenter}>Center</button>
-      </Stack>
-
       <div
         ref={containerRef}
         style={{
@@ -517,7 +496,12 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
               return (
                 <Line
                   key={index}
-                  points={[fromNode.x, fromNode.y, toNode.x, toNode.y]}
+                  points={[
+                    fromNode.x + 20,
+                    fromNode.y,
+                    toNode.x + 20,
+                    toNode.y,
+                  ]}
                   stroke="black"
                   strokeWidth={3}
                 />
@@ -597,6 +581,22 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
           </Layer>
         </Stage>
       </div>
+      <Stack direction="row" style={{ marginBottom: "10px" }} spacing={1}>
+        <button onClick={addNode} style={{}}>
+          Add Node
+        </button>
+        <button onClick={addEdge} style={{}}>
+          Add Edge
+        </button>
+        <button onClick={removeNode}>Remove Node</button>
+        <button onClick={() => handleZoom(1.2)}>Zoom In</button>
+        <button onClick={() => handleZoom(0.8)}>Zoom Out</button>
+        <button onClick={() => handlePan(-50, 0)}>Left</button>
+        <button onClick={() => handlePan(50, 0)}>Right</button>
+        <button onClick={() => handlePan(0, -50)}>Up</button>
+        <button onClick={() => handlePan(0, 50)}>Down</button>
+        <button onClick={handleCenter}>Center</button>
+      </Stack>
       <Code>{stringify(nodes, null, 5)}</Code>
       {/* <Code>
         {JSON.stringify(stageSize)}

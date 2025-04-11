@@ -118,6 +118,7 @@ export default function AppLayout() {
           <Stack
             direction="row"
             ml={2}
+            alignItems="center"
             sx={{
               flexGrow: 1,
             }}
@@ -126,7 +127,8 @@ export default function AppLayout() {
               { label: "Tenants", path: "/tenants" },
               { label: "Services", path: "/services" },
               { label: "Activity", path: "/activity" },
-            ].map(({ label, path }) => (
+            ].map(({ label, path }, index: number) => [
+              index > 0 && <Typography pl={0} pr={0}></Typography>,
               <Link to={path} key={label}>
                 <ListItemButton
                   sx={{ mr: 1, p: 1 }}
@@ -143,8 +145,8 @@ export default function AppLayout() {
                   <ListItemText>{label}</ListItemText>
                   <ExpandMoreIcon />
                 </ListItemButton>
-              </Link>
-            ))}
+              </Link>,
+            ])}
           </Stack>
         </Toolbar>
       </AppBar>

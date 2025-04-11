@@ -20,6 +20,7 @@ export interface Node {
   y: number;
   label: string;
   action?: string;
+  config?: any;
 }
 
 export interface Edge {
