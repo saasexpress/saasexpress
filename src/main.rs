@@ -19,7 +19,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_else(|_| {
-                "saasexpress_tenants=debug,saasexpress_core=info,saasexpress=info,tower_http=debug".into()
+                "saasexpress_tenants=debug,saasexpress_core=info,saasexpress=debug,tower_http=info".into()
             }),
         ))
         .with(tracing_subscriber::fmt::layer())

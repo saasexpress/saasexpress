@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use async_nats::jetstream::response;
 use hyper::Method;
 use reqwest::Client;
 use saasexpress_core::graph::message::{Message, OriginMessage};
@@ -334,7 +336,7 @@ impl AsyncHandleTrait for APICall {
 
                     builder = builder
                         .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
+                        //.header("Accept", "application/json")
                         .body(message);
 
                     info!("Builder: {:?}", builder);
@@ -357,16 +359,39 @@ impl AsyncHandleTrait for APICall {
                                     message: b"Error".to_vec(),
                                     origin: Some(OriginMessage::new(respond_to)),
                                 };
-                            } else {
+                            } else if is_json_response(&response) {
                                 return Message::JSON {
                                     message: response.json().await.unwrap(),
                                     //message: response.bytes().await.unwrap().to_vec(),
                                     origin: Some(OriginMessage::new(respond_to)),
                                 };
+                            } else {
+                                //while let Some(chunk) = res.chunk().await? {
+                                //    println!("Chunk: {chunk:?}");
+                                //}
+
+                                let status = response.status().as_u16();
+                                let headers = response
+                                    .headers()
+                                    .iter()
+                                    .map(|h| {
+                                        (
+                                            String::from(h.0.as_str()).to_lowercase(),
+                                            String::from(h.1.to_str().unwrap()),
+                                        )
+                                    })
+                                    .collect::<HashMap<String, String>>();
+
+                                return Message::HTTP {
+                                    message: response.bytes().await.unwrap().to_vec(),
+                                    headers,
+                                    status,
+                                    origin: Some(OriginMessage::new(respond_to)),
+                                };
                             }
                         }
                         Err(e) => {
-                            warn!("Error making request: {}", e);
+                            error!("Error making request");
                             return Message::Standard {
                                 message: b"Error".to_vec(),
                                 origin: Some(OriginMessage::new(respond_to)),
@@ -708,4 +733,14 @@ impl Operator for APICall {
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }
+}
+
+fn is_json_response(response: &reqwest::Response) -> bool {
+    let content_type = response.headers().get("Content-Type");
+    if let Some(content_type) = content_type {
+        if let Ok(content_type_str) = content_type.to_str() {
+            return content_type_str.contains("application/json");
+        }
+    }
+    false
 }

@@ -49,6 +49,42 @@ impl Operator for NOOP {
     fn send(&self, _message: Message) {
         debug!("Finished.. sending to respond_to..");
         match _message {
+            Message::HTTP {
+                message,
+                origin,
+                headers,
+                status,
+            } => {
+                if let Some(origin_message) = origin {
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::HTTP {
+                                    message: message.to_owned(),
+                                    origin: None,
+                                    headers,
+                                    status,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
+                    } else {
+                        let respond_to = origin_message.respond_to;
+
+                        respond_to
+                            .send(Message::HTTP {
+                                message: message.to_owned(),
+                                origin: None,
+                                headers,
+                                status,
+                            })
+                            .expect("[Standard] Failed to send response");
+                    }
+                } else {
+                    warn!("No respond_to channel to send to");
+                }
+            }
             Message::Standard { message, origin } => {
                 if let Some(origin_message) = origin {
                     if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {

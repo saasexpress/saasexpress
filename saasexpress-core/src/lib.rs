@@ -34,7 +34,7 @@ pub fn build_graph(yaml: Value) -> Graph {
 
 #[cfg(test)]
 mod saasexpress_core_tests {
-    use tracing::{Level, debug};
+    use tracing::{Level, debug, info};
 
     use crate::graph::graph::GraphRun;
     use crate::{graph::message::Message, settings::settings::env_settings};

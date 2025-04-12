@@ -1,0 +1,21 @@
+name: ws-3
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      ws: true
+      method: ^(ANY)$
+      routes:
+        - /ws-tweak
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      template: |
+        {
+          "action":  input.http_method,
+          "resource": input.resource,
+          "data": data
+        }
+edges:
+  - { from: start, to: translate }

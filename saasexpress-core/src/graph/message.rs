@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     sync::{Arc, Mutex},
 };
@@ -55,6 +56,13 @@ pub enum Message {
         message: Vec<u8>,
         origin: Option<OriginMessage>,
     },
+    HTTP {
+        message: Vec<u8>,
+        status: u16,
+        headers: HashMap<String, String>,
+        origin: Option<OriginMessage>,
+    },
+
     JSON {
         message: Value,
         origin: Option<OriginMessage>,
@@ -86,6 +94,7 @@ impl Display for Message {
             Message::Split { .. } => write!(f, "Split message"),
             Message::Standard { message, .. } => write!(f, "Standard message: {:?}", message),
             Message::JSON { message, .. } => write!(f, "JSON message: {:?}", message),
+            Message::HTTP { message, .. } => write!(f, "HTTP message: {:?}", message),
             Message::ReqReply { message, .. } => write!(f, "ReqReply message: {:?}", message),
             Message::Init { .. } => write!(f, "Init message"),
             Message::Error { .. } => write!(f, "Error message"),

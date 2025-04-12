@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     net::SocketAddr,
     sync::{Arc, Mutex, OnceLock},
 };
@@ -12,12 +13,13 @@ use axum::{
     Json, Router,
     body::to_bytes,
     extract::{ConnectInfo, Path, Request, State, WebSocketUpgrade},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
+use axum::{body::Body, http::HeaderValue};
 use axum_extra::{TypedHeader, headers};
 use futures::channel::oneshot;
-use hyper::{Method, StatusCode};
+use hyper::{HeaderMap, Method, StatusCode};
 use serde_json::json;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
@@ -109,14 +111,53 @@ impl Singleton {
                                     String::from_utf8_lossy(&message)
                                 );
                                 Json(json!({ "data": String::from_utf8_lossy(&message) }))
+                                    .into_response()
                             }
+                            Message::HTTP {
+                                message,
+                                origin: None,
+                                headers,
+                                status,
+                            } => {
+                                debug!(
+                                    "Received a HTTP message (status={}): {}",
+                                    status,
+                                    headers.get("content-type").unwrap_or(&String::from(""))
+                                );
+
+                                if let Ok(body) = String::from_utf8(message) {
+                                    debug!("Body: {}", body);
+                                    let mut _headers = HeaderMap::new();
+                                    _headers.insert(
+                                        "Content-Type",
+                                        HeaderValue::from_bytes(
+                                            headers.get("content-type").unwrap().as_bytes(),
+                                        )
+                                        .unwrap(),
+                                    );
+
+                                    // for key in headers.keys() {
+                                    //     let value =
+                                    //         HeaderValue::from_bytes(headers.get(key).unwrap().as_bytes())
+                                    //             .unwrap();
+                                    //     builder = builder.header(key, value);
+                                    // }
+
+                                    (StatusCode::from_u16(status).unwrap(), _headers, body)
+                                        .into_response()
+                                } else {
+                                    error!("Failed to convert body to string");
+                                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                                }
+                            }
+
                             Message::JSON {
                                 message,
                                 origin: None,
                             } => {
                                 debug!("Received a JSON message");
 
-                                Json(json!({ "data": message }))
+                                Json(json!({ "data": message })).into_response()
                             }
 
                             _ => panic!("Expected a Standard response"),
@@ -124,9 +165,11 @@ impl Singleton {
                         Err(e) => {
                             error!("Failed to send: {}", e);
                             Json(json!({ "status": "Error failed to receive response" }))
+                                .into_response()
                         }
                     }
                 };
+
             let path = _path;
             match method.as_str() {
                 "^(POST|PUT|DELETE)$" => {
@@ -216,7 +259,7 @@ impl Singleton {
 
         let service = router.into_make_service_with_connect_info::<SocketAddr>();
         tokio::spawn(async move {
-            let addr = SocketAddr::from(([0, 0, 0, 0], 2500));
+            let addr = SocketAddr::from(([0, 0, 0, 0], 2243));
             let listener = TcpListener::bind(addr).await.unwrap();
 
             info!("[HTTPIn] Listening on: {}", addr);
