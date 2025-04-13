@@ -29,8 +29,6 @@ jobs:
           id=$(docker create ui)
           docker cp $id:/app/dist/. saasexpress-tenants/ui
           docker rm -v $id
-          ls -la saasexpress-tenants
-          ls -la saasexpress-tenants/ui
 
       - name: Docker meta
         id: meta
@@ -64,5 +62,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          #cache-from: type=gha
+          #cache-to: type=gha,mode=max
