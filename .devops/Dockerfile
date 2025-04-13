@@ -10,6 +10,8 @@ WORKDIR /usr/src/app/saasexpress
 COPY saasexpress-core ./saasexpress-core
 COPY saasexpress-tenants ./saasexpress-tenants
 
+RUN ls -la ./saasexpress-tenants/ui
+
 # Copy Cargo files for dependency caching
 COPY Cargo.toml Cargo.lock* ./
 
