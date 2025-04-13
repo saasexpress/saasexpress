@@ -29,6 +29,8 @@ jobs:
           id=$(docker create ui)
           docker cp $id:/app/dist/. saasexpress-tenants/ui
           docker rm -v $id
+          ls -la saasexpress-tenants
+          ls -la saasexpress-tenants/ui
 
       - name: Docker meta
         id: meta
