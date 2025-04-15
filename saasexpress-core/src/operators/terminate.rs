@@ -31,7 +31,7 @@ impl Operator for Terminate {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        _message
+        return Message::NoOp {};
     }
 
     fn init(&mut self, _: &mut Graph) {

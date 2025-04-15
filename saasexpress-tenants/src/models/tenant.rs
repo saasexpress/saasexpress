@@ -8,6 +8,8 @@ use crate::schema::tenants;
 #[derive(Queryable, Selectable, Identifiable, Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[diesel(table_name = tenants)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Tenant {
     pub id: String,
     pub display_name: Option<String>,
@@ -18,6 +20,8 @@ pub struct Tenant {
 
 #[derive(Insertable, Deserialize, Debug)]
 #[diesel(table_name = tenants)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NewTenant {
     pub id: Option<String>,
     pub display_name: Option<String>,
@@ -25,12 +29,16 @@ pub struct NewTenant {
 
 #[derive(AsChangeset, Deserialize, Debug)]
 #[diesel(table_name = tenants)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct UpdateTenant {
     pub display_name: Option<String>,
 }
 
 // API DTOs
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TenantDTO {
     pub id: Option<String>,
     pub display_name: Option<String>,

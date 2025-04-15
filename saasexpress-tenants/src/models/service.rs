@@ -5,11 +5,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
-use crate::schema::{services, dag_variants};
+use crate::schema::{dag_variants, services};
 
 #[derive(Queryable, Selectable, Identifiable, Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[diesel(table_name = services)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Service {
     pub id: String,
     pub display_name: String,
@@ -19,10 +21,22 @@ pub struct Service {
     pub deleted_at: Option<NaiveDateTime>,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Serialize, Deserialize, Debug, Clone, ToSchema, Associations)]
+#[derive(
+    Queryable,
+    Selectable,
+    Identifiable,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    ToSchema,
+    Associations,
+)]
 #[diesel(table_name = dag_variants)]
 #[diesel(belongs_to(Service))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DagVariant {
     pub id: i32,
     pub name: String,
@@ -35,6 +49,8 @@ pub struct DagVariant {
 
 #[derive(Insertable, Deserialize, Debug)]
 #[diesel(table_name = services)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NewService {
     pub id: Option<String>,
     pub display_name: String,
@@ -43,6 +59,8 @@ pub struct NewService {
 
 #[derive(Insertable, Deserialize, Debug)]
 #[diesel(table_name = dag_variants)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NewDagVariant {
     pub name: String,
     pub dag: String, // JSON string
@@ -51,6 +69,8 @@ pub struct NewDagVariant {
 
 #[derive(AsChangeset, Deserialize, Debug)]
 #[diesel(table_name = services)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct UpdateService {
     pub display_name: Option<String>,
     pub service_url: Option<String>,
@@ -58,11 +78,15 @@ pub struct UpdateService {
 
 // API DTOs
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DagVariantDTO {
     pub dag: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ServiceDTO {
     pub id: Option<String>,
     pub display_name: Option<String>,
@@ -79,7 +103,7 @@ impl ServiceDTO {
                 (name, DagVariantDTO { dag: Some(dag) })
             })
             .collect();
-        
+
         self.variants = Some(variants_map);
         self
     }

@@ -1,15 +1,11 @@
-#
-# - implement HTTPIn to match the route
-#
-name: tenant-ui
+name: activity-api-get
 nodes:
   - id: start
     action: HTTPIn
     config:
-      method: GET
+      method: ^(GET)$
       routes:
-        - /ui/
-        - /ui/{*rest}
+        - /api/activity
 
   - id: rp
     action: APICall
@@ -17,4 +13,5 @@ nodes:
       url: http://localhost:8081
 
 edges:
-  - { from: start, to: rp }
+  - from: start
+    to: rp

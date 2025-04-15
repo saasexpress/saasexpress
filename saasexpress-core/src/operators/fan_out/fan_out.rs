@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use futures::channel::oneshot;
 use futures::future::join_all;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
@@ -88,10 +88,10 @@ impl Operator for FanOut {
 }
 
 impl FanOut {
-    fn next(&self, message: Message) {
+    fn next(&self, _message: Message) {
         let senders = self.senders.clone();
 
-        let data = match message {
+        let data = match _message {
             Message::ReqReply {
                 message,
                 respond_to,
@@ -104,10 +104,39 @@ impl FanOut {
                     .to_string();
                 (serde_json::from_str(&s).unwrap(), respond_to)
             }
+            Message::HTTP {
+                message,
+                status,
+                headers,
+                origin,
+            } => {
+                if status > 299 {
+                    error!("HTTP error: {}", status);
+                    let respond_to = origin.unwrap().respond_to;
+
+                    respond_to
+                        .send(Message::HTTP {
+                            message,
+                            status,
+                            headers,
+                            origin: None,
+                        })
+                        .unwrap();
+                    return;
+                } else {
+                    let s: String = message
+                        .iter()
+                        .map(|b| *b as char)
+                        .collect::<String>()
+                        .to_string();
+                    let json = serde_json::from_str(&s).unwrap();
+                    (json, origin.unwrap().respond_to)
+                }
+            }
             Message::JSON {
                 message, origin, ..
             } => (message, origin.unwrap().respond_to),
-            _ => panic!("Unexpected message type in FanOut::next {}", message),
+            _ => panic!("Unexpected message type in FanOut::next {}", _message),
         };
 
         tokio::spawn(async move {
@@ -164,6 +193,9 @@ impl FanOut {
                     Message::JSON { message, .. } => {
                         merged.push(message.to_owned());
                     }
+                    Message::NoOp {} => {
+                        debug!("NoOp - do not include in merged results")
+                    }
                     _ => {
                         error!("Unexpected message type in FanOut::next {}", r);
                     }
@@ -171,11 +203,20 @@ impl FanOut {
             }
 
             let to = data.1;
-            to.send(Message::JSON {
-                message: json!(merged),
-                origin: None,
-            })
-            .unwrap();
+            if merged.len() == 1 {
+                let value = merged.pop().unwrap();
+                to.send(Message::JSON {
+                    message: value,
+                    origin: None,
+                })
+                .unwrap();
+            } else {
+                to.send(Message::JSON {
+                    message: json!(merged),
+                    origin: None,
+                })
+                .unwrap();
+            }
             /*
             match message {
                 Message::ReqReply {

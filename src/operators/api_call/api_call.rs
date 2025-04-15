@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_nats::jetstream::response;
-use hyper::Method;
+use hyper::{Method, StatusCode};
 use reqwest::Client;
 use saasexpress_core::graph::message::{Message, OriginMessage};
 use saasexpress_core::settings::settings::{Setting, env_settings};
+use serde_json::{Value, json};
+use serde_yaml::Result;
 use tracing::{debug, warn};
 use tracing::{error, info};
 
@@ -348,21 +350,47 @@ impl AsyncHandleTrait for APICall {
                         Ok(response) => {
                             debug!("<-- {}", response.status());
                             if !response.status().is_success() {
-                                warn!(
-                                    "Failed [{}] {} ({}) {}",
-                                    method,
-                                    url_path,
-                                    response.status(),
-                                    response.text().await.unwrap()
-                                );
-                                return Message::Standard {
-                                    message: b"Error".to_vec(),
+                                error!("Failed [{}] {}", method, url_path,);
+                                let r_status = response.status();
+                                let r_text = response.text().await.unwrap();
+                                error!("Failed ({}) {}", r_status, r_text);
+
+                                //let json: Value = serde_json::from_str(&r_text).unwrap();
+
+                                let result = json!({"status":"Error", "result": r_text});
+
+                                // return Message::Standard {
+                                //     message: serde_json::to_vec(&result).unwrap(),
+                                //     origin: Some(OriginMessage::new(respond_to)),
+                                // };
+                                return Message::HTTP {
+                                    message: serde_json::to_vec(&result).unwrap(),
                                     origin: Some(OriginMessage::new(respond_to)),
+                                    headers: HashMap::new(),
+                                    status: r_status.as_u16(),
                                 };
                             } else if is_json_response(&response) {
-                                return Message::JSON {
-                                    message: response.json().await.unwrap(),
-                                    //message: response.bytes().await.unwrap().to_vec(),
+                                // return Message::JSON {
+                                //     message: response.json().await.unwrap(),
+                                //     //message: response.bytes().await.unwrap().to_vec(),
+                                //     origin: Some(OriginMessage::new(respond_to)),
+                                // };
+                                let status = response.status().as_u16();
+                                let headers = response
+                                    .headers()
+                                    .iter()
+                                    .map(|h| {
+                                        (
+                                            String::from(h.0.as_str()).to_lowercase(),
+                                            String::from(h.1.to_str().unwrap()),
+                                        )
+                                    })
+                                    .collect::<HashMap<String, String>>();
+
+                                return Message::HTTP {
+                                    message: response.bytes().await.unwrap().to_vec(),
+                                    headers,
+                                    status,
                                     origin: Some(OriginMessage::new(respond_to)),
                                 };
                             } else {

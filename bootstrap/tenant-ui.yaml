@@ -6,15 +6,15 @@ nodes:
   - id: start
     action: HTTPIn
     config:
-      method: GET
+      method: ^(GET)$
       routes:
-        - /ui/
-        - /ui/{*rest}
+        - /ui
+        - /ui/{restOfPath}
 
   - id: rp
     action: APICall
     config:
-      url: http://localhost:8081
+      url: http://localhost:5173
 
 edges:
   - { from: start, to: rp }

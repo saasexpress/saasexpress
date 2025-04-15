@@ -1,5 +1,7 @@
 target
 graph.yaml
-bootstrap
 .env
 sqlite.db
+
+saasexpress-mcp
+saasexpress-a2a

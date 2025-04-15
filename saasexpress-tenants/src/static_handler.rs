@@ -4,17 +4,19 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use rust_embed::RustEmbed;
+use tracing::{debug, warn};
 
 #[derive(RustEmbed)]
 #[folder = "ui/"]
 struct StaticAssets;
 
 pub(crate) async fn static_handler(uri: Uri) -> impl IntoResponse {
-    let path = uri.path().trim_start_matches('/');
+    let path = uri.path().trim_start_matches("/ui/");
     let path = if path.is_empty() { "index.html" } else { path };
 
     match StaticAssets::get(path) {
         Some(content) => {
+            debug!("Serving static file: {}", path);
             let mime = mime_guess::from_path(path).first_or_octet_stream();
 
             Response::builder()
@@ -23,8 +25,16 @@ pub(crate) async fn static_handler(uri: Uri) -> impl IntoResponse {
                 .unwrap()
         }
         None => {
+            warn!("Missing static file: {}", path);
             // If the path doesn't exist, try to serve index.html (for SPA routing)
-            if let Some(content) = StaticAssets::get("index.html") {
+            if path.ends_with(".js")
+                || path.ends_with(".css")
+                || path.ends_with(".html")
+                || path.ends_with(".svg")
+                || path.ends_with(".png")
+            {
+                (StatusCode::NOT_FOUND, "Not Found").into_response()
+            } else if let Some(content) = StaticAssets::get("index.html") {
                 Response::builder()
                     .header(header::CONTENT_TYPE, "text/html")
                     .body(body::boxed(Full::from(content.data)))

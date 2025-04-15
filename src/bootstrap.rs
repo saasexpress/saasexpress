@@ -4,17 +4,10 @@ use serde_yaml::Value;
 use tracing::info;
 
 use crate::operators::factory::add_node_to_graph;
-use crate::operators::http_in::resources::get_instance;
+use crate::operators::http_in;
 
-#[derive(Embed)]
-#[folder = "src/commands"]
-struct Asset;
-
-pub fn bootstrap(graphs: Vec<Value>) {
-    graphs.iter().for_each(|yaml| build_graph(yaml.to_owned()));
-
-    // Start the resources that the graphs are dependend on
-    let singleton = get_instance().lock().unwrap();
+pub fn bootstrap() {
+    let singleton = http_in::resources::get_instance().lock().unwrap();
     singleton.start();
 }
 
@@ -35,16 +28,4 @@ pub fn build_graph(yaml: Value) {
     }
 
     graph.no_processor().init();
-}
-
-fn gather_files() -> Vec<Value> {
-    Asset::iter()
-        .filter(|file_name| file_name.ends_with(".yaml"))
-        .map(|file_name| {
-            let file = Asset::get(file_name.as_ref()).unwrap();
-            let yaml = serde_yaml::from_slice::<serde_yaml::Value>(file.data.as_ref()).unwrap();
-            info!("YAML: {} : {:?}", file_name, yaml);
-            yaml
-        })
-        .collect()
 }

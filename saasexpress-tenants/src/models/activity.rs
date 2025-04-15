@@ -9,6 +9,8 @@ use crate::schema::activities;
 #[derive(Queryable, Selectable, Identifiable, Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[diesel(table_name = activities)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Activity {
     pub id: i32,
     pub activity_at: NaiveDateTime,
@@ -24,6 +26,8 @@ pub struct Activity {
 
 #[derive(Insertable, Deserialize, Debug)]
 #[diesel(table_name = activities)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NewActivity {
     pub activity_at: Option<NaiveDateTime>,
     pub message: Option<String>,
@@ -35,6 +39,8 @@ pub struct NewActivity {
 
 // API DTOs
 #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ActivityDTO {
     pub id: Option<i32>,
     pub activity_at: Option<String>,
@@ -73,7 +79,7 @@ impl From<ActivityDTO> for NewActivity {
         let activity_at = activity_at_clone
             .and_then(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S").ok())
             .unwrap_or_else(|| chrono::Utc::now().naive_utc());
-        
+
         // Clone the message to avoid partial move
         let message = dto.message.clone();
         let params_json = dto.params_to_json();

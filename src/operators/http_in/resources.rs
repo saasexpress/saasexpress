@@ -11,8 +11,9 @@ use saasexpress_core::graph::message::Message;
 use crate::operators::http_in::websocket::ws_handler;
 use axum::{
     Json, Router,
-    body::to_bytes,
+    body::{Bytes, to_bytes},
     extract::{ConnectInfo, Path, Request, State, WebSocketUpgrade},
+    http::HeaderName,
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
@@ -67,108 +68,118 @@ impl Singleton {
                     ws_handler(state, ws, user_agent, ConnectInfo(addr)).await
                 };
 
-            let handler =
-                async |state: State<Arc<MySharedState>>, method: Method, request: Request| {
-                    //debug!("Received request with body (paths = {})", path);
+            let handler = async |state: State<Arc<MySharedState>>,
+                                 method: Method,
+                                 request: Request| {
+                //debug!("Received request with body (paths = {})", path);
 
-                    let query = request
-                        .uri()
-                        .path_and_query()
-                        .unwrap()
-                        .query()
-                        .unwrap_or_default()
-                        .to_string();
-                    //debug!("Using path : {}", path);
+                let query = request
+                    .uri()
+                    .path_and_query()
+                    .unwrap()
+                    .query()
+                    .unwrap_or_default()
+                    .to_string();
+                //debug!("Using path : {}", path);
 
-                    debug!("Path = {}", request.uri().path());
-                    let path = request.uri().path().to_string();
+                debug!("Path = {}", request.uri().path());
+                let path = request.uri().path().to_string();
 
-                    let body = request.into_body();
-                    let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
+                let body = request.into_body();
+                let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
 
-                    let (send, recv) = oneshot::channel();
+                let (send, recv) = oneshot::channel();
 
-                    let message = Message::ReqReply {
-                        message: body_bytes.to_vec(),
-                        respond_to: send,
-                        path,
-                        query,
-                        method: method.to_string(),
-                    };
+                let message = Message::ReqReply {
+                    message: body_bytes.to_vec(),
+                    respond_to: send,
+                    path,
+                    query,
+                    method: method.to_string(),
+                };
 
-                    // send message to the first operator of the flow
-                    state.start.lock().unwrap().send(message);
+                // send message to the first operator of the flow
+                state.start.lock().unwrap().send(message);
 
-                    // wait for the request to complete
-                    match recv.await {
-                        Ok(msg) => match msg {
-                            Message::Standard {
-                                message,
-                                origin: None,
-                            } => {
-                                debug!(
-                                    "Received a Standard message: {:?}",
-                                    String::from_utf8_lossy(&message)
-                                );
-                                Json(json!({ "data": String::from_utf8_lossy(&message) }))
-                                    .into_response()
-                            }
-                            Message::HTTP {
-                                message,
-                                origin: None,
-                                headers,
-                                status,
-                            } => {
-                                debug!(
-                                    "Received a HTTP message (status={}): {}",
-                                    status,
-                                    headers.get("content-type").unwrap_or(&String::from(""))
-                                );
-
-                                if let Ok(body) = String::from_utf8(message) {
-                                    debug!("Body: {}", body);
-                                    let mut _headers = HeaderMap::new();
-                                    _headers.insert(
-                                        "Content-Type",
-                                        HeaderValue::from_bytes(
-                                            headers.get("content-type").unwrap().as_bytes(),
-                                        )
-                                        .unwrap(),
-                                    );
-
-                                    // for key in headers.keys() {
-                                    //     let value =
-                                    //         HeaderValue::from_bytes(headers.get(key).unwrap().as_bytes())
-                                    //             .unwrap();
-                                    //     builder = builder.header(key, value);
-                                    // }
-
-                                    (StatusCode::from_u16(status).unwrap(), _headers, body)
-                                        .into_response()
-                                } else {
-                                    error!("Failed to convert body to string");
-                                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
-                                }
-                            }
-
-                            Message::JSON {
-                                message,
-                                origin: None,
-                            } => {
-                                debug!("Received a JSON message");
-
-                                Json(json!({ "data": message })).into_response()
-                            }
-
-                            _ => panic!("Expected a Standard response"),
-                        },
-                        Err(e) => {
-                            error!("Failed to send: {}", e);
-                            Json(json!({ "status": "Error failed to receive response" }))
+                // wait for the request to complete
+                match recv.await {
+                    Ok(msg) => match msg {
+                        Message::Standard {
+                            message,
+                            origin: None,
+                        } => {
+                            debug!(
+                                "Received a Standard message: {:?}",
+                                String::from_utf8_lossy(&message)
+                            );
+                            Json(json!({ "data": String::from_utf8_lossy(&message) }))
                                 .into_response()
                         }
+                        Message::HTTP {
+                            message,
+                            origin: None,
+                            headers,
+                            status,
+                        } => {
+                            debug!(
+                                "Received a HTTP message (status={}): {}",
+                                status,
+                                headers.get("content-type").unwrap_or(&String::from(""))
+                            );
+
+                            //let b: &u8 = message.into_iter().take().collect();
+
+                            //let stream = ReaderStream::new(&*message);
+
+                            // Convert stream to axum HTTP body
+                            let body = Bytes::from(message);
+
+                            // if let Ok(body) = message {
+                            let mut _headers = HeaderMap::new();
+                            // _headers.insert(
+                            //     "Content-Type",
+                            //     HeaderValue::from_bytes(
+                            //         headers.get("content-type").unwrap().as_bytes(),
+                            //     )
+                            //     .unwrap(),
+                            // );
+
+                            let header_keys = headers.keys().cloned().collect::<HashSet<_>>();
+                            for key in header_keys {
+                                let hdr_name = HeaderName::from_bytes(key.as_bytes()).unwrap();
+
+                                _headers.insert(
+                                    hdr_name,
+                                    HeaderValue::from_bytes(headers.get(&key).unwrap().as_bytes())
+                                        .unwrap(),
+                                );
+                            }
+
+                            (StatusCode::from_u16(status).unwrap(), _headers, body).into_response()
+                            // } else {
+                            //     error!("Failed to convert body to string");
+                            //     StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                            // }
+                        }
+
+                        Message::JSON {
+                            message,
+                            origin: None,
+                        } => {
+                            debug!("Received a JSON message");
+
+                            Json(json!(message)).into_response()
+                        }
+
+                        _ => panic!("Expected a Standard response"),
+                    },
+                    Err(e) => {
+                        error!("Failed to send: {}", e);
+                        Json(json!({ "status": "Error failed to receive response" }))
+                            .into_response()
                     }
-                };
+                }
+            };
 
             let path = _path;
             match method.as_str() {
@@ -179,19 +190,24 @@ impl Singleton {
                     let shared_state2 = Arc::new(MySharedState {
                         start: start.clone(),
                     });
-
+                    let shared_state3 = Arc::new(MySharedState {
+                        start: start.clone(),
+                    });
                     self.router = main_router
-                        .nest(
-                            path,
+                        .merge(
                             Router::new()
-                                .route("/".to_string().as_str(), post(handler.clone()))
+                                .route(path.as_str(), post(handler.clone()))
                                 .with_state(shared_state1),
                         )
-                        .nest(
-                            path,
+                        .merge(
                             Router::new()
-                                .route("/".to_string().as_str(), delete(handler.clone()))
+                                .route(path.as_str(), put(handler.clone()))
                                 .with_state(shared_state2),
+                        )
+                        .merge(
+                            Router::new()
+                                .route(path.as_str(), delete(handler.clone()))
+                                .with_state(shared_state3),
                         );
                 }
                 "PUT" => {

@@ -141,7 +141,7 @@ impl Operator for NOOP {
             }
 
             _ => {
-                warn!("Message type not supported for respond_to");
+                warn!("Message type not supported for respond_to {}", _message);
             }
         }
     }

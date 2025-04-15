@@ -2,7 +2,9 @@ use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use rand::{Rng, distributions::Alphanumeric};
+use std::env;
 use std::sync::OnceLock;
+use tracing::info;
 
 pub mod activity_repo;
 pub mod service_repo;
@@ -31,9 +33,15 @@ pub fn init_pool(database_url: &str) -> DbPool {
 }
 
 pub fn get_pool() -> &'static DbPool {
-    // file::memory:?cache=shared   ./sqlite.db
+    // file::memory:?cache=shared
+    // ./sqlite.db
 
-    DB_POOL.get_or_init(|| init_pool("file::memory:?cache=shared"))
+    DB_POOL.get_or_init(|| {
+        let sqlite_url = env::var("SQLITE_URL").unwrap_or("file::memory:?cache=shared".to_string());
+
+        info!("[DB] SQLite URL: {}", sqlite_url);
+        init_pool(&sqlite_url)
+    })
 }
 
 pub fn get_conn() -> DbConnection {

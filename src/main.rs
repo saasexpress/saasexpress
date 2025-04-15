@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use bootstrap::build_graph;
 use commands::config::config;
 use commands::samples::samples;
 use commands::stdin::stdin;
@@ -52,9 +53,14 @@ async fn main() {
         _ => {}
     }
 
-    bootstrap::bootstrap(Vec::new());
+    TenantsService::saasexpress_graphs()
+        .iter()
+        .for_each(|yaml| build_graph(yaml.to_owned()));
+
+    bootstrap::bootstrap();
 
     loop {
-        std::thread::sleep(std::time::Duration::from_secs(3600));
+        const ONE_HOUR: u64 = 3600;
+        std::thread::sleep(std::time::Duration::from_secs(ONE_HOUR));
     }
 }

@@ -1,19 +1,20 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use diesel::result::Error as DieselError;
 use serde::Deserialize;
 use std::sync::Arc;
-use utoipa::{ToSchema, IntoParams};
+use utoipa::{IntoParams, ToSchema};
 
+use crate::api::{ApiError, AppState};
 use crate::db::activity_repo;
 use crate::models::{ActivityDTO, NewActivity};
-use crate::api::{AppState, ApiError};
 
 #[derive(Deserialize, ToSchema, IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct PaginationParams {
     #[serde(default = "default_page")]
     pub page: i64,
@@ -51,13 +52,13 @@ pub async fn get_activities(
             _ => ApiError::internal(e.to_string()),
         })?;
 
-    let total_records = activity_repo::count_activities()
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let total_records =
+        activity_repo::count_activities().map_err(|e| ApiError::internal(e.to_string()))?;
 
     let total_pages = ((total_records as f64) / (params.records_per_page as f64)).ceil() as i64;
 
     let activity_dtos: Vec<ActivityDTO> = activities.into_iter().map(ActivityDTO::from).collect();
-    
+
     let response = axum::response::Response::builder()
         .status(StatusCode::OK)
         .header("paging-total-records", total_records.to_string())
@@ -66,7 +67,7 @@ pub async fn get_activities(
         .header("paging-page-size", params.records_per_page.to_string())
         .header(axum::http::header::CONTENT_TYPE, "application/json")
         .body(axum::body::boxed(axum::body::Full::from(
-            serde_json::to_string(&activity_dtos).unwrap()
+            serde_json::to_string(&activity_dtos).unwrap(),
         )))
         .unwrap();
 
@@ -89,11 +90,14 @@ pub async fn create_activity(
     Json(activity): Json<ActivityDTO>,
 ) -> Result<impl IntoResponse, ApiError> {
     let new_activity = NewActivity::from(activity);
-    
+
     let created_activity = activity_repo::create_activity(new_activity)
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(ActivityDTO::from(created_activity))))
+    Ok((
+        StatusCode::CREATED,
+        Json(ActivityDTO::from(created_activity)),
+    ))
 }
 
 #[utoipa::path(
@@ -113,11 +117,14 @@ pub async fn delete_activity(
     State(_state): State<Arc<AppState>>,
     Path(id): Path<i32>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let result = activity_repo::delete_activity(id)
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let result =
+        activity_repo::delete_activity(id).map_err(|e| ApiError::internal(e.to_string()))?;
 
     if result == 0 {
-        return Err(ApiError::not_found(format!("Activity with ID {} not found", id)));
+        return Err(ApiError::not_found(format!(
+            "Activity with ID {} not found",
+            id
+        )));
     }
 
     Ok(StatusCode::NO_CONTENT)

@@ -1,15 +1,18 @@
 #
 # - implement HTTPIn to match the route
+# - make the input and output available in content enricher
+# -
 #
-name: tenant-ui
+#
+name: tenant-api-get
 nodes:
   - id: start
     action: HTTPIn
     config:
-      method: GET
+      method: ^(GET)$
       routes:
-        - /ui/
-        - /ui/{*rest}
+        - /api/tenants
+        - /api/tenants/{id}
 
   - id: rp
     action: APICall

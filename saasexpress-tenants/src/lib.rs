@@ -1,4 +1,5 @@
 mod api;
+mod bootstrap;
 mod db;
 mod models;
 mod schema;
@@ -6,9 +7,12 @@ mod static_handler;
 
 use crate::static_handler::static_handler;
 use axum::Router;
+use serde_yaml::Value;
+use std::env;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
+use tracing::debug;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -17,15 +21,13 @@ use crate::api::{ApiDoc, create_router};
 pub struct TenantsService;
 
 impl TenantsService {
+    pub fn saasexpress_graphs() -> Vec<Value> {
+        bootstrap::gather_files()
+    }
+
     pub async fn start() {
         // Initialize database
         db::get_pool();
-
-        // Set up CORS
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
 
         // Create the API router
         let api_router = create_router();
@@ -38,8 +40,7 @@ impl TenantsService {
             .nest("/", api_router)
             .merge(swagger_ui)
             .fallback(static_handler)
-            .layer(TraceLayer::new_for_http())
-            .layer(cors);
+            .layer(TraceLayer::new_for_http());
 
         // Run the server
         let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
