@@ -1,10 +1,10 @@
+use rand::{Rng, rngs::ThreadRng};
+use saasexpress_core::graph::graph::Operator;
 use std::{
     collections::HashSet,
     net::SocketAddr,
     sync::{Arc, Mutex, OnceLock},
 };
-
-use saasexpress_core::graph::graph::Operator;
 
 use saasexpress_core::graph::message::Message;
 
@@ -28,6 +28,7 @@ use tracing::{debug, error, info, warn};
 #[derive(Debug)]
 pub struct MySharedState {
     pub start: Arc<Mutex<dyn Operator + 'static>>,
+    pub counter: Arc<Mutex<u32>>,
 }
 
 pub struct Singleton {
@@ -57,6 +58,7 @@ impl Singleton {
 
             let shared_state = Arc::new(MySharedState {
                 start: start.clone(),
+                counter: Arc::new(Mutex::new(0)),
             });
             let handler_for_websocket =
                 async |state: State<Arc<MySharedState>>,
@@ -68,10 +70,26 @@ impl Singleton {
                     ws_handler(state, ws, user_agent, ConnectInfo(addr)).await
                 };
 
+            //let mut rng = rand::rng();
+            //let counter = Arc::new(Mutex::new("0"));
+
             let handler = async |state: State<Arc<MySharedState>>,
                                  method: Method,
                                  request: Request| {
-                //debug!("Received request with body (paths = {})", path);
+                let req_id;
+                {
+                    let mut counter = state.counter.lock().unwrap();
+                    *counter += 1;
+                    req_id = counter.clone();
+                }
+                let req_id = format!("{:0>8}", req_id);
+
+                debug!(
+                    "Handler [IN] [{}] {} {}",
+                    req_id,
+                    method,
+                    request.uri().path()
+                );
 
                 let query = request
                     .uri()
@@ -101,6 +119,8 @@ impl Singleton {
                 // send message to the first operator of the flow
                 state.start.lock().unwrap().send(message);
 
+                debug!("Handler [WAIT] [{}]", req_id);
+
                 // wait for the request to complete
                 match recv.await {
                     Ok(msg) => match msg {
@@ -108,10 +128,7 @@ impl Singleton {
                             message,
                             origin: None,
                         } => {
-                            debug!(
-                                "Received a Standard message: {:?}",
-                                String::from_utf8_lossy(&message)
-                            );
+                            debug!("Handler [OK] [{}]", req_id);
                             Json(json!({ "data": String::from_utf8_lossy(&message) }))
                                 .into_response()
                         }
@@ -122,7 +139,8 @@ impl Singleton {
                             status,
                         } => {
                             debug!(
-                                "Received a HTTP message (status={}): {}",
+                                "Handler [OK] [{}] (status={}): {}",
+                                req_id,
                                 status,
                                 headers.get("content-type").unwrap_or(&String::from(""))
                             );
@@ -166,15 +184,17 @@ impl Singleton {
                             message,
                             origin: None,
                         } => {
-                            debug!("Received a JSON message");
-
+                            debug!("Handler [OK] [{}]", req_id);
                             Json(json!(message)).into_response()
                         }
 
-                        _ => panic!("Expected a Standard response"),
+                        _ => {
+                            error!("Handler [PANIC] [{}]", req_id);
+                            panic!("Unexpected Message Type {:?}", msg);
+                        }
                     },
                     Err(e) => {
-                        error!("Failed to send: {}", e);
+                        error!("Handler [ERROR] [{}] {:?}", req_id, e);
                         Json(json!({ "status": "Error failed to receive response" }))
                             .into_response()
                     }
@@ -186,12 +206,15 @@ impl Singleton {
                 "^(POST|PUT|DELETE)$" => {
                     let shared_state1 = Arc::new(MySharedState {
                         start: start.clone(),
+                        counter: Arc::new(Mutex::new(0)),
                     });
                     let shared_state2 = Arc::new(MySharedState {
                         start: start.clone(),
+                        counter: Arc::new(Mutex::new(0)),
                     });
                     let shared_state3 = Arc::new(MySharedState {
                         start: start.clone(),
+                        counter: Arc::new(Mutex::new(0)),
                     });
                     self.router = main_router
                         .merge(
