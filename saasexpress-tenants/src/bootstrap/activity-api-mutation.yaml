@@ -18,22 +18,36 @@ nodes:
     config:
       url: http://localhost:8081
 
-  - id: bufin
-    action: BufferToJSON
+  - id: fanout
+    action: FanOut
 
-  - id: in
-    action: MessageTranslator
-    config:
-      template: |
-        {
-          "message": "{action} {resource} ({id})",
-          "result":  "success",
-          "params": {
-            "action":   "{{ .http_method }}",
-            "resource": "Activity",
-            "id": "{{ .in.id }}{{ .params.id }}"
-          }
-        }
+  # - id: bufin
+  #   action: BufferToJSON
+
+  # - id: in
+  #   action: MessageTranslator
+  #   config:
+  #     engine: cel-interpreter
+  #     template: |
+  #       {
+  #         "message": "{action} {resource} ({id})",
+  #         "result":  "success",
+  #         "params": {
+  #           "action":  input.http_method,
+  #           "resource": "Activity",
+  #           "id": data.id
+  #         }
+  #       }
+
+  # - { id: j2b, action: JSONToBuffer }
+
+  # - id: create
+  #   action: APICall
+  #   config:
+  #     method: POST
+  #     url: http://localhost:8081
+  #     path: /api/activity
+  #     content_type: application/json
 
   - id: done
     action: Passthrough
@@ -45,10 +59,13 @@ nodes:
 
 edges:
   - { from: start, to: rp }
-  - { from: rp, to: bufin }
-  - { from: rp, to: done }
-  # - { from: start, to: bufin }
-  - { from: bufin, to: in }
-  - { from: in, to: terminate }
+  - { from: rp, to: fanout }
+  - { from: fanout, to: done }
+
+  - { from: fanout, to: terminate }
+  # - { from: bufin, to: in }
+  # - { from: in, to: j2b }
+  # - { from: j2b, to: create }
+  # - { from: create, to: terminate }
 
   # - { from: bufin, to: bufout }

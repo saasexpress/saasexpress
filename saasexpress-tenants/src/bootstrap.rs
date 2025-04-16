@@ -1,6 +1,6 @@
 use rust_embed::RustEmbed;
 use serde_yaml::Value;
-use tracing::info;
+use tracing::debug;
 
 #[derive(RustEmbed)]
 #[folder = "src/bootstrap"]
@@ -12,7 +12,7 @@ pub fn gather_files() -> Vec<Value> {
         .map(|file_name| {
             let file = Asset::get(file_name.as_ref()).unwrap();
             let yaml = serde_yaml::from_slice::<serde_yaml::Value>(file.data.as_ref()).unwrap();
-            info!("YAML: {} : {:?}", file_name, yaml);
+            debug!("YAML: {}", file_name);
             yaml
         })
         .collect()

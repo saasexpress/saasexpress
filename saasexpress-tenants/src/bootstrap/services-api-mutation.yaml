@@ -18,20 +18,24 @@ nodes:
     config:
       url: http://localhost:8081
 
+  - id: fanout
+    action: FanOut
+
   - id: bufin
     action: BufferToJSON
 
   - id: in
     action: MessageTranslator
     config:
+      engine: cel-interpreter
       template: |
         {
           "message": "{action} {resource} ({id})",
           "result":  "success",
           "params": {
-            "action":   "{{ .http_method }}",
+            "action":  input.http_method,
             "resource": "Service",
-            "id": "{{ .in.id }}{{ .params.id }}"
+            "id": data.id
           }
         }
 
@@ -41,8 +45,9 @@ nodes:
     action: APICall
     config:
       method: POST
-      url: http://localhost:8081/api/activity
-      contentType: application/json
+      url: http://localhost:8081
+      path: /api/activity
+      content_type: application/json
 
   - id: done
     action: Passthrough
@@ -54,8 +59,9 @@ nodes:
 
 edges:
   - { from: start, to: rp }
-  - { from: rp, to: bufin }
-  - { from: rp, to: done }
+  - { from: rp, to: fanout }
+  - { from: fanout, to: bufin }
+  - { from: fanout, to: done }
   # - { from: start, to: bufin }
   - { from: bufin, to: in }
   - { from: in, to: j2b }

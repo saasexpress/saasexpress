@@ -34,7 +34,7 @@ nodes:
           "result":  "success",
           "params": {
             "action":  input.http_method,
-            "resource": input.resource,
+            "resource": "Tenant",
             "id": data.id
           }
         }
