@@ -73,7 +73,7 @@ impl Operator for OperatorActorHandle {
     fn send(&self, _message: Message) {
         match _message {
             Message::Init { .. } => {
-                panic!("Unexpected message type for send");
+                error!("Unexpected message type {}", _message);
             }
             _ => match self.sender.try_send(_message) {
                 Ok(_) => debug!("Message sent to {}", self.name),

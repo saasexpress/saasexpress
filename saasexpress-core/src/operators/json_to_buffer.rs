@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
@@ -33,7 +33,12 @@ impl Operator for JSONToBuffer {
     fn handle(&self, _message: Message) -> Message {
         let (json, origin) = match _message {
             Message::JSON { message, origin } => (message, origin),
-            _ => panic!("Unexpected message type {}", _message),
+            _ => {
+                error!("Unexpected message type {}", _message);
+                return Message::Error {
+                    error: "Unexpected message type".to_string(),
+                };
+            }
         };
 
         let response_message = serde_json::to_vec(&json).expect("JSON serialization error");

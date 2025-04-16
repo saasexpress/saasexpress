@@ -2,7 +2,7 @@ use core::panic;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
@@ -59,7 +59,12 @@ impl Operator for BufferToJSON {
             Message::JSON { .. } => {
                 return _message;
             }
-            _ => panic!("Unexpected message type {}", _message),
+            _ => {
+                error!("Unexpected message type {}", _message);
+                return Message::Error {
+                    error: "Unexpected message type".to_string(),
+                };
+            }
         };
     }
 

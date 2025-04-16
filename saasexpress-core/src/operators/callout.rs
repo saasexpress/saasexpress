@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use serde_json::json;
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
@@ -55,7 +55,12 @@ impl Operator for Callout {
                 });
                 Message::NoOp {}
             }
-            _ => panic!("Unexpected message type {}", _message),
+            _ => {
+                error!("Unexpected message type {}", _message);
+                Message::Error {
+                    error: "Unexpected message type".to_string(),
+                }
+            }
         }
     }
 
