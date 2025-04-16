@@ -85,16 +85,10 @@ impl Singleton {
                 let req_id = format!("{:0>8}", req_id);
 
                 debug!(
-                    "Handler [IN] [{}] {} {} {}",
+                    "Handler [IN] [{}] {} {}",
                     req_id,
                     method,
                     request.uri().path(),
-                    request
-                        .headers()
-                        .get("content-type")
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
                 );
 
                 let query = request
