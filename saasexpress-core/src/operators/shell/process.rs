@@ -210,6 +210,7 @@ impl ShellProcess {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!("Error sending line to channel: {}", e);
+                                    return;
                                 }
                             };
 

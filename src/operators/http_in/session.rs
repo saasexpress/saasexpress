@@ -79,20 +79,20 @@ impl SocketSession {
 
             let (resp_tx1, resp_rx1) = oneshot::channel::<GraphMessage>();
 
-            let _origin = OriginMessage::new(resp_tx1)
-                .session(who.to_string())
-                .mpsc_respond_to(_tx);
+            // let _origin = OriginMessage::new(resp_tx1)
+            //     .session(who.to_string())
+            //     .mpsc_respond_to(_tx);
 
-            let origin = Some(_origin);
+            // let origin = Some(_origin);
 
             start_it(resp_rx1).await;
 
-            state.start.lock().unwrap().send(GraphMessage::Standard {
-                message: "ls\n".as_bytes().to_vec(),
-                origin,
-            });
+            // state.start.lock().unwrap().send(GraphMessage::Standard {
+            //     message: "ls\n".as_bytes().to_vec(),
+            //     origin,
+            // });
 
-            client_to_upstream(receiver, state, who).await
+            client_to_upstream(receiver, state, who, _tx).await
         });
 
         // If any one of the tasks exit, abort the other.
@@ -156,8 +156,9 @@ async fn upstream_to_client(
                 n_msg = n_msg + 1;
                 match msg {
                     GraphMessage::Standard { message, .. } => {
-                        // send to the websocket
                         let returned = String::from_utf8(message).unwrap();
+                        info!("-> Back to client: {:?}", returned);
+                        // send to the websocket
                         if sender
                             .send(Message::Text(Utf8Bytes::from(returned)))
                             .await
@@ -216,6 +217,7 @@ async fn client_to_upstream(
     mut receiver: SplitStream<WebSocket>,
     state: State<Arc<MySharedState>>,
     who: SocketAddr,
+    tx: mpsc::Sender<GraphMessage>,
 ) -> usize {
     let mut cnt = 0;
 
@@ -226,16 +228,20 @@ async fn client_to_upstream(
             Message::Text(t) => {
                 let value = serde_json::from_str::<serde_json::Value>(t).unwrap();
 
-                let cmd = value["message"].as_str().unwrap().to_string();
-                debug!("T = {}", cmd);
+                let data = value["data"].as_str().unwrap().to_string();
+                debug!("T = {}", data);
 
-                let origin = Some(
-                    OriginMessage::new(oneshot::channel::<GraphMessage>().0)
-                        .session(who.to_string()),
-                );
+                // let origin = Some(
+                //     OriginMessage::new(oneshot::channel::<GraphMessage>().0)
+                //         .session(who.to_string()),
+                // );
+                let _origin = OriginMessage::new(oneshot::channel::<GraphMessage>().0)
+                    .session(who.to_string())
+                    .mpsc_respond_to(tx.clone());
+                let origin = Some(_origin);
 
-                state.start.lock().unwrap().send(GraphMessage::Standard {
-                    message: cmd.into_bytes(),
+                state.start.lock().unwrap().send(GraphMessage::JSON {
+                    message: value,
                     origin,
                 });
 

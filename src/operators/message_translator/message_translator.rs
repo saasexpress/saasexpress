@@ -4,9 +4,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use cel_interpreter::{Context, Program};
+use cel_interpreter::{Context, Program, Value};
 use serde_json::{Value as JsonValue, json};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
 use saasexpress_core::settings::settings::ToHashMap;
@@ -31,10 +31,27 @@ impl Display for MessageTranslatorEngine {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, PartialEq)]
+pub(crate) enum MessageTranslatorMode {
+    Expression,
+    JSON,
+}
+
+impl MessageTranslatorMode {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "expression" => MessageTranslatorMode::Expression,
+            "json" => MessageTranslatorMode::JSON,
+            _ => panic!("Unknown mode: {}", value),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct MessageTranslator {
     template: String,
     engine: MessageTranslatorEngine,
+    mode: MessageTranslatorMode,
     settings: Vec<Setting>,
 }
 
@@ -43,6 +60,7 @@ impl From<serde_yaml::Value> for MessageTranslator {
         MessageTranslator {
             template: value["template"].as_str().unwrap_or("").to_string(),
             settings: env_settings("MESSAGE_TRANSLATOR".to_string()),
+            mode: MessageTranslatorMode::from(value["mode"].as_str().unwrap_or("json").to_string()),
             engine: value
                 .get("engine")
                 .and_then(|v| v.as_str())
@@ -83,8 +101,13 @@ impl Operator for MessageTranslator {
                 respond_to,
                 ..
             } => {
-                let json = serde_json::to_value(message).unwrap();
+                debug!(
+                    "Data message {:?}",
+                    String::from_utf8(message.clone()).unwrap()
+                );
+                let json: serde_json::Value = serde_json::from_slice(&message).unwrap();
 
+                debug!("JSON message {:?}", json.get("data").unwrap());
                 let cel_value = self.parse(&json);
 
                 Message::JSON {
@@ -92,6 +115,7 @@ impl Operator for MessageTranslator {
                     origin: Some(OriginMessage::new(respond_to)),
                 }
             }
+            Message::Exit { origin } => Message::Exit { origin },
             // Message::ReqReply {
             //     message,
             //     respond_to,
@@ -102,7 +126,12 @@ impl Operator for MessageTranslator {
             //         origin: Some(OriginMessage { respond_to }),
             //     };
             // }
-            _ => panic!("Unexpected message type {}", _message),
+            _ => {
+                error!("Unexpected message type {}", _message);
+                Message::Error {
+                    error: "Unexpected message type".to_string(),
+                }
+            }
         }
     }
 
@@ -161,10 +190,26 @@ impl MessageTranslator {
             .expect("Variable input problem");
 
         // Run the program
-        let value = program.execute(&context).unwrap();
-
-        let val = cel_value_to_json(&value);
-        debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
-        val
+        let _value = program.execute(&context);
+        match _value {
+            Ok(value) => {
+                if self.mode == MessageTranslatorMode::JSON {
+                    let val = cel_value_to_json(&value);
+                    debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
+                    return val;
+                } else {
+                    if let Value::String(value) = &value {
+                        return JsonValue::String(value.to_string());
+                    } else {
+                        error!("Parsing issue - expecting expression not json");
+                        return JsonValue::String("".to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Error: {}", e);
+                return JsonValue::String("".to_string());
+            }
+        }
     }
 }

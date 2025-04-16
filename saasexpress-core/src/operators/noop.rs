@@ -128,12 +128,16 @@ impl Operator for NOOP {
                     } else {
                         let respond_to = origin_message.respond_to;
 
-                        respond_to
-                            .send(Message::JSON {
-                                message: message.to_owned(),
-                                origin: None,
-                            })
-                            .expect("[JSON] Failed to send response");
+                        let result = respond_to.send(Message::JSON {
+                            message: message.to_owned(),
+                            origin: None,
+                        });
+                        match result {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to send: {}", e);
+                            }
+                        }
                     }
                 } else {
                     warn!("No origin provided - so no channel to send to {}", message);

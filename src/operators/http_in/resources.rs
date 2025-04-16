@@ -85,10 +85,16 @@ impl Singleton {
                 let req_id = format!("{:0>8}", req_id);
 
                 debug!(
-                    "Handler [IN] [{}] {} {}",
+                    "Handler [IN] [{}] {} {} {}",
                     req_id,
                     method,
-                    request.uri().path()
+                    request.uri().path(),
+                    request
+                        .headers()
+                        .get("content-type")
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
                 );
 
                 let query = request
@@ -104,9 +110,15 @@ impl Singleton {
                 let path = request.uri().path().to_string();
 
                 let body = request.into_body();
+
                 let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
 
                 let (send, recv) = oneshot::channel();
+
+                debug!(
+                    "Body = {:?}",
+                    String::from_utf8(body_bytes.to_vec()).unwrap()
+                );
 
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),
@@ -279,7 +291,11 @@ impl Singleton {
                                 .with_state(shared_state),
                         );
                     } else {
-                        panic!("ANY can only be set when ws is true");
+                        self.router = main_router.merge(
+                            Router::new()
+                                .route(path.as_str(), any(handler))
+                                .with_state(shared_state),
+                        );
                     }
                 }
                 _ => {
