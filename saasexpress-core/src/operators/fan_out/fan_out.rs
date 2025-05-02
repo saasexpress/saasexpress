@@ -1,17 +1,20 @@
+use fastrace::Span;
+use fastrace::local::LocalSpan;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 use futures::channel::oneshot;
 use futures::future::join_all;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, span, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
+use crate::graph::message::{DebuggableSpan, Message};
 
 use crate::graph::graph::Operator;
+use fastrace::future::FutureExt;
 
 #[derive(Debug)]
 pub(crate) struct FanOut {
@@ -88,8 +91,17 @@ impl Operator for FanOut {
 }
 
 impl FanOut {
-    fn next(&self, _message: Message) {
+    fn next(&self, mut _message: Message) {
+        info!("FanOut::next");
+        let origin = _message.take_origin();
+
         let senders = self.senders.clone();
+
+        let parent_span = _message.get_span().expect("Failed to get span");
+
+        let fanout_span = Span::enter_with_parent("fanout", parent_span);
+
+        let _guard = fanout_span.set_local_parent();
 
         let data = match _message {
             Message::ReqReply {
@@ -119,7 +131,10 @@ impl FanOut {
                             message,
                             status,
                             headers,
-                            origin: None,
+                            origin: Some(
+                                OriginMessage::new(oneshot::channel().0)
+                                    .with_span(Some(DebuggableSpan(fanout_span))),
+                            ),
                         })
                         .unwrap();
                     return;
@@ -139,25 +154,39 @@ impl FanOut {
             _ => panic!("Unexpected message type in FanOut::next {}", _message),
         };
 
-        tokio::spawn(async move {
+        let future = async move {
             let mut response_receivers = Vec::new();
 
+            let span = Span::enter_with_local_parent("fanout_send");
+
+            let mut index = 0;
             for _sender in &senders {
-                info!("SENDING..");
+                index += 1;
+                info!("Sending message to sender {}", index);
+
                 let sender = _sender.clone();
                 let (resp_tx1, resp_rx1) = oneshot::channel::<Message>();
 
                 response_receivers.push(resp_rx1);
 
-                //            let x = Arc::new(resp_rx1);
                 let s = sender.to_owned();
+
+                //let fan_span = Span::enter_with_local_parent("fanout");
+                let fan_span = Span::enter_with_parent(format!("fanout:{}", index), &span);
+                //let _guard = fan_span.set_local_parent();
+
+                let fan2_span = Span::enter_with_parent(format!("fanout2:{}", index), &span);
 
                 let result = s
                     .send(Message::JSON {
                         message: data.0.to_owned(),
-                        origin: Some(OriginMessage::new(resp_tx1)),
+                        origin: Some(
+                            OriginMessage::new(resp_tx1).with_span(Some(DebuggableSpan(fan_span))),
+                        ),
                     })
+                    .in_span(fan2_span)
                     .await;
+                info!("Message sent to sender {}", index);
                 if let Err(e) = result {
                     error!("Failed to send message: {}", e);
                 }
@@ -174,8 +203,6 @@ impl FanOut {
                     }
                 })
                 .collect::<Vec<Message>>();
-
-            warn!("GOT ALL MESSAGES!");
 
             let mut merged = Vec::new();
             for r in &results {
@@ -202,18 +229,27 @@ impl FanOut {
                 }
             }
 
+            info!("Merged results: {:?}", merged);
+            if senders.len() != merged.len() {
+                error!(
+                    "FanOut: not all responses received. Expected {}, got {}",
+                    senders.len(),
+                    merged.len()
+                );
+            }
+
             let to = data.1;
             if merged.len() == 1 {
                 let value = merged.pop().unwrap();
                 to.send(Message::JSON {
                     message: value,
-                    origin: None,
+                    origin,
                 })
                 .unwrap();
             } else {
                 to.send(Message::JSON {
                     message: json!(merged),
-                    origin: None,
+                    origin,
                 })
                 .unwrap();
             }
@@ -246,7 +282,9 @@ impl FanOut {
                 _ => panic!("Unexpected message type in FanOut::send {}", message),
             }
             */
-        });
+        }
+        .in_span(fanout_span);
+        tokio::spawn(future);
     }
 
     fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
@@ -257,46 +295,36 @@ impl FanOut {
         self.senders.push(tx1);
 
         tokio::spawn(async move {
-            warn!("Waiting for messages..");
             while let Some(msg) = rx1.recv().await {
-                warn!("Got a message");
+                //let og_span = msg.get_span().unwrap();
+
+                //let parent_span = Some(DebuggableSpan(msg.get_span().unwrap()));
                 // Process the message (this would be your worker logic)
                 match msg {
                     Message::ReqReply {
                         message,
                         respond_to,
+                        span,
                         ..
                     } => {
-                        info!("Received ReqReply message: {:?}", message);
                         let r_to = respond_to;
 
                         operator.lock().unwrap().send(Message::Standard {
                             message,
-                            origin: Some(OriginMessage::new(r_to)),
+                            origin: Some(OriginMessage::new(r_to).with_span(span)),
                         });
-
-                        // r_to.send(Message::Standard {
-                        //     message: message.to_owned(),
-                        //     origin: None,
-                        // })
-                        // .expect("[Standard] Failed to send response");
                     }
                     Message::JSON {
                         message, origin, ..
                     } => {
-                        info!("Received message: {:?}", message);
-                        let r_to = origin.unwrap().respond_to;
+                        let og = origin.unwrap();
+                        let r_to = og.respond_to;
+                        let span = og.span.unwrap();
 
                         operator.lock().unwrap().send(Message::JSON {
                             message,
-                            origin: Some(OriginMessage::new(r_to)),
+                            origin: Some(OriginMessage::new(r_to).with_span(Some(span))),
                         });
-
-                        // r_to.send(Message::JSON {
-                        //     message: message.to_owned(),
-                        //     origin: None,
-                        // })
-                        // .expect("[Standard] Failed to send response");
                     }
                     _ => {
                         error!("Unexpected message type in FanOut::add_next {}", msg);

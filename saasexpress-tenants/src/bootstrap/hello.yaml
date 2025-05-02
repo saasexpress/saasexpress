@@ -1,0 +1,20 @@
+name: health
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /health
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "status": "UP"
+        }
+
+edges:
+  - { from: start, to: translate }

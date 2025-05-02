@@ -77,17 +77,13 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn shell_works() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
         const GRAPH: &str = r#"
         name: shell
         nodes:
           - id: start
             action: BufferToJSON
-          - id: j2b
-            action: JSONToBuffer
           - id: shell
             action: Shell
             config:
@@ -97,8 +93,6 @@ mod saasexpress_core_tests {
 
         edges:
           - from: start
-            to: j2b
-          - from: j2b
             to: shell
         "#;
         let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());

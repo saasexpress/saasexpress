@@ -1,7 +1,13 @@
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::Duration;
 
+use fastrace::local::LocalSpan;
+use fastrace::prelude::SpanContext;
+use fastrace::{Span, trace};
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
+use tokio::task::spawn_blocking;
+use tracing::{debug, error, info, info_span, instrument, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
@@ -11,6 +17,9 @@ use crate::graph::graph::Operator;
 
 use super::op_actor::OpActor;
 
+use fastrace::future::FutureExt;
+use tracing::Instrument;
+
 #[derive(Debug)]
 pub(crate) struct OperatorActorHandle {
     sender: mpsc::Sender<Message>,
@@ -19,6 +28,8 @@ pub(crate) struct OperatorActorHandle {
 }
 
 impl OperatorActorHandle {
+    //#[instrument[name = "op-actor-handle", skip_all]]
+    #[trace]
     pub fn new<T>(operator: T) -> Self
     where
         T: Operator + 'static,
@@ -28,7 +39,52 @@ impl OperatorActorHandle {
         let (sender, receiver) = mpsc::channel(8);
 
         let mut actor = OpActor::new(name, receiver, operator);
-        tokio::spawn(async move { actor.run().await });
+
+        //let cx = Context::current();
+
+        // let tracer = global::tracer("saaasexpress_acotr_trace");
+        // tracer.in_span("doing_actor_work", |_cx| {
+        //     // Your application logic here...
+        //     //sleep(Duration::from_secs(100));
+        //     info!("doing work");
+        // });
+
+        // let span_name = "operator";
+
+        // let tracer = global::tracer("graph");
+        // let span = tracer
+        //     .span_builder(String::from(span_name))
+        //     .with_kind(SpanKind::Client)
+        //     .start(&tracer);
+        // let cx = Context::current_with_span(span);
+
+        //let the_span = info_span!("Operator-Actor", name = nm.clone());
+        // let trace_ctx = Context::current();
+
+        // let tracer = global::tracer("graph");
+        // let mut span = tracer
+        //     .span_builder("oteldemo.ActorHandle")
+        //     .with_kind(SpanKind::Producer)
+        //     .start_with_context(&tracer, &trace_ctx);
+
+        // let cx = Context::current_with_span(span);
+        //.with_context(cx)
+        //let span = LocalSpan::enter_with_local_parent("op_actor_handle");
+        //let root = Span::root("op_actor_handle", SpanContext::random());
+
+        //let parent = SpanContext::random();
+        //let span = Span::root("root", parent);
+
+        let future = async move {
+            //let _span = LocalSpan::enter_with_local_parent("a span");
+            // let root = Span::root("op_actor", SpanContext::random());
+            // let _g = root.set_local_parent();
+
+            //let child = Span::enter_with_local_parent("child");
+            actor.run().await;
+        };
+
+        tokio::spawn(future);
 
         Self {
             name: String::clone(&nm),

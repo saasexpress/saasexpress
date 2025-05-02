@@ -2,7 +2,7 @@ use core::panic;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
@@ -58,6 +58,13 @@ impl Operator for BufferToJSON {
             }
             Message::JSON { .. } => {
                 return _message;
+            }
+            Message::HTTP {
+                message, origin, ..
+            } => {
+                warn!("HTTP not expected");
+                let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+                return to_json(result, origin);
             }
             _ => {
                 error!("Unexpected message type {}", _message);

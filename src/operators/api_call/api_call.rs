@@ -1,21 +1,18 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use async_nats::jetstream::response;
-use hyper::{Method, StatusCode};
+use fastrace::local::LocalSpan;
+use hyper::Method;
 use reqwest::Client;
 use saasexpress_core::graph::message::{Message, OriginMessage};
 use saasexpress_core::settings::settings::{Setting, env_settings};
 use serde_json::{Value, json};
-use serde_yaml::Result;
+use tokio::runtime::{Handle, Runtime};
 use tracing::{debug, warn};
 use tracing::{error, info};
 
 use saasexpress_core::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType};
 
-//use crate::settings::settings::{Setting, env_settings};
-
-// Extends the `reqwest::RequestBuilder` to allow WebSocket upgrades.
 use futures::future;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use reqwest_websocket::Message as WsMessage;
@@ -318,6 +315,7 @@ impl AsyncHandleTrait for APICall {
                     query,
                     method,
                     message,
+                    span,
                 } => {
                     let mut url_path = path;
                     if !default_path.is_empty() {
@@ -343,6 +341,8 @@ impl AsyncHandleTrait for APICall {
 
                     info!("Builder: {:?}", builder);
 
+                    //let _span = LocalSpan::enter_with_local_parent("compile");
+
                     response = builder.send().await;
 
                     //response = client.get(&url).send().await;
@@ -365,7 +365,7 @@ impl AsyncHandleTrait for APICall {
                                 // };
                                 return Message::HTTP {
                                     message: serde_json::to_vec(&result).unwrap(),
-                                    origin: Some(OriginMessage::new(respond_to)),
+                                    origin: Some(OriginMessage::new(respond_to).with_span(span)),
                                     headers: HashMap::new(),
                                     status: r_status.as_u16(),
                                 };
@@ -391,7 +391,7 @@ impl AsyncHandleTrait for APICall {
                                     message: response.bytes().await.unwrap().to_vec(),
                                     headers,
                                     status,
-                                    origin: Some(OriginMessage::new(respond_to)),
+                                    origin: Some(OriginMessage::new(respond_to).with_span(span)),
                                 };
                             } else {
                                 //while let Some(chunk) = res.chunk().await? {
@@ -414,12 +414,12 @@ impl AsyncHandleTrait for APICall {
                                     message: response.bytes().await.unwrap().to_vec(),
                                     headers,
                                     status,
-                                    origin: Some(OriginMessage::new(respond_to)),
+                                    origin: Some(OriginMessage::new(respond_to).with_span(span)),
                                 };
                             }
                         }
                         Err(e) => {
-                            error!("Error making request");
+                            error!("Error making request {:?}", e);
                             return Message::Standard {
                                 message: b"Error".to_vec(),
                                 origin: Some(OriginMessage::new(respond_to)),
@@ -678,13 +678,21 @@ impl Operator for APICall {
     // }
 
     fn handle(&self, _message: Message) -> Message {
+        panic!("Should use async_handle");
+
         match _message {
             Message::Standard { message: _, origin } => {
                 warn!("APICall handle (passthrough)... {}", self.url);
 
                 // Create a client
                 // Make a GET request
-                let response = reqwest::blocking::get(&self.url);
+                let url = self.url.clone();
+
+                // let blocking_task = tokio::task::spawn_blocking(|| {
+                //     info!("hi");
+                //     reqwest::blocking::get(url)
+                // });
+                let response = reqwest::blocking::get(url);
 
                 match response {
                     Ok(response) => {
@@ -730,7 +738,61 @@ impl Operator for APICall {
                     origin,
                 };
             }
-            _ => panic!("Unexpected message type"),
+            Message::ReqReply {
+                message: _,
+                respond_to,
+                ..
+            } => {
+                warn!("APICall handle (passthrough)... {}", self.url);
+
+                // Create a client
+                // Make a GET request
+                let url = self.url.clone();
+
+                let rt = Runtime::new().unwrap();
+                // Get a handle from this runtime
+                let handle = rt.handle();
+
+                // Spawn a blocking function onto the runtime using the handle
+                let _a = handle.spawn_blocking(|| {
+                    warn!("now running on a worker thread");
+                });
+
+                let blocking_task = tokio::task::spawn_blocking(|| {
+                    info!("blocking task");
+                    reqwest::blocking::get(url)
+                });
+                // ERROR: Cannot start a runtime from within a runtime. This happens because a
+                // function (like `block_on`) attempted to block the current thread while the
+                // thread is being used to drive asynchronous tasks.
+
+                let response = handle.block_on(async { blocking_task.await.unwrap() });
+
+                match response {
+                    Ok(response) => {
+                        if !response.status().is_success() {
+                            warn!("Error: {}", response.status());
+                            return Message::Standard {
+                                message: b"Error".to_vec(),
+                                origin: Some(OriginMessage::new(respond_to)),
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Error making request: {}", e);
+                        return Message::Standard {
+                            message: b"Error".to_vec(),
+                            origin: Some(OriginMessage::new(respond_to)),
+                        };
+                    }
+                }
+
+                return Message::Standard {
+                    message: b"Success".to_vec(),
+                    origin: Some(OriginMessage::new(respond_to)),
+                };
+            }
+            _ => panic!("Unexpected message type {}", _message),
         }
     }
 

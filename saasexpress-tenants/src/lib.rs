@@ -39,8 +39,7 @@ impl TenantsService {
         let app = Router::new()
             .nest("/", api_router)
             .merge(swagger_ui)
-            .fallback(static_handler)
-            .layer(TraceLayer::new_for_http());
+            .fallback(static_handler);
 
         // Run the server
         let addr = SocketAddr::from(([0, 0, 0, 0], 8081));

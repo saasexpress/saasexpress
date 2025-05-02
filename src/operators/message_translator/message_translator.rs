@@ -2,13 +2,13 @@ use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
     sync::{Arc, Mutex},
+    thread::sleep,
 };
 
-use cel_interpreter::{Context, Program, Value};
-use serde_json::{Value as JsonValue, json};
-use tracing::{debug, error, info};
-
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
+use cel_interpreter::{Context, Program, Value};
+use fastrace::local::LocalSpan;
+use opentelemetry::{KeyValue, trace::get_active_span};
 use saasexpress_core::settings::settings::ToHashMap;
 use saasexpress_core::{
     graph::{
@@ -17,6 +17,10 @@ use saasexpress_core::{
     },
     settings::settings::{Setting, env_settings},
 };
+use serde_json::{Value as JsonValue, json};
+use tracing::{Level, debug, error, info, info_span, instrument, span};
+//use tracing_opentelemetry::OpenTelemetrySpanExt;
+use opentelemetry::trace::TraceContextExt;
 
 #[derive(Clone, Debug)]
 pub(crate) enum MessageTranslatorEngine {
@@ -86,6 +90,8 @@ impl Operator for MessageTranslator {
         None
     }
 
+    //#[instrument(name = "message_translator_parse", skip_all)]
+    //#[tracing::instrument(skip(self), fields(name = self.name()))]
     fn handle(&self, _message: Message) -> Message {
         match _message {
             Message::JSON { message, origin } => {
@@ -99,20 +105,24 @@ impl Operator for MessageTranslator {
             Message::ReqReply {
                 message,
                 respond_to,
+                span,
                 ..
             } => {
                 debug!(
                     "Data message {:?}",
                     String::from_utf8(message.clone()).unwrap()
                 );
-                let json: serde_json::Value = serde_json::from_slice(&message).unwrap();
 
-                debug!("JSON message {:?}", json.get("data").unwrap());
+                let json: serde_json::Value = match message {
+                    message if message.is_empty() => serde_json::from_str("{}").unwrap(),
+                    _ => serde_json::from_slice(&message).unwrap(),
+                };
+
                 let cel_value = self.parse(&json);
 
                 Message::JSON {
                     message: cel_value,
-                    origin: Some(OriginMessage::new(respond_to)),
+                    origin: Some(OriginMessage::new(respond_to).with_span(span)),
                 }
             }
             Message::Exit { origin } => Message::Exit { origin },
@@ -156,8 +166,16 @@ impl Operator for MessageTranslator {
 }
 
 impl MessageTranslator {
+    //#[instrument(name = "message_translator_parse", skip_all)]
+
     fn parse(&self, data: &JsonValue) -> JsonValue {
-        let program = Program::compile(&self.template).unwrap();
+        let program;
+
+        {
+            let _span = LocalSpan::enter_with_local_parent("compile");
+
+            program = Program::compile(&self.template).unwrap();
+        }
 
         let cel_data = cel_interpreter::to_value(data).unwrap();
 
@@ -167,6 +185,27 @@ impl MessageTranslator {
 
         debug!("Templ {}", self.template);
         debug!("In {}", serde_json::to_string_pretty(data).unwrap());
+
+        // get_active_span(|span| {
+        //     let count = 10;
+        //     let q = 10.0;
+        //     //let q = create_quote_from_float(f);
+        //     span.add_event(
+        //         "Received Quote".to_string(),
+        //         vec![KeyValue::new("app.shipping.cost.total", format!("{}", q))],
+        //     );
+        //     span.set_attribute(KeyValue::new("app.shipping.items.count", count as i64));
+        //     span.set_attribute(KeyValue::new("app.shipping.cost.total", format!("{}", q)));
+        //     q
+        // });
+
+        //let span = span!(Level::INFO, "my_span");
+        // span.in_scope(|| {
+        //     // Record attributes in the span
+        //     let _gaurd = span.enter();
+
+        //     sleep(std::time::Duration::from_millis(1000));
+        // });
 
         let input = json!({
             "resource": "Tenant",
@@ -180,7 +219,7 @@ impl MessageTranslator {
             .add_variable("data", cel_data)
             .expect("Variable data problem");
 
-        info!("Settings {:?}", self.settings.to_hash_map());
+        debug!("Settings {:?}", self.settings.to_hash_map());
         context
             .add_variable("settings", self.settings.to_hash_map())
             .expect("Variable data problem");
@@ -188,6 +227,8 @@ impl MessageTranslator {
         context
             .add_variable("input", input)
             .expect("Variable input problem");
+
+        let _span = LocalSpan::enter_with_local_parent("execute");
 
         // Run the program
         let _value = program.execute(&context);

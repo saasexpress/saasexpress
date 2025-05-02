@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
+use futures::channel::oneshot;
 use tokio::sync::mpsc::{self, Sender};
 use tracing::{debug, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
 
-use crate::graph::message::Message;
+use crate::graph::message::{Message, OriginMessage};
 
 use crate::graph::graph::Operator;
 
@@ -93,18 +94,21 @@ impl Operator for NOOP {
                             mpsc_respond_to
                                 .send(Message::Standard {
                                     message: message.to_owned(),
-                                    origin: None,
+                                    origin: None, //Some(origin_message),
                                 })
                                 .await
                                 .expect("[JSON] Failed to send response");
                         });
                     } else {
                         let respond_to = origin_message.respond_to;
+                        let span = origin_message.span;
 
                         respond_to
                             .send(Message::Standard {
                                 message: message.to_owned(),
-                                origin: None,
+                                origin: Some(
+                                    OriginMessage::new(oneshot::channel().0).with_span(span),
+                                ),
                             })
                             .expect("[Standard] Failed to send response");
                     }
@@ -142,6 +146,10 @@ impl Operator for NOOP {
                 } else {
                     warn!("No origin provided - so no channel to send to {}", message);
                 }
+            }
+
+            Message::NoOp {} => {
+                debug!("NOOP - NoOp message");
             }
 
             _ => {

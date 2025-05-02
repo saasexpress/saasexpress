@@ -176,7 +176,7 @@ impl ShellProcess {
                             };
                         }
                         None => {
-                            error!("No lines from stderr");
+                            warn!("No lines from stderr");
                             return;
                         }
                     }
@@ -222,7 +222,7 @@ impl ShellProcess {
                             // }
                         }
                         None => {
-                            error!("No lines from stdout");
+                            warn!("No lines from stdout");
                             return;
                         }
                     }

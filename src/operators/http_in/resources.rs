@@ -1,29 +1,44 @@
-use rand::{Rng, rngs::ThreadRng};
-use saasexpress_core::graph::graph::Operator;
+use fastrace::{Event, Span, local::LocalSpan, prelude::SpanContext};
+use opentelemetry::{
+    Context, InstrumentationScope, KeyValue,
+    global::{self, ObjectSafeTracerProvider},
+    propagation::{Extractor, Injector},
+    trace::SpanKind,
+};
+use saasexpress_core::graph::{graph::Operator, message::DebuggableSpan};
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::{Arc, Mutex, OnceLock},
+    thread::sleep,
 };
+use tonic::metadata::MetadataMap;
 
 use saasexpress_core::graph::message::Message;
 
 use crate::operators::http_in::websocket::ws_handler;
+use axum::http::HeaderValue;
 use axum::{
     Json, Router,
     body::{Bytes, to_bytes},
-    extract::{ConnectInfo, Path, Request, State, WebSocketUpgrade},
+    extract::{ConnectInfo, Request, State, WebSocketUpgrade},
     http::HeaderName,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::{any, delete, get, post, put},
 };
-use axum::{body::Body, http::HeaderValue};
 use axum_extra::{TypedHeader, headers};
 use futures::channel::oneshot;
 use hyper::{HeaderMap, Method, StatusCode};
+use opentelemetry::trace::Tracer;
 use serde_json::json;
+use std::fmt::Debug;
 use tokio::net::TcpListener;
-use tracing::{debug, error, info, warn};
+use tracing::Instrument;
+use tracing::span;
+use tracing::{debug, error, info, instrument, warn};
+//use tracing_opentelemetry::OpenTelemetrySpanExt;
+use fastrace::future::FutureExt;
 
 #[derive(Debug)]
 pub struct MySharedState {
@@ -84,6 +99,17 @@ impl Singleton {
                 }
                 let req_id = format!("{:0>8}", req_id);
 
+                let root = Span::root(format!("http_in_request {}", method), SpanContext::random())
+                    .with_property(|| ("http.request_id", req_id.clone()))
+                    .with_property(|| ("http.method", method.to_string()))
+                    .with_property(|| ("http.target", request.uri().path().to_string()));
+
+                root.add_event(Event::new("Request received".to_string()));
+
+                let root_span = Span::enter_with_parent("response_span", &root);
+
+                //let _local_root_guard = root_span.set_local_parent();
+
                 debug!(
                     "Handler [IN] [{}] {} {}",
                     req_id,
@@ -98,109 +124,171 @@ impl Singleton {
                     .query()
                     .unwrap_or_default()
                     .to_string();
-                //debug!("Using path : {}", path);
 
                 debug!("Path = {}", request.uri().path());
                 let path = request.uri().path().to_string();
 
-                let body = request.into_body();
+                // Create a span for parsing the request body
+                // let parse_span = tracing::info_span!("parse_request", %req_id);
+                // let _parse_guard = parse_span.enter();
 
+                let body = request.into_body();
                 let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
+
+                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
+                    if !body_str.is_empty() {
+                        debug!("Body = {}", body_str);
+                    }
+                }
+
+                //drop(_parse_guard); // Exit parse span
 
                 let (send, recv) = oneshot::channel();
 
-                debug!(
-                    "Body = {:?}",
-                    String::from_utf8(body_bytes.to_vec()).unwrap()
-                );
+                //let ping_span = tracing::info_span!("ping span");
+
+                //let cx = Context::current_with_span(span);
+
+                //let propctx = PropagationContext::inject(&trace_ctx);
+
+                // Create a span for operator processing
+                // let process_span = tracing::info_span!("process_request",
+                //     %req_id,
+                //     %path,
+                //     operation = "forward_to_operator"
+                // );
+                // let _process_guard = process_span.enter();
+
+                // send message to the first operator of the flow
+
+                debug!("Handler [WAIT] [{}]", req_id);
+                //drop(_process_guard); // Exit process span
+
+                // drop(_root_guard);
+
+                //let req_reply_span = Span::enter_with_local_parent("req_reply_span");
 
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),
                     respond_to: send,
-                    path,
-                    query,
+                    path: path.clone(),
+                    query: query.clone(),
                     method: method.to_string(),
+                    span: Some(DebuggableSpan(root)),
                 };
 
-                // send message to the first operator of the flow
                 state.start.lock().unwrap().send(message);
 
-                debug!("Handler [WAIT] [{}]", req_id);
+                //let __span__ = Span::enter_with_local_parent("simple_async");
 
-                // wait for the request to complete
-                match recv.await {
-                    Ok(msg) => match msg {
-                        Message::Standard {
-                            message,
-                            origin: None,
-                        } => {
-                            debug!("Handler [OK] [{}]", req_id);
-                            Json(json!({ "data": String::from_utf8_lossy(&message) }))
-                                .into_response()
-                        }
-                        Message::HTTP {
-                            message,
-                            origin: None,
-                            headers,
-                            status,
-                        } => {
-                            debug!(
-                                "Handler [OK] [{}] (status={}): {}",
-                                req_id,
+                //let _guard = root.set_local_parent();
+
+                let msg = recv.await;
+
+                //LocalSpan::add_event(Event::new("event in span1"));
+
+                match msg {
+                    Ok(msg) => {
+                        // Create a span for creating the response
+                        // let format_response_span = tracing::info_span!("format_response", %req_id);
+                        // let _format_response_guard = format_response_span.enter();
+
+                        let response = match msg {
+                            Message::Standard {
+                                message,
+                                origin: None,
+                            } => {
+                                debug!("Handler (Standard) [OK] [{}]", req_id);
+                                // Record success in the span
+                                //Span::current().record("http.status_code", 200);
+                                //Span::current().record("otel.status_code", "OK");
+
+                                //drop(_root_guard);
+
+                                Json(json!({ "data": String::from_utf8_lossy(&message) }))
+                                    .into_response()
+                            }
+                            Message::HTTP {
+                                message,
+                                origin: None,
+                                headers,
                                 status,
-                                headers.get("content-type").unwrap_or(&String::from(""))
-                            );
-
-                            //let b: &u8 = message.into_iter().take().collect();
-
-                            //let stream = ReaderStream::new(&*message);
-
-                            // Convert stream to axum HTTP body
-                            let body = Bytes::from(message);
-
-                            // if let Ok(body) = message {
-                            let mut _headers = HeaderMap::new();
-                            // _headers.insert(
-                            //     "Content-Type",
-                            //     HeaderValue::from_bytes(
-                            //         headers.get("content-type").unwrap().as_bytes(),
-                            //     )
-                            //     .unwrap(),
-                            // );
-
-                            let header_keys = headers.keys().cloned().collect::<HashSet<_>>();
-                            for key in header_keys {
-                                let hdr_name = HeaderName::from_bytes(key.as_bytes()).unwrap();
-
-                                _headers.insert(
-                                    hdr_name,
-                                    HeaderValue::from_bytes(headers.get(&key).unwrap().as_bytes())
-                                        .unwrap(),
+                            } => {
+                                debug!(
+                                    "Handler [OK] [{}] (status={}): {}",
+                                    req_id,
+                                    status,
+                                    headers.get("content-type").unwrap_or(&String::from(""))
                                 );
+
+                                // // Record HTTP status in the span
+                                // Span::current().record("http.status_code", status);
+                                // if status >= 200 && status < 300 {
+                                //     Span::current().record("otel.status_code", "OK");
+                                // } else {
+                                //     Span::current().record("otel.status_code", "ERROR");
+                                // }
+
+                                //drop(_root_guard);
+
+                                // Convert stream to axum HTTP body
+                                let body = Bytes::from(message);
+                                let mut _headers = HeaderMap::new();
+
+                                let header_keys = headers.keys().cloned().collect::<HashSet<_>>();
+                                for key in header_keys {
+                                    let hdr_name = HeaderName::from_bytes(key.as_bytes()).unwrap();
+                                    _headers.insert(
+                                        hdr_name,
+                                        HeaderValue::from_bytes(
+                                            headers.get(&key).unwrap().as_bytes(),
+                                        )
+                                        .unwrap(),
+                                    );
+                                }
+
+                                (StatusCode::from_u16(status).unwrap(), _headers, body)
+                                    .into_response()
                             }
 
-                            (StatusCode::from_u16(status).unwrap(), _headers, body).into_response()
-                            // } else {
-                            //     error!("Failed to convert body to string");
-                            //     StatusCode::INTERNAL_SERVER_ERROR.into_response()
-                            // }
-                        }
+                            Message::JSON {
+                                message,
+                                origin: None,
+                            } => {
+                                debug!("Handler (JSON) [OK] [{}]", req_id);
 
-                        Message::JSON {
-                            message,
-                            origin: None,
-                        } => {
-                            debug!("Handler [OK] [{}]", req_id);
-                            Json(json!(message)).into_response()
-                        }
+                                Json(json!(message)).into_response()
+                            }
 
-                        _ => {
-                            error!("Handler [PANIC] [{}]", req_id);
-                            panic!("Unexpected Message Type {:?}", msg);
-                        }
-                    },
+                            _ => {
+                                error!("Handler [PANIC] [{}]", req_id);
+                                // Record error in the span
+                                // Span::current().record("http.status_code", 500);
+                                // Span::current().record("otel.status_code", "ERROR");
+                                // Span::current().record("error", true);
+                                // Span::current().record("error.message", "Unexpected message type");
+
+                                //drop(_root_guard);
+
+                                LocalSpan::add_event(Event::new("Error"));
+
+                                panic!("Unexpected Message Type {:?}", msg);
+                            }
+                        };
+
+                        // Return the response
+                        response
+                    }
                     Err(e) => {
                         error!("Handler [ERROR] [{}] {:?}", req_id, e);
+                        // Record error in the span
+                        // Span::current().record("http.status_code", 500);
+                        // Span::current().record("otel.status_code", "ERROR");
+                        // Span::current().record("error", true);
+                        // Span::current().record("error.message", "Failed to receive response");
+
+                        LocalSpan::add_event(Event::new("Error"));
+
                         Json(json!({ "status": "Error failed to receive response" }))
                             .into_response()
                     }
@@ -303,18 +391,34 @@ impl Singleton {
             .method_not_allowed_fallback(handle_405);
     }
 
+    #[instrument(name = "http_server_start", skip_all)]
     pub fn start(&self) {
         let router = self.router.to_owned();
 
         let service = router.into_make_service_with_connect_info::<SocketAddr>();
         tokio::spawn(async move {
             let addr = SocketAddr::from(([0, 0, 0, 0], 2243));
+
+            // Create a span for server binding
+            // let bind_span = tracing::info_span!("server_bind", port = 2243);
+            // let _bind_guard = bind_span.enter();
+
+            info!("[HTTPIn] Binding to address: {}", addr);
             let listener = TcpListener::bind(addr).await.unwrap();
+            //drop(_bind_guard);
 
             info!("[HTTPIn] Listening on: {}", addr);
 
-            let serve = axum::serve(listener, service);
+            let root = Span::root("server_up", SpanContext::random());
 
+            root.with_property(|| ("server.address", "0.0.0.0"))
+                .with_property(|| ("server.port", "2243"))
+                .add_event(Event::new("Server started".to_string()));
+            //let _guard = root.set_local_parent();
+
+            info!("HTTP server started successfully");
+
+            let serve = axum::serve(listener, service);
             serve.await.expect("Failed to start server");
         });
     }

@@ -7,6 +7,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
+use crate::operators::op_wrapper::OperatorWrapper;
 use crate::ports::ports::Ports;
 
 use super::super::operators::op_actor_handle::OperatorActorHandle;
@@ -83,7 +84,7 @@ pub struct Graph {
 }
 
 pub trait InitOperator {
-    async fn start(&self);
+    fn start(&self) -> impl std::future::Future<Output = ()> + Send;
 }
 
 #[async_trait]
@@ -112,9 +113,16 @@ pub trait Operator: Send + Sync + Debug {
     fn _type(&self) -> OperatorType;
     fn name(&self) -> String;
     //fn meta(&self) -> NodeMeta;
+
+    /// performs the work of the operator
     fn handle(&self, message: Message) -> Message;
+
+    /// commands and events for controlling the operator
     fn control(&mut self, message: Message);
+
+    /// Sends a message to the next operators in the graph
     fn send(&self, message: Message);
+
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
     fn wait(&self) -> Message;
     fn init(&mut self, graph: &mut Graph);
@@ -196,13 +204,18 @@ impl Graph {
 
         info!("Node: {}({})", operator.name(), id.to_string());
 
-        match operator._type() {
+        let typ = operator._type();
+
+        let wrapped_op = OperatorWrapper::new(operator);
+        //let wrapped_op = operator;
+
+        match typ {
             OperatorType::Endpoint => {
-                self.add_new_node(id, operator);
+                self.add_new_node(id, wrapped_op);
                 Port::new(self, "abc".to_string());
             }
             OperatorType::Filter => {
-                self.add_new_node(id, OperatorActorHandle::new(operator));
+                self.add_new_node(id, OperatorActorHandle::new(wrapped_op));
             }
         }
 
@@ -323,6 +336,7 @@ impl GraphRun for Graph {
             path: "".to_string(),
             method: "".to_string(),
             query: "".to_string(),
+            span: None,
         });
 
         recv.await.unwrap()
