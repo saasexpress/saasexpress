@@ -1,10 +1,9 @@
-use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use fastrace::local::LocalSpan;
 use fastrace::prelude::SpanContext;
 use fastrace::{Event, Span, trace};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Operator};
 use crate::graph::graph::{Graph, OperatorType};
@@ -15,7 +14,6 @@ use fastrace::future::FutureExt;
 pub struct OperatorWrapper {
     name: String,
     handle: Arc<Mutex<Box<dyn Operator + 'static>>>,
-    //next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
     _nodes: Vec<Arc<Mutex<dyn Operator + 'static>>>,
 }
 
@@ -31,22 +29,9 @@ impl OperatorWrapper {
             name: String::clone(&nm),
             handle: Arc::new(Mutex::new(Box::new(operator))),
             _nodes: Vec::new(),
-            //next: Vec::new(),
         }
     }
 
-    // fn next(&self, _message: Message) {
-    //     for node in &self.next {
-    //         node.lock().unwrap().send(_message);
-    //         break;
-    //     }
-    // }
-
-    // fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
-    //     self.next.push(operator);
-    // }
-
-    //#[fastrace::trace]
     fn middleware(&self, _message: Message) -> Message {
         let mut message = _message;
 
@@ -63,16 +48,17 @@ impl OperatorWrapper {
 
             message = message.with_span(child_span);
         } else {
-            info!("No span found {} for message {}", self.name, message);
+            warn!("No span found {} for message {}", self.name, message);
         }
 
         let hdl = self.handle.lock().unwrap();
 
         let start_time = std::time::Instant::now();
-        info!("Middleware {:?} {:?}", message, start_time);
+        debug!("Middleware {:?} {:?}", message, start_time);
         let result = hdl.handle(message);
         let elapsed_time = start_time.elapsed();
-        tracing::info!(
+
+        tracing::debug!(
             "Middleware execution time for operator {}: {:?}",
             self.name,
             elapsed_time
@@ -96,7 +82,8 @@ impl OperatorWrapper {
         let start_time = std::time::Instant::now();
         let result = hdl.async_handle(_message.with_span(child_span)).await;
         let elapsed_time = start_time.elapsed();
-        tracing::info!(
+
+        tracing::debug!(
             "Middleware execution time for operator {}: {:?}",
             self.name,
             elapsed_time
@@ -123,17 +110,18 @@ impl Operator for OperatorWrapper {
         let hdl = self.handle.lock().unwrap();
 
         if hdl.get().is_some() {
-            info!("Async handle found {}", self.name);
+            debug!("Async handle found {}", self.name);
             Some(Arc::new(self.to_owned()))
         } else {
             None
         }
     }
 
-    //#[fastrace::trace]
     fn handle(&self, _message: Message) -> Message {
-        info!("Handle {}", self.name);
+        debug!("Handle {}", self.name);
+
         let nm = format!("op_wrapper_handle_in ({})", self.name);
+
         match _message.get_span() {
             Some(parent) => {
                 let child_span = Span::enter_with_parent(nm, parent);
@@ -185,25 +173,10 @@ impl Operator for OperatorWrapper {
     fn send(&self, _message: Message) {
         let message = self.handle(_message);
 
+        // this has to be after the handle() to avoid deadlock
         let hdl = self.handle.lock().unwrap();
 
         hdl.send(message);
-        // // endpoint operator just forward over the sending
-        // if hdl._type() == OperatorType::Endpoint {
-        //     match _message {
-        //         Message::Init { .. } => {
-        //             error!("Unexpected message type {}", _message);
-        //         }
-        //         _ => hdl.send(self.handle(_message)),
-        //     }
-        // } else {
-        //     match _message {
-        //         Message::Init { .. } => {
-        //             error!("Unexpected message type {}", _message);
-        //         }
-        //         _ => hdl.send(self.handle(_message)),
-        //     }
-        // }
     }
 
     fn wait(&self) -> Message {

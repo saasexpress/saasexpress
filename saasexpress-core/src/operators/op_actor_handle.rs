@@ -40,47 +40,7 @@ impl OperatorActorHandle {
 
         let mut actor = OpActor::new(name, receiver, operator);
 
-        //let cx = Context::current();
-
-        // let tracer = global::tracer("saaasexpress_acotr_trace");
-        // tracer.in_span("doing_actor_work", |_cx| {
-        //     // Your application logic here...
-        //     //sleep(Duration::from_secs(100));
-        //     info!("doing work");
-        // });
-
-        // let span_name = "operator";
-
-        // let tracer = global::tracer("graph");
-        // let span = tracer
-        //     .span_builder(String::from(span_name))
-        //     .with_kind(SpanKind::Client)
-        //     .start(&tracer);
-        // let cx = Context::current_with_span(span);
-
-        //let the_span = info_span!("Operator-Actor", name = nm.clone());
-        // let trace_ctx = Context::current();
-
-        // let tracer = global::tracer("graph");
-        // let mut span = tracer
-        //     .span_builder("oteldemo.ActorHandle")
-        //     .with_kind(SpanKind::Producer)
-        //     .start_with_context(&tracer, &trace_ctx);
-
-        // let cx = Context::current_with_span(span);
-        //.with_context(cx)
-        //let span = LocalSpan::enter_with_local_parent("op_actor_handle");
-        //let root = Span::root("op_actor_handle", SpanContext::random());
-
-        //let parent = SpanContext::random();
-        //let span = Span::root("root", parent);
-
         let future = async move {
-            //let _span = LocalSpan::enter_with_local_parent("a span");
-            // let root = Span::root("op_actor", SpanContext::random());
-            // let _g = root.set_local_parent();
-
-            //let child = Span::enter_with_local_parent("child");
             actor.run().await;
         };
 

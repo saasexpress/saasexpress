@@ -29,6 +29,7 @@ pub(crate) struct APICall {
     pub forward: bool,
     pub ws: bool,
     settings: Vec<Setting>,
+    client: Client,
 }
 
 impl From<serde_yaml::Value> for APICall {
@@ -48,6 +49,7 @@ impl From<serde_yaml::Value> for APICall {
             forward,
             ws,
             settings: env_settings("API_CALL_REQWEST".to_string()),
+            client: Client::new(),
         }
     }
 }
@@ -303,7 +305,7 @@ impl AsyncHandleTrait for APICall {
         'life0: 'async_trait,
         Self: 'async_trait,
     {
-        let client = Client::new();
+        let client = self.client.clone();
         let url = self.url.clone();
         let forward = self.forward;
         let ws = self.ws;
@@ -311,10 +313,12 @@ impl AsyncHandleTrait for APICall {
 
         let parent_span = message.get_span().expect("No span found");
         let _span = Span::enter_with_parent("api_call", parent_span);
-        //let _guard = _span.set_local_parent();
 
         Box::pin(
             async move {
+                let s = Span::enter_with_local_parent("api_call_inner");
+                s.set_local_parent();
+                //let _span = LocalSpan::enter_with_local_parent("api_call");
                 match message {
                     Message::ReqReply {
                         respond_to,
@@ -333,26 +337,31 @@ impl AsyncHandleTrait for APICall {
 
                         debug!("--> [{}] {}", method, url);
 
-                        let mut builder =
-                            client.request(Method::try_from(method.as_str()).unwrap(), url);
+                        let builder = {
+                            let s = Span::enter_with_local_parent("url_builder");
+                            s.set_local_parent();
+                            let mut builder =
+                                client.request(Method::try_from(method.as_str()).unwrap(), url);
 
-                        for setting in self.settings.iter() {
-                            builder = builder.header(
-                                setting.key.clone().replace("_", "-"),
-                                setting.value.clone(),
-                            );
-                        }
+                            for setting in self.settings.iter() {
+                                builder = builder.header(
+                                    setting.key.clone().replace("_", "-"),
+                                    setting.value.clone(),
+                                );
+                            }
 
-                        builder = builder
-                            .header("Content-Type", "application/json")
-                            //.header("Accept", "application/json")
-                            .body(message);
+                            builder
+                                .header("Content-Type", "application/json")
+                                //.header("Accept", "application/json")
+                                .body(message)
+                        };
+                        debug!("ReqReply Builder: {:?}", builder);
 
-                        info!("Builder: {:?}", builder);
-
-                        //let _span = LocalSpan::enter_with_local_parent("api_call");
-
-                        response = builder.send().await;
+                        response = {
+                            let s = Span::enter_with_local_parent("upstream_request");
+                            s.set_local_parent();
+                            builder.send().await
+                        };
 
                         //response = client.get(&url).send().await;
                         match response {
@@ -625,10 +634,9 @@ impl AsyncHandleTrait for APICall {
                                             origin,
                                         };
                                     } else {
-                                        return Message::JSON {
-                                            message: response.json().await.unwrap(),
-                                            origin,
-                                        };
+                                        let message = response.json().await.unwrap();
+                                        error!("Message: {:?}", message);
+                                        return Message::JSON { message, origin };
                                     }
                                 }
                                 Err(e) => {

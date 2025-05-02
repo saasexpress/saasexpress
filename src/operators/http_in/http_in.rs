@@ -111,32 +111,7 @@ impl Operator for HTTPIn {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        info!(
-            "HTTPIn handle (passthrough)... {} {:?}",
-            self.name(),
-            _message
-        );
         return _message;
-        // match _message {
-        //     Message::Standard { message, origin } => {
-        //         debug!("Passthrough message Standard");
-        //         return Message::Standard {
-        //             message: message.to_owned(),
-        //             origin,
-        //         };
-        //     }
-        //     Message::ReqReply {
-        //         message,
-        //         respond_to,
-        //     } => {
-        //         debug!("Passthrough message ReqReply");
-        //         return Message::ReqReply {
-        //             message: message.to_owned(),
-        //             respond_to,
-        //         };
-        //     }
-        //     _ => panic!("Unexpected message type"),
-        // }
     }
 
     // fn handle_ptr(&self, _message: Arc<Message>) -> Arc<Message> {
@@ -164,7 +139,7 @@ impl Operator for HTTPIn {
     }
 
     fn send(&self, message: Message) {
-        self.next(self.handle(message));
+        self.next(message);
     }
 
     fn send_ptr(&self, _message: Arc<Message>) {

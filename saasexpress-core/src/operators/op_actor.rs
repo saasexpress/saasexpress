@@ -6,7 +6,7 @@ use std::{
 use crate::graph::message::Message;
 use fastrace::{Span, local::LocalSpan, prelude::SpanContext};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info_span, instrument, span, warn};
+use tracing::{debug, error, info, info_span, instrument, span, warn};
 
 use crate::graph::graph::Operator;
 use fastrace::future::FutureExt;
@@ -34,37 +34,10 @@ impl OpActor {
         }
     }
 
-    //#[instrument(name = "op_actor", skip_all)]
     pub async fn run(&mut self) {
         debug!("OperatorActor is running for {}", self.handle.name());
 
-        // {
-        //     let _span1 = LocalSpan::enter_with_local_parent("op_actor_run");
-
-        //     //LocalSpan::add_event(Event::new("event in span1"));
-        // }
-
-        // info_span!("OperatorActor", name = self.handle.name()).in_scope(|| {
-        //     debug!("OperatorActor is running for {}", self.handle.name());
-        // });
-
-        // let span = info_span!("my-span");
-        // {
-        //     let _guard = span.enter();
-        //     // Do something
-        //     sleep(std::time::Duration::from_secs(1));
-        // }
-        // {
-        //     // We re-enter the same span!
-        //     let _guard2 = span.enter();
-        //     // Do something else
-        //     sleep(std::time::Duration::from_secs(1));
-        // }
-
         loop {
-            //let __guard__ = LocalSpan::enter_with_local_parent("example::simple");
-            // let __span__ = Span::enter_with_local_parent("simple_async");
-
             let msg = self.receiver.recv().await.unwrap();
 
             match msg {
@@ -103,7 +76,7 @@ impl OpActor {
                         let response = self.handle.handle(msg);
                         self.next(response);
                     } else {
-                        warn!("Async handle found {}", self.name);
+                        debug!("Async handle found {}", self.name);
 
                         let nm = format!("op_actor_handler (async) ({})", self.name);
                         let parent_span = msg.get_span();
@@ -114,11 +87,11 @@ impl OpActor {
                                 Span::root(nm, SpanContext::random())
                             }
                         };
-                        //let _guard = span.set_local_parent();
 
-                        let response = hdl.as_ref().unwrap().async_handle(msg);
-
-                        let r = response.in_span(child_span).await;
+                        let r = {
+                            let response = hdl.as_ref().unwrap().async_handle(msg);
+                            response.in_span(child_span).await
+                        };
 
                         self.next(r);
                     }

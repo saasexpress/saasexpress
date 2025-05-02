@@ -18,19 +18,19 @@ use saasexpress_core::{
     settings::settings::{Setting, env_settings},
 };
 use serde_json::{Value as JsonValue, json};
-use tracing::{Level, debug, error, info, info_span, instrument, span};
+use tracing::{Level, Span, debug, error, info, info_span, instrument, span};
 //use tracing_opentelemetry::OpenTelemetrySpanExt;
 use opentelemetry::trace::TraceContextExt;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum MessageTranslatorEngine {
-    CelInterpreter,
+    CelInterpreter { program: Program },
 }
 
 impl Display for MessageTranslatorEngine {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageTranslatorEngine::CelInterpreter => write!(f, "cel-interpreter"),
+            MessageTranslatorEngine::CelInterpreter { .. } => write!(f, "cel-interpreter"),
         }
     }
 }
@@ -55,6 +55,7 @@ impl MessageTranslatorMode {
 pub(crate) struct MessageTranslator {
     template: String,
     engine: MessageTranslatorEngine,
+
     mode: MessageTranslatorMode,
     settings: Vec<Setting>,
 }
@@ -69,10 +70,14 @@ impl From<serde_yaml::Value> for MessageTranslator {
                 .get("engine")
                 .and_then(|v| v.as_str())
                 .map(|s| match s {
-                    "cel-interpreter" => MessageTranslatorEngine::CelInterpreter,
+                    "cel-interpreter" => MessageTranslatorEngine::CelInterpreter {
+                        program: Program::compile(value["template"].as_str().unwrap()).unwrap(),
+                    },
                     _ => panic!("Unknown engine: {}", s),
                 })
-                .unwrap_or(MessageTranslatorEngine::CelInterpreter),
+                .unwrap_or_else(|| MessageTranslatorEngine::CelInterpreter {
+                    program: Program::compile(value["template"].as_str().unwrap()).unwrap(),
+                }),
         }
     }
 }
@@ -164,68 +169,85 @@ impl Operator for MessageTranslator {
 }
 
 impl MessageTranslator {
-    #[trace(short_name = true, properties = {
-        "template":"{template:?}"
-    })]
-    fn compile(template: &str) -> Program {
-        Program::compile(template).unwrap()
-    }
+    // #[trace(short_name = true, properties = {
+    //     "template":"{template:?}"
+    // })]
+    // fn compile(template: &str) -> Program {
+    //     Program::compile(template).unwrap()
+    // }
 
+    #[trace(short_name = true)]
     fn parse(&self, data: &JsonValue) -> JsonValue {
-        let program = MessageTranslator::compile(&self.template);
+        let program = {
+            let _guard = LocalSpan::enter_with_local_parent("program");
+            match &self.engine {
+                MessageTranslatorEngine::CelInterpreter { program } => program,
+            }
+        };
 
-        let cel_data = cel_interpreter::to_value(data).unwrap();
+        let cel_data = {
+            let _guard = LocalSpan::enter_with_local_parent("data_serde");
+            cel_interpreter::to_value(data).unwrap()
+        };
 
         // Add any variables or functions that the program will need
-        let mut context = Context::default();
-        context.add_function("add", |a: i64, b: i64| a + b);
+        let context = {
+            let mut context = Context::default();
+            let _guard = LocalSpan::enter_with_local_parent("context");
 
-        debug!("Templ {}", self.template);
-        debug!("In {}", serde_json::to_string_pretty(data).unwrap());
+            context.add_function("add", |a: i64, b: i64| a + b);
 
-        let input = json!({
-            "resource": "Tenant",
-            "http_method": "POST",
-            "query": {
-                "prompt": "Hello World"
-            }
-        });
+            debug!("Templ {}", self.template);
+            debug!("In {}", serde_json::to_string_pretty(data).unwrap());
 
-        context
-            .add_variable("data", cel_data)
-            .expect("Variable data problem");
+            let input = json!({
+                "resource": "Tenant",
+                "http_method": "POST",
+                "query": {
+                    "prompt": "Hello World"
+                }
+            });
 
-        debug!("Settings {:?}", self.settings.to_hash_map());
-        context
-            .add_variable("settings", self.settings.to_hash_map())
-            .expect("Variable data problem");
+            context
+                .add_variable("data", cel_data)
+                .expect("Variable data problem");
 
-        context
-            .add_variable("input", input)
-            .expect("Variable input problem");
+            debug!("Settings {:?}", self.settings.to_hash_map());
+            context
+                .add_variable("settings", self.settings.to_hash_map())
+                .expect("Variable data problem");
 
-        let _ = LocalSpan::enter_with_local_parent("execute");
+            context
+                .add_variable("input", input)
+                .expect("Variable input problem");
+            //sleep(std::time::Duration::from_millis(100));
+            context
+        };
 
-        // Run the program
-        let _value = program.execute(&context);
-        match _value {
-            Ok(value) => {
-                if self.mode == MessageTranslatorMode::JSON {
-                    let val = cel_value_to_json(&value);
-                    debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
-                    return val;
-                } else {
-                    if let Value::String(value) = &value {
-                        return JsonValue::String(value.to_string());
+        {
+            let _guard = LocalSpan::enter_with_local_parent("execute");
+
+            // Run the program
+            let _value = program.execute(&context);
+            match _value {
+                Ok(value) => {
+                    if self.mode == MessageTranslatorMode::JSON {
+                        let val = cel_value_to_json(&value);
+                        debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
+                        return val;
                     } else {
-                        error!("Parsing issue - expecting expression not json");
-                        return JsonValue::String("".to_string());
+                        if let Value::String(value) = &value {
+                            return JsonValue::String(value.to_string());
+                        } else {
+                            error!("Parsing issue - expecting expression not json");
+                            return JsonValue::String("".to_string());
+                        }
                     }
                 }
-            }
-            Err(e) => {
-                error!("Error: {}", e);
-                return JsonValue::String("".to_string());
+                Err(e) => {
+                    error!("Error: {}", e);
+                    return JsonValue::String("".to_string());
+                }
             }
         }
     }

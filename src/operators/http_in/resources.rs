@@ -396,7 +396,7 @@ impl Singleton {
             .method_not_allowed_fallback(handle_405);
     }
 
-    #[instrument(name = "http_server_start", skip_all)]
+    //#[instrument(name = "http_server_start", skip_all)]
     pub fn start(&self) {
         let router = self.router.to_owned();
 
@@ -404,24 +404,14 @@ impl Singleton {
         tokio::spawn(async move {
             let addr = SocketAddr::from(([0, 0, 0, 0], 2243));
 
-            // Create a span for server binding
-            // let bind_span = tracing::info_span!("server_bind", port = 2243);
-            // let _bind_guard = bind_span.enter();
-
-            info!("[HTTPIn] Binding to address: {}", addr);
+            info!("[HTTPIn.axum] Binding to address: {}", addr);
             let listener = TcpListener::bind(addr).await.unwrap();
-            //drop(_bind_guard);
-
-            info!("[HTTPIn] Listening on: {}", addr);
 
             let root = Span::root("server_up", SpanContext::random());
 
             root.with_property(|| ("server.address", "0.0.0.0"))
                 .with_property(|| ("server.port", "2243"))
                 .add_event(Event::new("Server started".to_string()));
-            //let _guard = root.set_local_parent();
-
-            info!("HTTP server started successfully");
 
             let serve = axum::serve(listener, service);
             serve.await.expect("Failed to start server");
