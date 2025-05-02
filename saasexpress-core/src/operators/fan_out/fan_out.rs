@@ -164,8 +164,12 @@ impl FanOut {
                                 ),
                             })
                             .unwrap();
-                        let json = serde_json::from_str("".to_string().as_str()).unwrap();
+                        let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
                         (json, oneshot::channel().0, og.span)
+                    } else if status == 204 {
+                        let respond_to = og.respond_to;
+                        let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
+                        (json, respond_to, og.span)
                     } else {
                         let respond_to = og.respond_to;
                         let s: String = message
