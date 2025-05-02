@@ -361,7 +361,7 @@ impl GraphRun for Graph {
         node.send(Message::Standard {
             message,
             origin: Some(
-                OriginMessage::new(_tx)
+                OriginMessage::new(Some(_tx))
                     .session("0".to_string())
                     .mpsc_respond_to(tx),
             ),

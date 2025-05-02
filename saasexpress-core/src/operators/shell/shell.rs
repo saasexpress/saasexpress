@@ -120,7 +120,7 @@ impl Operator for Shell {
 
                         if origin.mpsc_respond_to.is_none() {
                             warn!("No mpsc_respond_to channel found");
-                            let respond_to = origin.respond_to;
+                            let respond_to = origin.respond_to.expect("No respond_to channel");
 
                             let (tx, mut rx) = mpsc::channel::<Message>(10);
 
@@ -151,6 +151,7 @@ impl Operator for Shell {
                                         }
                                     }
                                 }
+
                                 info!("Flushing out the lines back to user");
                                 let r = respond_to.send(Message::JSON {
                                     message: serde_json::to_value(lines).unwrap(),

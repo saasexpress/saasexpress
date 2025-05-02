@@ -41,13 +41,14 @@ impl Operator for BufferToJSON {
             Message::ReqReply {
                 message,
                 respond_to,
+                span,
                 ..
             } => {
                 debug!("Passthrough message");
 
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
 
-                let origin = Some(OriginMessage::new(respond_to));
+                let origin = Some(OriginMessage::new(Some(respond_to)).with_span(span));
 
                 return to_json(result, origin);
             }

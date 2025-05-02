@@ -375,7 +375,7 @@ impl AsyncHandleTrait for APICall {
                                     return Message::HTTP {
                                         message: serde_json::to_vec(&result).unwrap(),
                                         origin: Some(
-                                            OriginMessage::new(respond_to).with_span(span),
+                                            OriginMessage::new(Some(respond_to)).with_span(span),
                                         ),
                                         headers: HashMap::new(),
                                         status: r_status.as_u16(),
@@ -403,7 +403,7 @@ impl AsyncHandleTrait for APICall {
                                         headers,
                                         status,
                                         origin: Some(
-                                            OriginMessage::new(respond_to).with_span(span),
+                                            OriginMessage::new(Some(respond_to)).with_span(span),
                                         ),
                                     };
                                 } else {
@@ -428,7 +428,7 @@ impl AsyncHandleTrait for APICall {
                                         headers,
                                         status,
                                         origin: Some(
-                                            OriginMessage::new(respond_to).with_span(span),
+                                            OriginMessage::new(Some(respond_to)).with_span(span),
                                         ),
                                     };
                                 }
@@ -437,7 +437,7 @@ impl AsyncHandleTrait for APICall {
                                 error!("Error making request {:?}", e);
                                 return Message::Standard {
                                     message: b"Error".to_vec(),
-                                    origin: Some(OriginMessage::new(respond_to)),
+                                    origin: Some(OriginMessage::new(Some(respond_to))),
                                 };
                             }
                         }
@@ -698,7 +698,7 @@ impl Operator for APICall {
 
     fn handle(&self, _message: Message) -> Message {
         panic!("Should use async_handle");
-
+        /*
         match _message {
             Message::Standard { message: _, origin } => {
                 warn!("APICall handle (passthrough)... {}", self.url);
@@ -813,6 +813,7 @@ impl Operator for APICall {
             }
             _ => panic!("Unexpected message type {}", _message),
         }
+        */
     }
 
     fn init(&mut self, _: &mut Graph) {

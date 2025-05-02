@@ -63,7 +63,7 @@ impl Operator for FanOut {
     }
 
     fn init(&mut self, _: &mut Graph) {
-        warn!("FanOut::init is not implemented yet");
+        debug!("FanOut::init - nothing to initialize");
     }
 
     fn control(&mut self, _message: Message) {
@@ -94,7 +94,7 @@ impl Operator for FanOut {
 
 impl FanOut {
     fn next(&self, mut _message: Message) {
-        info!("FanOut::next {:?}", _message);
+        debug!("FanOut::next {:?}", _message);
 
         let senders = self.senders.clone();
 
@@ -151,7 +151,7 @@ impl FanOut {
                     let og = origin.unwrap();
                     if status > 299 {
                         error!("HTTP error: {}", status);
-                        let respond_to = og.respond_to;
+                        let respond_to = og.respond_to.expect("No respond_to");
 
                         respond_to
                             .send(Message::HTTP {
@@ -159,7 +159,7 @@ impl FanOut {
                                 status,
                                 headers,
                                 origin: Some(
-                                    OriginMessage::new(oneshot::channel().0)
+                                    OriginMessage::new(None)
                                         .with_span(Some(DebuggableSpan(fanout_span))),
                                 ),
                             })
@@ -167,11 +167,11 @@ impl FanOut {
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
                         (json, oneshot::channel().0, og.span)
                     } else if status == 204 {
-                        let respond_to = og.respond_to;
+                        let respond_to = og.respond_to.expect("No respond_to");
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
                         (json, respond_to, og.span)
                     } else {
-                        let respond_to = og.respond_to;
+                        let respond_to = og.respond_to.expect("No respond_to");
                         let s: String = message
                             .iter()
                             .map(|b| *b as char)
@@ -185,7 +185,8 @@ impl FanOut {
                     message, origin, ..
                 } => {
                     let og = origin.unwrap();
-                    (message, og.respond_to, og.span)
+                    let respond_to = og.respond_to.expect("No respond_to");
+                    (message, respond_to, og.span)
                 }
                 _ => panic!("Unexpected message type in FanOut::next {}", msg),
             };
@@ -205,7 +206,7 @@ impl FanOut {
             //let respond_to = origin.respond_to;
             let to = data.1;
             //let message = data.0.to_owned();
-            let origin = OriginMessage::new(oneshot::channel().0).with_span(data.2);
+            let origin = OriginMessage::new(None).with_span(data.2);
 
             let mut response_receivers = Vec::new();
 
@@ -215,7 +216,7 @@ impl FanOut {
             let mut index = 0;
             for _sender in &senders {
                 index += 1;
-                info!("Sending message to sender {}", index);
+                debug!("Sending message to sender {}", index);
 
                 let sender = _sender.clone();
                 let (resp_tx1, resp_rx1) = oneshot::channel::<Message>();
@@ -229,21 +230,23 @@ impl FanOut {
 
                 let result = async {
                     let fan2_span = Span::enter_with_local_parent(format!("fanout2:{}", index));
+
                     let result = s
                         .send(Message::JSON {
                             message: data.0.to_owned(),
                             origin: Some(
-                                OriginMessage::new(resp_tx1)
+                                OriginMessage::new(Some(resp_tx1))
                                     .with_span(Some(DebuggableSpan(fan2_span))),
                             ),
                         })
                         .await;
+
                     return result;
                 }
                 .in_span(fan_span)
                 .await;
 
-                info!("Message sent to sender {}", index);
+                debug!("Message sent to sender {}", index);
                 if let Err(e) = result {
                     error!("Failed to send message: {}", e);
                 }
@@ -286,7 +289,7 @@ impl FanOut {
                 }
             }
 
-            info!("Merged results: {:?}", merged);
+            debug!("Merged results: {:?}", merged);
             if senders.len() != merged.len() {
                 error!(
                     "FanOut: not all responses received. Expected {}, got {}",
@@ -367,19 +370,19 @@ impl FanOut {
 
                         operator.lock().unwrap().send(Message::Standard {
                             message,
-                            origin: Some(OriginMessage::new(r_to).with_span(span)),
+                            origin: Some(OriginMessage::new(Some(r_to)).with_span(span)),
                         });
                     }
                     Message::JSON {
                         message, origin, ..
                     } => {
                         let og = origin.unwrap();
-                        let r_to = og.respond_to;
+                        let r_to = og.respond_to.expect("No respond_to");
                         let span = og.span.unwrap();
 
                         operator.lock().unwrap().send(Message::JSON {
                             message,
-                            origin: Some(OriginMessage::new(r_to).with_span(Some(span))),
+                            origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
                         });
                     }
                     _ => {

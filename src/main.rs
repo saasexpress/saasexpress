@@ -12,6 +12,7 @@ use fastrace::collector::Config;
 use fastrace::collector::ConsoleReporter;
 use fastrace::prelude::*;
 use fastrace_opentelemetry::OpenTelemetryReporter;
+use futures::channel::oneshot;
 use logs::init_logger;
 //use opentelemetry_otlp::WithHttpConfig;
 //use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -246,6 +247,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         bootstrap::bootstrap();
     }
 
+    do_it();
+
     loop {
         const ONE_HOUR: u64 = 3600;
         std::thread::sleep(std::time::Duration::from_secs(ONE_HOUR));
@@ -258,4 +261,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     // logger_provider
     //     .shutdown()
     //     .expect("LoggerProvider should shutdown successfully");
+}
+
+#[derive(Debug)]
+pub struct Origin<T> {
+    context: T,
+}
+
+impl<T> Origin<T>
+where
+    T: Send + Sync,
+{
+    pub fn new(context: T) -> Self {
+        Origin { context }
+    }
+}
+
+#[derive(Debug)]
+pub enum XMessage {
+    Split {
+        message: Vec<u8>,
+        origin: Origin<String>,
+    },
+    Standard {
+        message: Vec<u8>,
+        origin: Origin<oneshot::Sender<XMessage>>,
+    },
+}
+
+fn do_it() {
+    // Example usage
+    let chnl = oneshot::channel();
+    let list_messages = vec![
+        XMessage::Split {
+            message: vec![1, 2, 3],
+            origin: Origin::new("example_context".to_string()),
+        },
+        XMessage::Standard {
+            message: vec![4, 5, 6],
+            origin: Origin::new(chnl.0),
+        },
+    ];
+    for message in list_messages {
+        match message {
+            XMessage::Split { message, origin } => {
+                println!("Split Message: {:?}", message);
+                println!("Origin: {:?}", origin.context);
+            }
+            XMessage::Standard { message, origin } => {
+                println!("Standard Message: {:?}", message);
+                println!("Origin: {:?}", origin.context);
+            }
+        }
+    }
 }

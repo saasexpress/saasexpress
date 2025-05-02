@@ -122,7 +122,7 @@ impl Operator for MessageTranslator {
 
                 Message::JSON {
                     message: cel_value,
-                    origin: Some(OriginMessage::new(respond_to).with_span(span)),
+                    origin: Some(OriginMessage::new(Some(respond_to)).with_span(span)),
                 }
             }
             Message::Exit { origin } => Message::Exit { origin },

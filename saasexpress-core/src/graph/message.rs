@@ -24,8 +24,28 @@ use tracing::error;
 use super::graph::Operator;
 
 #[derive(Debug)]
+pub struct OriginMessageV2<T> {
+    session: Option<String>,
+    span: Option<DebuggableSpan>,
+    context: T,
+}
+
+impl<T> OriginMessageV2<T>
+where
+    T: Send + Sync,
+{
+    pub fn new(context: T) -> Self {
+        OriginMessageV2 {
+            context,
+            session: None,
+            span: None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct OriginMessage {
-    pub respond_to: oneshot::Sender<Message>,
+    pub respond_to: Option<oneshot::Sender<Message>>,
     pub session: Option<String>,
     pub mpsc_respond_to: Option<mpsc::Sender<Message>>,
     pub span: Option<DebuggableSpan>,
@@ -38,7 +58,7 @@ pub struct OriginMessage {
 // }
 
 impl OriginMessage {
-    pub fn new(respond_to: oneshot::Sender<Message>) -> Self {
+    pub fn new(respond_to: Option<oneshot::Sender<Message>>) -> Self {
         OriginMessage {
             respond_to,
             session: None,
@@ -85,6 +105,7 @@ pub enum Message {
     JSON {
         message: Value,
         origin: Option<OriginMessage>,
+        //origin_v2: Option<OriginMessageV2<mpsc::Sender<Message>>>,
     },
     ReqReply {
         path: String,

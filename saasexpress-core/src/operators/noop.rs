@@ -71,7 +71,7 @@ impl Operator for NOOP {
                                 .expect("[JSON] Failed to send response");
                         });
                     } else {
-                        let respond_to = origin_message.respond_to;
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
 
                         respond_to
                             .send(Message::HTTP {
@@ -100,15 +100,13 @@ impl Operator for NOOP {
                                 .expect("[JSON] Failed to send response");
                         });
                     } else {
-                        let respond_to = origin_message.respond_to;
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
                         let span = origin_message.span;
 
                         respond_to
                             .send(Message::Standard {
                                 message: message.to_owned(),
-                                origin: Some(
-                                    OriginMessage::new(oneshot::channel().0).with_span(span),
-                                ),
+                                origin: Some(OriginMessage::new(None).with_span(span)),
                             })
                             .expect("[Standard] Failed to send response");
                     }
@@ -130,7 +128,7 @@ impl Operator for NOOP {
                                 .expect("[JSON] Failed to send response");
                         });
                     } else {
-                        let respond_to = origin_message.respond_to;
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
 
                         let result = respond_to.send(Message::JSON {
                             message: message.to_owned(),

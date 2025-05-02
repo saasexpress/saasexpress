@@ -64,17 +64,14 @@ impl Singleton {
         ws: bool,
         _start: Arc<Mutex<dyn Operator + 'static>>,
     ) {
+        let start = _start;
+
         for _path in paths.iter() {
             let path = _path.clone();
             debug!("Configuring path : {}", path);
-            let start = _start.to_owned();
 
             let main_router = self.router.clone();
 
-            let shared_state = Arc::new(MySharedState {
-                start: start.clone(),
-                counter: Arc::new(Mutex::new(0)),
-            });
             let handler_for_websocket =
                 async |state: State<Arc<MySharedState>>,
                        ws: WebSocketUpgrade,
@@ -294,36 +291,29 @@ impl Singleton {
                 }
             };
 
+            let shared_state = Arc::new(MySharedState {
+                start: start.clone(),
+                counter: Arc::new(Mutex::new(0)),
+            });
+
             let path = _path;
             match method.as_str() {
                 "^(POST|PUT|DELETE)$" => {
-                    let shared_state1 = Arc::new(MySharedState {
-                        start: start.clone(),
-                        counter: Arc::new(Mutex::new(0)),
-                    });
-                    let shared_state2 = Arc::new(MySharedState {
-                        start: start.clone(),
-                        counter: Arc::new(Mutex::new(0)),
-                    });
-                    let shared_state3 = Arc::new(MySharedState {
-                        start: start.clone(),
-                        counter: Arc::new(Mutex::new(0)),
-                    });
                     self.router = main_router
                         .merge(
                             Router::new()
                                 .route(path.as_str(), post(handler.clone()))
-                                .with_state(shared_state1),
+                                .with_state(shared_state.clone()),
                         )
                         .merge(
                             Router::new()
                                 .route(path.as_str(), put(handler.clone()))
-                                .with_state(shared_state2),
+                                .with_state(shared_state.clone()),
                         )
                         .merge(
                             Router::new()
                                 .route(path.as_str(), delete(handler.clone()))
-                                .with_state(shared_state3),
+                                .with_state(shared_state.clone()),
                         );
                 }
                 "PUT" => {

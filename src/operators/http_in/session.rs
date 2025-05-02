@@ -113,8 +113,7 @@ impl SocketSession {
             }
         }
 
-        let origin =
-            Some(OriginMessage::new(oneshot::channel::<GraphMessage>().0).session(who.to_string()));
+        let origin = Some(OriginMessage::new(None).session(who.to_string()));
 
         state
             .start
@@ -235,7 +234,7 @@ async fn client_to_upstream(
                 //     OriginMessage::new(oneshot::channel::<GraphMessage>().0)
                 //         .session(who.to_string()),
                 // );
-                let _origin = OriginMessage::new(oneshot::channel::<GraphMessage>().0)
+                let _origin = OriginMessage::new(None)
                     .session(who.to_string())
                     .mpsc_respond_to(tx.clone());
                 let origin = Some(_origin);
