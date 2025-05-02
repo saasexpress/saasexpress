@@ -1,5 +1,5 @@
 #
-# curl -v http://localhost:2243/shell -d '{"data": "echo hello"}'
+# curl -v http://localhost:2243/shell -d '{"data": "echo hello; exit"}'
 #
 name: shell
 nodes:
@@ -17,6 +17,9 @@ nodes:
       template: |
         { "command": data.data }
 
+  # - id: b2j
+  #   action: BufferToJSON
+
   - id: shell
     action: Shell
     config:
@@ -27,3 +30,4 @@ nodes:
 edges:
   - { from: start, to: translate }
   - { from: translate, to: shell }
+  # - { from: b2j, to: shell }

@@ -194,6 +194,13 @@ impl Message {
                     None
                 }
             }
+            Message::Exit { origin, .. } => {
+                if let Some(origin) = origin {
+                    origin.span.as_ref().map(|s| &s.0)
+                } else {
+                    None
+                }
+            }
             _ => {
                 error!("No span for {} message", self);
                 None
@@ -230,8 +237,21 @@ impl Message {
                     _ => {}
                 };
             }
+            Message::Exit { .. } => {
+                match self {
+                    Message::Exit { ref mut origin, .. } => {
+                        *origin = Some(
+                            origin
+                                .take()
+                                .unwrap()
+                                .with_span(Some(DebuggableSpan(og_span))),
+                        );
+                    }
+                    _ => {}
+                };
+            }
             _ => {
-                error!("No span for {} message", self);
+                error!("Unable to set span for {} message", self);
             }
         }
         self

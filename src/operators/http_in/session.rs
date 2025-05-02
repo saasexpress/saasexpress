@@ -32,7 +32,7 @@ use futures::{
 
 use super::resources::MySharedState;
 
-use saasexpress_core::graph::message::{Message as GraphMessage, OriginMessage};
+use saasexpress_core::graph::message::{DebuggableSpan, Message as GraphMessage, OriginMessage};
 
 /**
  *
@@ -45,16 +45,28 @@ pub struct SocketSession {
     socket: WebSocket,
     state: State<Arc<MySharedState>>,
     who: SocketAddr,
+    span: fastrace::Span,
 }
 
 impl SocketSession {
-    pub fn new(socket: WebSocket, state: State<Arc<MySharedState>>, who: SocketAddr) -> Self {
-        SocketSession { socket, state, who }
+    pub fn new(
+        socket: WebSocket,
+        state: State<Arc<MySharedState>>,
+        who: SocketAddr,
+        span: fastrace::Span,
+    ) -> Self {
+        SocketSession {
+            socket,
+            state,
+            who,
+            span,
+        }
     }
 
     pub async fn process(self) {
         let state = self.state.clone();
         let who = self.who;
+        let span = self.span;
 
         let (sender, receiver) = self.socket.split();
         // send message to the first operator of the flow
@@ -113,7 +125,11 @@ impl SocketSession {
             }
         }
 
-        let origin = Some(OriginMessage::new(None).session(who.to_string()));
+        let origin = Some(
+            OriginMessage::new(None)
+                .session(who.to_string())
+                .with_span(Some(DebuggableSpan(span))),
+        );
 
         state
             .start

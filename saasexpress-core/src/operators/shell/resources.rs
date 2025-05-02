@@ -23,7 +23,7 @@ impl Singleton {
     }
 
     pub fn get_process(&mut self, session: String) -> Option<ShellProcess> {
-        //warn!("number of processes is {}", self.processes.len());
+        //info!("number of processes is {}", self.processes.len());
         let proc = self.processes.remove(&session);
         if proc.is_none() {
             return None;

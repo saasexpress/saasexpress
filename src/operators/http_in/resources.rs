@@ -79,7 +79,22 @@ impl Singleton {
                        ConnectInfo(addr): ConnectInfo<SocketAddr>| {
                     // send message to the first operator of the flow
 
-                    ws_handler(state, ws, user_agent, ConnectInfo(addr)).await
+                    let req_id;
+                    {
+                        let mut counter = state.counter.lock().unwrap();
+                        *counter += 1;
+                        req_id = counter.clone();
+                    }
+                    let req_id = format!("{:0>8}", req_id);
+
+                    let root = Span::root(format!("http_in_request_ws"), SpanContext::random())
+                        .with_property(|| ("http.request_id", req_id.clone()));
+
+                    root.add_event(Event::new("Request received".to_string()));
+
+                    let root_span = Span::enter_with_parent("response_span", &root);
+
+                    ws_handler(state, ws, user_agent, ConnectInfo(addr), root_span).await
                 };
 
             //let mut rng = rand::rng();
@@ -182,6 +197,7 @@ impl Singleton {
 
                 let msg = recv.await;
 
+                debug!("Handler [RECV] [{:?}]", msg);
                 //LocalSpan::add_event(Event::new("event in span1"));
 
                 match msg {

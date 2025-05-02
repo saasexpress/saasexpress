@@ -27,7 +27,7 @@ use std::{io::Read, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc;
 
 use axum_extra::{TypedHeader, headers};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, span, warn};
 
 use std::ops::ControlFlow;
 
@@ -59,6 +59,7 @@ pub async fn ws_handler(
     ws: WebSocketUpgrade,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    span: fastrace::Span,
 ) -> impl IntoResponse {
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
         user_agent.to_string()
@@ -71,15 +72,20 @@ pub async fn ws_handler(
     // finalize the upgrade process by returning upgrade callback.
     // we can customize the callback by sending additional debug such as address.
 
-    ws.on_upgrade(move |socket| handle_socket(state, socket, addr))
+    ws.on_upgrade(move |socket| handle_socket(state, socket, addr, span))
 }
 
 /// Actual websocket statemachine (one will be spawned per connection)
-async fn handle_socket(state: State<Arc<MySharedState>>, socket: WebSocket, who: SocketAddr) {
+async fn handle_socket(
+    state: State<Arc<MySharedState>>,
+    socket: WebSocket,
+    who: SocketAddr,
+    span: fastrace::Span,
+) {
     // By splitting socket we can send and receive at the same time. In this example we will send
     // unsolicited messages to client based on some sort of server's internal event (i.e .timer).
 
-    let session = SocketSession::new(socket, state, who);
+    let session = SocketSession::new(socket, state, who, span);
     session.process().await;
 
     // returning from the handler closes the websocket connection

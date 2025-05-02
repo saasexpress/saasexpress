@@ -57,7 +57,7 @@ impl ShellProcess {
     }
 
     pub fn stop(&mut self) {
-        warn!("Do some stopping stuff");
+        info!("Do some stopping stuff");
     }
 
     pub fn start(&mut self, command: &str, args: &[String], ctrl_tx: oneshot::Sender<String>) {
@@ -113,13 +113,13 @@ impl ShellProcess {
         //                 };
         //             }
         //             Ok(None) => {
-        //                 warn!("No lines available");
+        //                 info!("No lines available");
         //                 break;
         //             }
 
         //             Err(_err) => {
         //                 // channel is empty
-        //                 //warn!("Warn receiving line {}", err);
+        //                 //info!("Warn receiving line {}", err);
         //                 //block_wait = true;
         //             }
         //         }
@@ -128,7 +128,7 @@ impl ShellProcess {
         //         thread::sleep(Duration::from_millis(300));
         //     }
         //     */
-        //     warn!("EXITING RX RCV! NO!");
+        //     info!("EXITING RX RCV! NO!");
         // });
         // self.handlers.push(hdl);
 
@@ -176,7 +176,7 @@ impl ShellProcess {
                             };
                         }
                         None => {
-                            warn!("No lines from stderr");
+                            info!("No lines from stderr");
                             return;
                         }
                     }
@@ -222,7 +222,7 @@ impl ShellProcess {
                             // }
                         }
                         None => {
-                            warn!("No lines from stdout");
+                            info!("No lines from stdout");
                             return;
                         }
                     }
@@ -244,7 +244,7 @@ impl ShellProcess {
         let hdl = tokio::spawn(async move {
             loop {
                 if let Some(line) = stdin_rx.recv().await {
-                    warn!("Got a line - sending to stdin - {}", line);
+                    info!("Got a line - sending to stdin - {}", line);
                     stdin
                         .write(format!("{}\n", line).as_bytes())
                         .await
@@ -254,14 +254,14 @@ impl ShellProcess {
                     //     error!("Error writing to stdin: {}", e);
                     // }
                 } else {
-                    warn!("Error receiving line - stdin_rx closed");
+                    info!("Error receiving line - stdin_rx closed");
                     break;
                 }
             }
         });
         self.handlers.push(hdl);
 
-        warn!("Total handlers = {}", self.handlers.len());
+        info!("Total handlers = {}", self.handlers.len());
 
         let sender = self.sender.clone();
 
@@ -338,7 +338,7 @@ async fn batching(
                 Ok(Some(line)) => buffer.push(line),
                 Ok(None) => {
                     // No lines available, but continue to check time
-                    warn!("No lines available");
+                    info!("No lines available");
                     //block_wait = true;
                 }
                 // Err(TryRecvError::Empty) => {
@@ -351,7 +351,7 @@ async fn batching(
                 //     break;
                 // }
                 Err(err) => {
-                    warn!("Warn receiving line {}", err);
+                    info!("Warn receiving line {}", err);
                     //block_wait = true;
                 } // Err(TryRecvError::) => {
                   //     // No lines available, but continue to check time
@@ -394,6 +394,6 @@ async fn process_batch(buffer: &mut Vec<String>, forward_to: &mut FuturesMPSC::S
 
         buffer.clear();
     } else {
-        warn!("Processing empty batch (100ms elapsed with no new data)");
+        info!("Processing empty batch (100ms elapsed with no new data)");
     }
 }

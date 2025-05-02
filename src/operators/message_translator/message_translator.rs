@@ -7,7 +7,7 @@ use std::{
 
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
 use cel_interpreter::{Context, Program, Value};
-use fastrace::local::LocalSpan;
+use fastrace::{local::LocalSpan, trace};
 use opentelemetry::{KeyValue, trace::get_active_span};
 use saasexpress_core::settings::settings::ToHashMap;
 use saasexpress_core::{
@@ -90,8 +90,6 @@ impl Operator for MessageTranslator {
         None
     }
 
-    //#[instrument(name = "message_translator_parse", skip_all)]
-    //#[tracing::instrument(skip(self), fields(name = self.name()))]
     fn handle(&self, _message: Message) -> Message {
         match _message {
             Message::JSON { message, origin } => {
@@ -166,16 +164,15 @@ impl Operator for MessageTranslator {
 }
 
 impl MessageTranslator {
-    //#[instrument(name = "message_translator_parse", skip_all)]
+    #[trace(short_name = true, properties = {
+        "template":"{template:?}"
+    })]
+    fn compile(template: &str) -> Program {
+        Program::compile(template).unwrap()
+    }
 
     fn parse(&self, data: &JsonValue) -> JsonValue {
-        let program;
-
-        {
-            let _span = LocalSpan::enter_with_local_parent("compile");
-
-            program = Program::compile(&self.template).unwrap();
-        }
+        let program = MessageTranslator::compile(&self.template);
 
         let cel_data = cel_interpreter::to_value(data).unwrap();
 
@@ -185,27 +182,6 @@ impl MessageTranslator {
 
         debug!("Templ {}", self.template);
         debug!("In {}", serde_json::to_string_pretty(data).unwrap());
-
-        // get_active_span(|span| {
-        //     let count = 10;
-        //     let q = 10.0;
-        //     //let q = create_quote_from_float(f);
-        //     span.add_event(
-        //         "Received Quote".to_string(),
-        //         vec![KeyValue::new("app.shipping.cost.total", format!("{}", q))],
-        //     );
-        //     span.set_attribute(KeyValue::new("app.shipping.items.count", count as i64));
-        //     span.set_attribute(KeyValue::new("app.shipping.cost.total", format!("{}", q)));
-        //     q
-        // });
-
-        //let span = span!(Level::INFO, "my_span");
-        // span.in_scope(|| {
-        //     // Record attributes in the span
-        //     let _gaurd = span.enter();
-
-        //     sleep(std::time::Duration::from_millis(1000));
-        // });
 
         let input = json!({
             "resource": "Tenant",
@@ -228,7 +204,7 @@ impl MessageTranslator {
             .add_variable("input", input)
             .expect("Variable input problem");
 
-        let _span = LocalSpan::enter_with_local_parent("execute");
+        let _ = LocalSpan::enter_with_local_parent("execute");
 
         // Run the program
         let _value = program.execute(&context);

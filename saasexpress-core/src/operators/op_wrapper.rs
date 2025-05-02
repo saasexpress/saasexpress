@@ -48,24 +48,31 @@ impl OperatorWrapper {
 
     //#[fastrace::trace]
     fn middleware(&self, _message: Message) -> Message {
-        let hdl = self.handle.lock().unwrap();
-
         let mut message = _message;
 
         if message.get_span().is_some() {
             let nm = format!("middleware ({})", self.name);
+
+            // Two scenarios here:
+            // 1. Use the same span as the inbound message
             let child_span = Span::enter_with_parent(nm, message.get_span().unwrap());
             child_span.set_local_parent();
+
+            // 2. Create a new child span (NOT WORKING YET)
+            //message.get_span().unwrap().set_local_parent();
+
             message = message.with_span(child_span);
         } else {
-            warn!("No span found {} for message {}", self.name, message);
+            info!("No span found {} for message {}", self.name, message);
         }
 
+        let hdl = self.handle.lock().unwrap();
+
         let start_time = std::time::Instant::now();
-        warn!("Middleware {:?} {:?}", message, start_time);
+        info!("Middleware {:?} {:?}", message, start_time);
         let result = hdl.handle(message);
         let elapsed_time = start_time.elapsed();
-        tracing::warn!(
+        tracing::info!(
             "Middleware execution time for operator {}: {:?}",
             self.name,
             elapsed_time
@@ -89,7 +96,7 @@ impl OperatorWrapper {
         let start_time = std::time::Instant::now();
         let result = hdl.async_handle(_message.with_span(child_span)).await;
         let elapsed_time = start_time.elapsed();
-        tracing::warn!(
+        tracing::info!(
             "Middleware execution time for operator {}: {:?}",
             self.name,
             elapsed_time
@@ -116,7 +123,7 @@ impl Operator for OperatorWrapper {
         let hdl = self.handle.lock().unwrap();
 
         if hdl.get().is_some() {
-            warn!("Async handle found {}", self.name);
+            info!("Async handle found {}", self.name);
             Some(Arc::new(self.to_owned()))
         } else {
             None
@@ -125,7 +132,7 @@ impl Operator for OperatorWrapper {
 
     //#[fastrace::trace]
     fn handle(&self, _message: Message) -> Message {
-        warn!("Handle {}", self.name);
+        info!("Handle {}", self.name);
         let nm = format!("op_wrapper_handle_in ({})", self.name);
         match _message.get_span() {
             Some(parent) => {
@@ -146,7 +153,7 @@ impl Operator for OperatorWrapper {
     }
 
     fn init(&mut self, _: &mut Graph) {
-        warn!("Not implemented");
+        info!("Not implemented");
     }
 
     fn control(&mut self, _message: Message) {

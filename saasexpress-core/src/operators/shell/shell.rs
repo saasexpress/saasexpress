@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 
-use crate::graph::message::Message;
+use crate::graph::message::{Message, OriginMessage};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType, Origin};
 use crate::operators::shell::process::ShellProcess;
 
 use super::resources::get_instance;
@@ -56,8 +56,8 @@ impl Operator for Shell {
         None
     }
 
-    fn handle(&self, message: Message) -> Message {
-        match message {
+    fn handle(&self, _message: Message) -> Message {
+        match _message {
             Message::Exit { origin, .. } => {
                 info!("Exit message received");
                 // if there is an origin Session, then reference it
@@ -68,13 +68,20 @@ impl Operator for Shell {
                 let mut proc_list = get_instance().lock().unwrap();
                 let shell_process = proc_list.get_process(session_id.clone());
                 if let Some(mut shell_process) = shell_process {
-                    debug!("Stopping shell process");
+                    info!(
+                        "Stopping shell process - deleting session id {:?}",
+                        session_id
+                    );
                     shell_process.stop();
                 } else {
-                    warn!("No shell process found for session id {:?}", session_id);
+                    info!("No shell process found for session id {:?}", session_id);
                 }
 
-                return Message::Exit { origin: None };
+                let span = origin.unwrap().span;
+
+                return Message::Exit {
+                    origin: Some(OriginMessage::new(None).with_span(span)),
+                };
             }
             // Message::Error { error, .. } => {
             //     info!("Error message received");
@@ -89,7 +96,7 @@ impl Operator for Shell {
             //         debug!("Stopping shell process");
             //         shell_process.stop();
             //     } else {
-            //         warn!("No shell process found for session id {:?}", session_id);
+            //         info!("No shell process found for session id {:?}", session_id);
             //     }
 
             //     return Message::Error { error };
@@ -108,6 +115,8 @@ impl Operator for Shell {
 
                 let process = processes.get_process(session_id.clone());
 
+                let origin = origin.unwrap();
+
                 let mut shell_process = match process {
                     Some(shell_process) => {
                         debug!("Process already exists, reusing it");
@@ -116,10 +125,8 @@ impl Operator for Shell {
                     None => {
                         let (ctrl_tx, ctrl_rx) = oneshot::channel::<String>();
 
-                        let origin = origin.unwrap();
-
                         if origin.mpsc_respond_to.is_none() {
-                            warn!("No mpsc_respond_to channel found");
+                            info!("No mpsc_respond_to channel found");
                             let respond_to = origin.respond_to.expect("No respond_to channel");
 
                             let (tx, mut rx) = mpsc::channel::<Message>(10);
@@ -158,7 +165,7 @@ impl Operator for Shell {
                                     origin: None,
                                 });
                                 if let Err(e) = r {
-                                    warn!("Error sending message: {:?}", e);
+                                    info!("Error sending message: {:?}", e);
                                 }
                             });
 
@@ -206,14 +213,18 @@ impl Operator for Shell {
 
                 processes.add_process(session_id, shell_process);
 
-                info!("Finished processing");
-                return Message::Standard {
-                    message: "Started".to_string().into_bytes().to_vec(),
-                    origin: None,
-                };
+                //let _span = _message.get_span();
+                return Message::NoOp {};
+                // let respond_to = origin.respond_to;
+
+                // info!("Finished processing");
+                // return Message::Standard {
+                //     message: "Started".to_string().into_bytes().to_vec(),
+                //     origin: Some(OriginMessage::new(None)),
+                // };
             }
 
-            _ => panic!("Unexpected message type {}", message),
+            _ => panic!("Unexpected message type {}", _message),
         }
     }
 
@@ -239,7 +250,7 @@ impl Operator for Shell {
     }
     fn send(&self, message: Message) {
         //panic!("Send not implemented for Shell operator");
-        self.next(self.handle(message));
+        self.next(message);
     }
 
     fn wait(&self) -> Message {

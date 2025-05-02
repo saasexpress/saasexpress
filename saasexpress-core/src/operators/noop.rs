@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::oneshot;
 use tokio::sync::mpsc::{self, Sender};
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
 
@@ -91,6 +91,7 @@ impl Operator for NOOP {
                     if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
                         tokio::spawn(async move {
                             debug!("Sending MPSC response");
+                            error!("Sending without an origin!  So no span!");
                             mpsc_respond_to
                                 .send(Message::Standard {
                                     message: message.to_owned(),
@@ -150,6 +151,9 @@ impl Operator for NOOP {
                 debug!("NOOP - NoOp message");
             }
 
+            Message::Exit { .. } => {
+                warn!("Exit - do nothing");
+            }
             _ => {
                 warn!("Message type not supported for respond_to {}", _message);
             }
