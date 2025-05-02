@@ -120,8 +120,6 @@ impl Singleton {
 
                 let root_span = Span::enter_with_parent("response_span", &root);
 
-                //let _local_root_guard = root_span.set_local_parent();
-
                 debug!(
                     "Handler [IN] [{}] {} {}",
                     req_id,
@@ -140,10 +138,6 @@ impl Singleton {
                 debug!("Path = {}", request.uri().path());
                 let path = request.uri().path().to_string();
 
-                // Create a span for parsing the request body
-                // let parse_span = tracing::info_span!("parse_request", %req_id);
-                // let _parse_guard = parse_span.enter();
-
                 let body = request.into_body();
                 let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
 
@@ -153,32 +147,9 @@ impl Singleton {
                     }
                 }
 
-                //drop(_parse_guard); // Exit parse span
-
                 let (send, recv) = oneshot::channel();
 
-                //let ping_span = tracing::info_span!("ping span");
-
-                //let cx = Context::current_with_span(span);
-
-                //let propctx = PropagationContext::inject(&trace_ctx);
-
-                // Create a span for operator processing
-                // let process_span = tracing::info_span!("process_request",
-                //     %req_id,
-                //     %path,
-                //     operation = "forward_to_operator"
-                // );
-                // let _process_guard = process_span.enter();
-
-                // send message to the first operator of the flow
-
                 debug!("Handler [WAIT] [{}]", req_id);
-                //drop(_process_guard); // Exit process span
-
-                // drop(_root_guard);
-
-                //let req_reply_span = Span::enter_with_local_parent("req_reply_span");
 
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),
@@ -191,32 +162,16 @@ impl Singleton {
 
                 state.start.lock().unwrap().send(message);
 
-                //let __span__ = Span::enter_with_local_parent("simple_async");
-
-                //let _guard = root.set_local_parent();
-
                 let msg = recv.await;
-
-                debug!("Handler [RECV] [{:?}]", msg);
-                //LocalSpan::add_event(Event::new("event in span1"));
 
                 match msg {
                     Ok(msg) => {
-                        // Create a span for creating the response
-                        // let format_response_span = tracing::info_span!("format_response", %req_id);
-                        // let _format_response_guard = format_response_span.enter();
-
                         let response = match msg {
                             Message::Standard {
                                 message,
                                 origin: None,
                             } => {
                                 debug!("Handler (Standard) [OK] [{}]", req_id);
-                                // Record success in the span
-                                //Span::current().record("http.status_code", 200);
-                                //Span::current().record("otel.status_code", "OK");
-
-                                //drop(_root_guard);
 
                                 Json(json!({ "data": String::from_utf8_lossy(&message) }))
                                     .into_response()
@@ -234,16 +189,6 @@ impl Singleton {
                                     headers.get("content-type").unwrap_or(&String::from(""))
                                 );
 
-                                // // Record HTTP status in the span
-                                // Span::current().record("http.status_code", status);
-                                // if status >= 200 && status < 300 {
-                                //     Span::current().record("otel.status_code", "OK");
-                                // } else {
-                                //     Span::current().record("otel.status_code", "ERROR");
-                                // }
-
-                                //drop(_root_guard);
-
                                 // Convert stream to axum HTTP body
                                 let body = Bytes::from(message);
                                 let mut _headers = HeaderMap::new();
@@ -259,6 +204,9 @@ impl Singleton {
                                         .unwrap(),
                                     );
                                 }
+
+                                // Causes issues because we are not returning chunks
+                                _headers.remove("transfer-encoding");
 
                                 (StatusCode::from_u16(status).unwrap(), _headers, body)
                                     .into_response()
