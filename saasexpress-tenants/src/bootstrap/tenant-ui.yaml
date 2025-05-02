@@ -1,0 +1,22 @@
+#
+# - implement HTTPIn to match the route
+#
+name: tenant-ui
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /ui/
+        - /ui/{*rest}
+
+  - id: rp
+    action: APICall
+    config:
+      # url: http://localhost:8081
+      # Running locally use:
+      url: http://localhost:5173
+
+edges:
+  - { from: start, to: rp }

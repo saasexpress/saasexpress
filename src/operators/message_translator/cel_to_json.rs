@@ -1,6 +1,6 @@
 use cel_interpreter::objects::Key::String;
-use cel_interpreter::{Program, Value};
-use serde_json::{Value as JsonValue, json};
+use cel_interpreter::Value;
+use serde_json::Value as JsonValue;
 use tracing::warn;
 
 pub fn cel_value_to_json(value: &Value) -> JsonValue {

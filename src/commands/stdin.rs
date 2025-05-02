@@ -1,4 +1,4 @@
-use crate::bootstrap::{bootstrap, build_graph};
+use crate::bootstrap::build_graph;
 
 pub(crate) fn stdin() {
     let mut buffer = String::new();

@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main, feature/*]
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY }}
+  REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+  REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+
+jobs:
+  build-saasexpress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Static UI
+        uses: actions/checkout@v2
+        with:
+          repository: saasexpress/saasexpress
+          ref: feature/server-side-events
+          path: tenant-ui
+
+      - name: Prep Static UI
+        run: |
+          docker build --tag ui -f tenant-ui/tenant-ui/Dockerfile tenant-ui/tenant-ui
+
+          id=$(docker create ui)
+          docker cp $id:/app/dist/. saasexpress-tenants/ui
+          docker rm -v $id
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/saasexpress/saasexpress
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+      - name: Login to Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64
+          context: .
+          file: .devops/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          #cache-from: type=gha
+          #cache-to: type=gha,mode=max

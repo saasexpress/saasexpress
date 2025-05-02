@@ -1,0 +1,21 @@
+# (use the client)
+# curl -v http://localhost:2500/ws -d 'ls'
+name: shell
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      ws: true
+      method: ^(ANY)$
+      routes:
+        - /ws
+
+  - id: shell_node
+    action: Shell
+    config:
+      command: bash
+      args:
+        - "-i"
+
+edges:
+  - { from: start, to: shell_node }

@@ -1,24 +1,19 @@
-use axum::{
-    Json, Router,
-    extract::State,
-    routing::{any, post},
+use saasexpress_core::{
+    graph::{
+        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        message::Message,
+    },
+    settings::settings::{Setting, env_settings},
 };
-use futures::channel::oneshot;
-use serde_json::{Value, json};
-use tracing::{debug, info, warn};
+use serde_json::Value;
+use tracing::{debug, info};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
-
-use super::{resources::get_instance, websocket::ws_handler};
-use crate::graph::graph::{Message, Operator};
+use super::resources::get_instance;
 use core::panic;
 use std::{
     fmt::{Display, Formatter},
-    net::SocketAddr,
     sync::{Arc, Mutex},
 };
-
-use tokio::net::TcpListener;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Engine {
@@ -40,6 +35,7 @@ pub(crate) struct HTTPIn {
     routes: Vec<String>,
     method: String,
     next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    settings: Vec<Setting>,
 }
 
 impl From<Value> for HTTPIn {
@@ -67,6 +63,7 @@ impl From<Value> for HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 }
@@ -96,6 +93,7 @@ impl From<serde_yaml::Value> for HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 }
@@ -113,32 +111,7 @@ impl Operator for HTTPIn {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        info!(
-            "HTTPIn handle (passthrough)... {} {:?}",
-            self.name(),
-            _message
-        );
         return _message;
-        // match _message {
-        //     Message::Standard { message, origin } => {
-        //         debug!("Passthrough message Standard");
-        //         return Message::Standard {
-        //             message: message.to_owned(),
-        //             origin,
-        //         };
-        //     }
-        //     Message::ReqReply {
-        //         message,
-        //         respond_to,
-        //     } => {
-        //         debug!("Passthrough message ReqReply");
-        //         return Message::ReqReply {
-        //             message: message.to_owned(),
-        //             respond_to,
-        //         };
-        //     }
-        //     _ => panic!("Unexpected message type"),
-        // }
     }
 
     // fn handle_ptr(&self, _message: Arc<Message>) -> Arc<Message> {
@@ -166,7 +139,7 @@ impl Operator for HTTPIn {
     }
 
     fn send(&self, message: Message) {
-        self.next(self.handle(message));
+        self.next(message);
     }
 
     fn send_ptr(&self, _message: Arc<Message>) {
@@ -197,6 +170,7 @@ impl HTTPIn {
             routes,
             method,
             next: Vec::new(),
+            settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
 

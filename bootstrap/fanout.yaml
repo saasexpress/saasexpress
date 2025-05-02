@@ -1,0 +1,21 @@
+name: fanout
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /api/services
+  - id: fanout
+    action: FanOut
+  - id: fanout_1
+    action: Passthrough
+  - id: fanout_2
+    action: Passthrough
+edges:
+  - from: start
+    to: fanout
+  - from: fanout
+    to: fanout_1
+  - from: fanout
+    to: fanout_2

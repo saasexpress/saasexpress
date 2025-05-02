@@ -1,52 +1,69 @@
-use graph::graph::Graph;
-use rust_embed::Embed;
+use fastrace::trace;
+use saasexpress_core::graph::graph::Graph;
 use serde_yaml::Value;
-use tracing::info;
+use tracing::{Span, info, instrument};
 
-use crate::operators::factory::{self, OpXX, add_node_to_graph};
-use crate::operators::http_in::resources::get_instance;
+use crate::operators::factory::add_node_to_graph;
+use crate::operators::http_in;
 
-use super::graph;
-
-#[derive(Embed)]
-#[folder = "src/commands"]
-struct Asset;
-
-pub fn bootstrap(graphs: Vec<Value>) {
-    graphs.iter().for_each(|yaml| build_graph(yaml.to_owned()));
-
-    // Start the resources that the graphs are dependend on
-    let singleton = get_instance().lock().unwrap();
+pub fn bootstrap() {
+    info!("Starting HTTP service");
+    let singleton = http_in::resources::get_instance().lock().unwrap();
     singleton.start();
 }
 
+#[trace]
 pub fn build_graph(yaml: Value) {
     let graph_name = yaml["name"].as_str().unwrap().to_string();
 
+    // Record graph name in the current span
+    //Span::current().record("graph_name", &graph_name);
+
+    info!(graph_name = %graph_name, "Building graph");
     let mut graph = Graph::new(graph_name);
 
-    for node in yaml["nodes"].as_sequence().unwrap() {
+    // Create a span for node processing
+    // let nodes_span = tracing::info_span!(
+    //     "process_nodes",
+    //     node_count = yaml["nodes"].as_sequence().unwrap().len()
+    // );
+    // let _nodes_guard = nodes_span.enter();
+
+    for (idx, node) in yaml["nodes"].as_sequence().unwrap().iter().enumerate() {
+        // let node_span = tracing::info_span!("add_node", node_index = idx);
+        // let _node_guard = node_span.enter();
+
+        // let node_type = node["type"].as_str().unwrap_or("unknown");
+        // tracing::info!(node_type = %node_type, "Adding node to graph");
+
         add_node_to_graph(node, &mut graph);
     }
 
-    for edge in yaml["edges"].as_sequence().unwrap() {
+    //drop(_nodes_guard); // Exit the nodes span
+
+    // Create a span for edge processing
+    // let edges_span = tracing::info_span!(
+    //     "process_edges",
+    //     edge_count = yaml["edges"].as_sequence().unwrap().len()
+    // );
+    // let _edges_guard = edges_span.enter();
+
+    for (idx, edge) in yaml["edges"].as_sequence().unwrap().iter().enumerate() {
+        // let edge_span = tracing::info_span!("add_edge", edge_index = idx);
+        // let _edge_guard = edge_span.enter();
+
         let from = edge["from"].as_str().unwrap();
         let to = edge["to"].as_str().unwrap();
-        info!("Edge: {} -> {}", from, to);
+
+        info!(from = %from, to = %to, "Adding edge");
         graph.add_edge(String::from(from), String::from(to));
     }
 
-    graph.no_processor().init();
-}
+    // drop(_edges_guard); // Exit the edges span
 
-fn gather_files() -> Vec<Value> {
-    Asset::iter()
-        .filter(|file_name| file_name.ends_with(".yaml"))
-        .map(|file_name| {
-            let file = Asset::get(file_name.as_ref()).unwrap();
-            let yaml = serde_yaml::from_slice::<serde_yaml::Value>(file.data.as_ref()).unwrap();
-            info!("YAML: {} : {:?}", file_name, yaml);
-            yaml
-        })
-        .collect()
+    // let init_span = tracing::info_span!("graph_initialization");
+    // let _init_guard = init_span.enter();
+
+    info!("Initializing graph");
+    graph.no_processor().init();
 }

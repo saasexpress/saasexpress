@@ -1,0 +1,115 @@
+name: sample
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /{*rest}
+  - id: oidc
+    action: Callout
+    config:
+      graph: oidc
+      config:
+        issuer: https:://idp/issuer/.well-known/openid-configuration
+  - id: rp
+    action: APICall
+    config:
+      url: https://some_upstream_service
+      method: GET
+edges:
+  - { from: start, to: oidc }
+  - { from: oidc, to: rp }
+---
+name: oidc
+nodes:
+  - id: intake
+    action: MessageTranslation
+    config:
+      session_cookie: request.claim_ticket
+      issuer: https:://idp/issuer/.well-known/openid-configuration
+  - id: claim
+    action: ContentEnricher
+    config:
+      claim: claim_ticket
+
+  - id: route
+    action: ContentRouter
+    config:
+      rules:
+        - label: idp_callback
+          match: "idp_callback (path == /cb and method == GET)"
+          next: idp_callback
+
+        - label: not_logged_in
+          match: "no_claim_ticket_found (session_cookie)"
+          next: redirect_to_idp
+
+        - name: "logged_in"
+          match: "claim_ticket_found"
+          next: done
+
+  - id: redirect_to_idp
+    action: APICall
+    config:
+      url: https:://idp/issuer/.well-known/openid-configuration
+      method: GET
+    next:
+      - id: prepare_redirect
+        action: MessageTranslation
+        config:
+          url: https://oidc.dev.api.gov.bc.ca/authorize
+          method: GET
+          params:
+            client_id: "client_id"
+            response_type: "code"
+            redirect_uri: "https://oidc.dev.api.gov.bc.ca/callback"
+            scope: "openid profile email"
+            state: "state"
+            nonce: "nonce"
+            pkce: "calculation"
+        next:
+          - id: return_redirect
+            action: HTTPResponse
+            config:
+              status_code: 302
+              headers:
+                Location: "https://oidc.dev.api.gov.bc.ca/authorize?client_id=client_id&response_type=code&redirect_uri=https://oidc.dev.api.gov.bc.ca/callback&scope=openid profile email&state=state&nonce=nonce"
+
+  - id: idp_callback
+    action: MessageTranslation
+    config: {}
+    next:
+      - id: get_token
+        action: APICall
+        config:
+          url: https://oidc.dev.api.gov.bc.ca/token
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          body:
+            grant_type: "authorization_code"
+            code: "{query.code}"
+            client_id: "client_id"
+            client_secret: "client_secret"
+            pkce: "calculation"
+        next:
+          - id: new_claim_ticket
+            action: ClaimTicket
+            config:
+              ticket: "{response}"
+          - id: prepare_cookie
+            action: MessageTranslation
+            config:
+              session_cookie: request.claim_ticket
+              path: /
+              http_only: true
+              secure: true
+              same_site: strict
+          - id: return_redirect
+            action: HTTPResponse
+            config:
+              status_code: 302
+              headers:
+                Set-Cookie: '"claim_ticket=" + [response.claim_ticket, response.http_only, response.secure, response.same_site].join("; ")'
+                Location: "{start.query.redirect_uri}"
