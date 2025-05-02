@@ -36,6 +36,19 @@ const Api = ({ types = [] }: ApiProps) => {
     );
   }
 
+  if (!openApiSpec.info) {
+    return (
+      <div
+        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+        role="alert"
+      >
+        <strong className="font-bold">Invalid OpenAPI Spec</strong>
+        <span className="block">
+          Unable to get the API Specification from the service.
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="p-4 container mx-auto">
       {/* Header */}

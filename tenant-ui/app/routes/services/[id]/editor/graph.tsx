@@ -73,6 +73,16 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
 
   useEffect(() => {
     if (data && variant) {
+      if (!(variant in data.variants)) {
+        data.variants[variant] = {
+          dag: {
+            name: variant,
+            nodes: [],
+            edges: [],
+            visuals: "",
+          },
+        };
+      }
       const dagVariant: DAGVariant = data.variants[variant];
       console.log(dagVariant);
       dagVariant.dag.nodes.map((nd, idx) => {

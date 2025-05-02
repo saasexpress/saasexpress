@@ -8,6 +8,7 @@ import NewButton from "@components/gold/new-button";
 import BasicButton from "@components/gold/basic-button";
 import APIClient from "@lib/api/APIClient";
 import SimpleTextInput from "components/simple-text-input";
+import { FormControl, FormGroup, FormLabel } from "@mui/material";
 
 export default function NewServiceDialog({ onCreated }: any) {
   const [open, setOpen] = React.useState(false);
@@ -44,11 +45,21 @@ export default function NewServiceDialog({ onCreated }: any) {
         >
           <DialogTitle>Create New Service</DialogTitle>
           <DialogContent>
-            <DialogContentText>
-              To create a new service, enter an optional display name:
+            <DialogContentText mb="2" className="mt-2">
+              To create a new service, enter an optional display name and
+              service URL:
             </DialogContentText>
+            <FormGroup>
+              <FormControl>
+                <FormLabel>Display Name</FormLabel>
+                <SimpleTextInput name="displayName" onChange={() => true} />
+              </FormControl>
 
-            <SimpleTextInput name="displayName" onChange={() => true} />
+              <FormControl required>
+                <FormLabel>Service URL</FormLabel>
+                <SimpleTextInput name="serviceUrl" onChange={() => true} />
+              </FormControl>
+            </FormGroup>
           </DialogContent>
           <DialogActions>
             <BasicButton color="secondary" variant="text" onClick={handleClose}>

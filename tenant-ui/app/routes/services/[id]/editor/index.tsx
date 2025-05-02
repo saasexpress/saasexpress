@@ -59,6 +59,10 @@ const Entry = () => {
 
   useEffect(() => {
     if (data?.data) {
+      if (Object.keys(data?.data.variants).length == 0) {
+        setVariant("V1");
+        return;
+      }
       setVariant(Object.keys(data?.data.variants).pop() as string);
     }
   }, [data]);
