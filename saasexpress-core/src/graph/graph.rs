@@ -120,7 +120,14 @@ pub trait Operator: Send + Sync + Debug {
     /// commands and events for controlling the operator
     fn control(&mut self, message: Message);
 
-    /// Sends a message to the next operators in the graph
+    /// Sends a message to this operator for handling
+    ///
+    /// Examples:
+    /// OperatorType::Endpoint (HTTPIn) : self.next(self.handle(message));
+    /// OperatorType::Endpoint (FanOut) : self.next(message); (handle Not implemented)
+    /// ActorHandle : Send to actor to handle message; (handle Not implemented)
+    /// OperatorType::Filter (ActorHandle) : Send to actor to handle message and actor sends to next operators
+    ///
     fn send(&self, message: Message);
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
@@ -206,16 +213,16 @@ impl Graph {
 
         let typ = operator._type();
 
-        let wrapped_op = OperatorWrapper::new(operator);
+        //        let wrapped_op = OperatorWrapper::new(operator);
         //let wrapped_op = operator;
 
         match typ {
             OperatorType::Endpoint => {
-                self.add_new_node(id, wrapped_op);
+                self.add_new_node(id, OperatorWrapper::new(operator));
                 Port::new(self, "abc".to_string());
             }
             OperatorType::Filter => {
-                self.add_new_node(id, OperatorActorHandle::new(wrapped_op));
+                self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
             }
         }
 

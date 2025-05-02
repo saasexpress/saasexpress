@@ -107,7 +107,7 @@ impl Operator for OperatorActorHandle {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        panic!("Not implemented");
+        return _message;
     }
 
     fn init(&mut self, _: &mut Graph) {

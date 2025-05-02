@@ -8,7 +8,7 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
 
 use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
@@ -46,6 +46,8 @@ impl Operator for FanOut {
 
     fn handle(&self, _message: Message) -> Message {
         return _message;
+        //        panic!("Not implemented");
+        // return _message;
         // // send message to "processor"
         // // processor will create a new message for each next operator
         // // and send it to them and wait for response
@@ -77,8 +79,8 @@ impl Operator for FanOut {
         }
     }
 
-    fn send(&self, msg: Message) {
-        self.next(msg);
+    fn send(&self, message: Message) {
+        self.next(message);
     }
 
     fn wait(&self) -> Message {
@@ -92,72 +94,119 @@ impl Operator for FanOut {
 
 impl FanOut {
     fn next(&self, mut _message: Message) {
-        info!("FanOut::next");
-        let origin = _message.take_origin();
+        info!("FanOut::next {:?}", _message);
 
         let senders = self.senders.clone();
 
         let parent_span = _message.get_span().expect("Failed to get span");
 
         let fanout_span = Span::enter_with_parent("fanout", parent_span);
+        let fanout2_span = Span::enter_with_parent("fanout2", parent_span);
 
-        let _guard = fanout_span.set_local_parent();
+        //let _guard = fanout_span.set_local_parent();
 
-        let data = match _message {
-            Message::ReqReply {
-                message,
-                respond_to,
-                ..
-            } => {
-                let s: String = message
-                    .iter()
-                    .map(|b| *b as char)
-                    .collect::<String>()
-                    .to_string();
-                (serde_json::from_str(&s).unwrap(), respond_to)
-            }
-            Message::HTTP {
-                message,
-                status,
-                headers,
-                origin,
-            } => {
-                if status > 299 {
-                    error!("HTTP error: {}", status);
-                    let respond_to = origin.unwrap().respond_to;
+        let _origin = _message.get_origin().unwrap();
 
-                    respond_to
-                        .send(Message::HTTP {
-                            message,
-                            status,
-                            headers,
-                            origin: Some(
-                                OriginMessage::new(oneshot::channel().0)
-                                    .with_span(Some(DebuggableSpan(fanout_span))),
-                            ),
-                        })
-                        .unwrap();
-                    return;
-                } else {
+        //let origin = _message.take_origin().unwrap();
+
+        // let respond_to;
+        // {
+        //     respond_to = _message.as_ref().unwrap().respond_to;
+        // }
+
+        // this will remove origin from the message!
+
+        fn all_data(
+            fanout_span: Span,
+            msg: Message,
+        ) -> (
+            serde_json::Value,
+            oneshot::Sender<Message>,
+            Option<DebuggableSpan>,
+        ) {
+            let info = match msg {
+                Message::ReqReply {
+                    message,
+                    respond_to,
+                    span,
+                    ..
+                } => {
                     let s: String = message
                         .iter()
                         .map(|b| *b as char)
                         .collect::<String>()
                         .to_string();
-                    let json = serde_json::from_str(&s).unwrap();
-                    (json, origin.unwrap().respond_to)
+                    (serde_json::from_str(&s).unwrap(), respond_to, span)
                 }
-            }
-            Message::JSON {
-                message, origin, ..
-            } => (message, origin.unwrap().respond_to),
-            _ => panic!("Unexpected message type in FanOut::next {}", _message),
-        };
+                Message::HTTP {
+                    message,
+                    status,
+                    headers,
+                    origin,
+                } => {
+                    // let og = match origin {
+                    //     Some(o) => o,
+                    //     None => OriginMessage::new(oneshot::channel().0),
+                    // };
+                    let og = origin.unwrap();
+                    if status > 299 {
+                        error!("HTTP error: {}", status);
+                        let respond_to = og.respond_to;
+
+                        respond_to
+                            .send(Message::HTTP {
+                                message,
+                                status,
+                                headers,
+                                origin: Some(
+                                    OriginMessage::new(oneshot::channel().0)
+                                        .with_span(Some(DebuggableSpan(fanout_span))),
+                                ),
+                            })
+                            .unwrap();
+                        let json = serde_json::from_str("".to_string().as_str()).unwrap();
+                        (json, oneshot::channel().0, og.span)
+                    } else {
+                        let respond_to = og.respond_to;
+                        let s: String = message
+                            .iter()
+                            .map(|b| *b as char)
+                            .collect::<String>()
+                            .to_string();
+                        let json = serde_json::from_str(&s).unwrap();
+                        (json, respond_to, og.span)
+                    }
+                }
+                Message::JSON {
+                    message, origin, ..
+                } => {
+                    let og = origin.unwrap();
+                    (message, og.respond_to, og.span)
+                }
+                _ => panic!("Unexpected message type in FanOut::next {}", msg),
+            };
+            info
+        }
+        let all_data = all_data(fanout_span, _message);
+
+        let data = all_data;
+        //let respond_to = data.1;
+        //let span = data.2;
+        //let _origin = all_data.1;
+
+        //let _origin = _message.take_origin();
+        //let _origin = OriginMessage::new(respond_to).with_span(span);
 
         let future = async move {
+            //let respond_to = origin.respond_to;
+            let to = data.1;
+            //let message = data.0.to_owned();
+            let origin = OriginMessage::new(oneshot::channel().0).with_span(data.2);
+
             let mut response_receivers = Vec::new();
 
             let span = Span::enter_with_local_parent("fanout_send");
+            //let _guard = span.set_local_parent();
 
             let mut index = 0;
             for _sender in &senders {
@@ -173,19 +222,23 @@ impl FanOut {
 
                 //let fan_span = Span::enter_with_local_parent("fanout");
                 let fan_span = Span::enter_with_parent(format!("fanout:{}", index), &span);
-                //let _guard = fan_span.set_local_parent();
 
-                let fan2_span = Span::enter_with_parent(format!("fanout2:{}", index), &span);
+                let result = async {
+                    let fan2_span = Span::enter_with_local_parent(format!("fanout2:{}", index));
+                    let result = s
+                        .send(Message::JSON {
+                            message: data.0.to_owned(),
+                            origin: Some(
+                                OriginMessage::new(resp_tx1)
+                                    .with_span(Some(DebuggableSpan(fan2_span))),
+                            ),
+                        })
+                        .await;
+                    return result;
+                }
+                .in_span(fan_span)
+                .await;
 
-                let result = s
-                    .send(Message::JSON {
-                        message: data.0.to_owned(),
-                        origin: Some(
-                            OriginMessage::new(resp_tx1).with_span(Some(DebuggableSpan(fan_span))),
-                        ),
-                    })
-                    .in_span(fan2_span)
-                    .await;
                 info!("Message sent to sender {}", index);
                 if let Err(e) = result {
                     error!("Failed to send message: {}", e);
@@ -238,18 +291,17 @@ impl FanOut {
                 );
             }
 
-            let to = data.1;
             if merged.len() == 1 {
                 let value = merged.pop().unwrap();
                 to.send(Message::JSON {
                     message: value,
-                    origin,
+                    origin: Some(origin),
                 })
                 .unwrap();
             } else {
                 to.send(Message::JSON {
                     message: json!(merged),
-                    origin,
+                    origin: Some(origin),
                 })
                 .unwrap();
             }
@@ -283,7 +335,7 @@ impl FanOut {
             }
             */
         }
-        .in_span(fanout_span);
+        .in_span(fanout2_span);
         tokio::spawn(future);
     }
 

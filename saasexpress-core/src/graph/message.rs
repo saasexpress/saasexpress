@@ -138,6 +138,15 @@ impl Message {
         }
     }
 
+    pub fn get_origin(&mut self) -> Option<&OriginMessage> {
+        match self {
+            Message::Standard { origin, .. } => origin.as_ref(),
+            Message::JSON { origin, .. } => origin.as_ref(),
+            Message::HTTP { origin, .. } => origin.as_ref(),
+            _ => None,
+        }
+    }
+
     pub fn get_span(&self) -> Option<&Span> {
         match self {
             Message::ReqReply { span, .. } => span.as_ref().map(|s| &s.0),
@@ -152,6 +161,8 @@ impl Message {
                 if let Some(origin) = origin {
                     origin.span.as_ref().map(|s| &s.0)
                 } else {
+                    error!("HTTP Message without origin {:?}", self);
+
                     None
                 }
             }

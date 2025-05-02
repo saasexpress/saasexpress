@@ -15,7 +15,7 @@ use fastrace::future::FutureExt;
 pub struct OperatorWrapper {
     name: String,
     handle: Arc<Mutex<Box<dyn Operator + 'static>>>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    //next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
     _nodes: Vec<Arc<Mutex<dyn Operator + 'static>>>,
 }
 
@@ -31,20 +31,20 @@ impl OperatorWrapper {
             name: String::clone(&nm),
             handle: Arc::new(Mutex::new(Box::new(operator))),
             _nodes: Vec::new(),
-            next: Vec::new(),
+            //next: Vec::new(),
         }
     }
 
-    fn next(&self, _message: Message) {
-        for node in &self.next {
-            node.lock().unwrap().send(_message);
-            break;
-        }
-    }
+    // fn next(&self, _message: Message) {
+    //     for node in &self.next {
+    //         node.lock().unwrap().send(_message);
+    //         break;
+    //     }
+    // }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
-        self.next.push(operator);
-    }
+    // fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    //     self.next.push(operator);
+    // }
 
     //#[fastrace::trace]
     fn middleware(&self, _message: Message) -> Message {
@@ -62,6 +62,7 @@ impl OperatorWrapper {
         }
 
         let start_time = std::time::Instant::now();
+        warn!("Middleware {:?} {:?}", message, start_time);
         let result = hdl.handle(message);
         let elapsed_time = start_time.elapsed();
         tracing::warn!(
@@ -124,6 +125,7 @@ impl Operator for OperatorWrapper {
 
     //#[fastrace::trace]
     fn handle(&self, _message: Message) -> Message {
+        warn!("Handle {}", self.name);
         let nm = format!("op_wrapper_handle_in ({})", self.name);
         match _message.get_span() {
             Some(parent) => {
@@ -155,14 +157,14 @@ impl Operator for OperatorWrapper {
                 start,
                 end,
             } => {
-                for n in next {
-                    self.add_next(n);
-                }
+                // for n in next {
+                //     self.add_next(n);
+                // }
                 let mut hdl = self.handle.lock().unwrap();
 
                 hdl.control(Message::Init {
                     id,
-                    next: Vec::new(),
+                    next,
                     start,
                     end,
                 });
@@ -174,12 +176,27 @@ impl Operator for OperatorWrapper {
     }
 
     fn send(&self, _message: Message) {
-        match _message {
-            Message::Init { .. } => {
-                error!("Unexpected message type {}", _message);
-            }
-            _ => self.next(self.handle(_message)),
-        }
+        let message = self.handle(_message);
+
+        let hdl = self.handle.lock().unwrap();
+
+        hdl.send(message);
+        // // endpoint operator just forward over the sending
+        // if hdl._type() == OperatorType::Endpoint {
+        //     match _message {
+        //         Message::Init { .. } => {
+        //             error!("Unexpected message type {}", _message);
+        //         }
+        //         _ => hdl.send(self.handle(_message)),
+        //     }
+        // } else {
+        //     match _message {
+        //         Message::Init { .. } => {
+        //             error!("Unexpected message type {}", _message);
+        //         }
+        //         _ => hdl.send(self.handle(_message)),
+        //     }
+        // }
     }
 
     fn wait(&self) -> Message {

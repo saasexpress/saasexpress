@@ -174,7 +174,7 @@ impl Singleton {
                     path: path.clone(),
                     query: query.clone(),
                     method: method.to_string(),
-                    span: Some(DebuggableSpan(root)),
+                    span: Some(DebuggableSpan(root_span)),
                 };
 
                 state.start.lock().unwrap().send(message);
@@ -251,11 +251,10 @@ impl Singleton {
                                     .into_response()
                             }
 
-                            Message::JSON {
-                                message,
-                                origin: None,
-                            } => {
+                            Message::JSON { message, origin } => {
                                 debug!("Handler (JSON) [OK] [{}]", req_id);
+
+                                LocalSpan::add_event(Event::new("Request OK".to_string()));
 
                                 Json(json!(message)).into_response()
                             }
