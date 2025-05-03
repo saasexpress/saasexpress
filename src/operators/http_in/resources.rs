@@ -38,6 +38,7 @@ use tracing::Instrument;
 use tracing::span;
 use tracing::{debug, error, info, instrument, warn};
 //use tracing_opentelemetry::OpenTelemetrySpanExt;
+use axum::extract::FromRequest;
 use fastrace::future::FutureExt;
 
 #[derive(Debug)]
@@ -101,7 +102,9 @@ impl Singleton {
             //let counter = Arc::new(Mutex::new("0"));
 
             let handler = async |state: State<Arc<MySharedState>>,
+                                 user_agent: Option<TypedHeader<headers::UserAgent>>,
                                  method: Method,
+                                 ConnectInfo(addr): ConnectInfo<SocketAddr>,
                                  request: Request| {
                 let req_id;
                 {
@@ -126,6 +129,18 @@ impl Singleton {
                     method,
                     request.uri().path(),
                 );
+
+                // Perform automatic upgrade to WebSocket if the request is a WebSocket upgrade
+                let is_upgrade = request.headers().get("upgrade").is_some();
+                if is_upgrade {
+                    info!("WebSocket upgrade detected");
+                    let ws_upgrade = WebSocketUpgrade::from_request(request, &state)
+                        .await
+                        .unwrap();
+
+                    return ws_handler(state, ws_upgrade, user_agent, ConnectInfo(addr), root_span)
+                        .await;
+                }
 
                 let query = request
                     .uri()
@@ -254,6 +269,22 @@ impl Singleton {
                     }
                 }
             };
+
+            // let handler_optional_upgrade =
+            //     async |state: State<Arc<MySharedState>>,
+            //            ws: WebSocketUpgrade,
+            //            user_agent: Option<TypedHeader<headers::UserAgent>>,
+            //            method: Method,
+            //            ConnectInfo(addr): ConnectInfo<SocketAddr>,
+            //            request: Request| {
+            //         let is_upgrade = request.headers().get("upgrade").is_some();
+            //         if is_upgrade {
+            //             return handler_for_websocket(state, ws, user_agent, ConnectInfo(addr))
+            //                 .await;
+            //         } else {
+            //             return handler(state, method, request).await;
+            //         }
+            //     };
 
             let shared_state = Arc::new(MySharedState {
                 start: start.clone(),
