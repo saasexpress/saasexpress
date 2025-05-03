@@ -21,7 +21,7 @@ use axum::{
         State,
         ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
     },
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use std::{io::Read, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc;
@@ -60,7 +60,7 @@ pub async fn ws_handler(
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     span: fastrace::Span,
-) -> impl IntoResponse {
+) -> Response {
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
         user_agent.to_string()
     } else {

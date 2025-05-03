@@ -649,7 +649,12 @@ impl AsyncHandleTrait for APICall {
                             }
                         }
                     }
-                    _ => panic!("Unexpected message type {}", message),
+                    _ => {
+                        error!("Unexpected message type {}", message);
+                        return Message::Error {
+                            error: "Unexpected message type".to_string(),
+                        };
+                    }
                 }
             }
             .in_span(_span),

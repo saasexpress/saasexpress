@@ -1,10 +1,15 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::error;
 use utoipa::ToSchema;
 
 use crate::schema::activities;
+
+pub fn naivedatetime_to_string(dt: &NaiveDateTime) -> String {
+    dt.and_local_timezone(Utc).unwrap().to_rfc3339()
+}
 
 #[derive(Queryable, Selectable, Identifiable, Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[diesel(table_name = activities)]
@@ -64,7 +69,7 @@ impl From<Activity> for ActivityDTO {
 
         Self {
             id: Some(activity.id),
-            activity_at: activity.activity_at.to_string().into(),
+            activity_at: Some(naivedatetime_to_string(&activity.activity_at)),
             message: activity.message,
             params,
             result: activity.result,
