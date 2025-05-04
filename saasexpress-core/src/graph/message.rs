@@ -250,6 +250,19 @@ impl Message {
                     _ => {}
                 };
             }
+            Message::Standard { .. } => {
+                match self {
+                    Message::Standard { ref mut origin, .. } => {
+                        *origin = Some(
+                            origin
+                                .take()
+                                .unwrap()
+                                .with_span(Some(DebuggableSpan(og_span))),
+                        );
+                    }
+                    _ => {}
+                };
+            }
             _ => {
                 error!("Unable to set span for {} message", self);
             }

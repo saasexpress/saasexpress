@@ -121,7 +121,7 @@ impl FanOut {
             msg: Message,
         ) -> (
             serde_json::Value,
-            oneshot::Sender<Message>,
+            Option<oneshot::Sender<Message>>,
             Option<DebuggableSpan>,
         ) {
             let info = match msg {
@@ -136,7 +136,7 @@ impl FanOut {
                         .map(|b| *b as char)
                         .collect::<String>()
                         .to_string();
-                    (serde_json::from_str(&s).unwrap(), respond_to, span)
+                    (serde_json::from_str(&s).unwrap(), Some(respond_to), span)
                 }
                 Message::HTTP {
                     message,
@@ -165,11 +165,11 @@ impl FanOut {
                             })
                             .unwrap();
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, oneshot::channel().0, og.span)
+                        (json, None, og.span)
                     } else if status == 204 {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, respond_to, og.span)
+                        (json, Some(respond_to), og.span)
                     } else {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let s: String = message
@@ -178,7 +178,7 @@ impl FanOut {
                             .collect::<String>()
                             .to_string();
                         let json = serde_json::from_str(&s).unwrap();
-                        (json, respond_to, og.span)
+                        (json, Some(respond_to), og.span)
                     }
                 }
                 Message::JSON {
@@ -186,7 +186,7 @@ impl FanOut {
                 } => {
                     let og = origin.unwrap();
                     let respond_to = og.respond_to.expect("No respond_to");
-                    (message, respond_to, og.span)
+                    (message, Some(respond_to), og.span)
                 }
                 _ => panic!("Unexpected message type in FanOut::next {}", msg),
             };
@@ -256,9 +256,14 @@ impl FanOut {
                 .await
                 .into_iter()
                 .filter_map(|res| match res {
-                    Ok(response) => Some(response),
+                    Ok(response) => {
+                        debug!("Received response {:?}", response);
+                        Some(response)
+                    }
                     Err(e) => {
-                        error!("Failed to receive response: {}", e);
+                        // this can be acceptable if one of the fanouts uses the "Terminate" operator
+                        // where it returns a NoOp message (which causes the respond_to to drop)
+                        warn!("Failed to receive response: {}", e);
                         None
                     }
                 })
@@ -281,7 +286,7 @@ impl FanOut {
                         merged.push(message.to_owned());
                     }
                     Message::NoOp {} => {
-                        debug!("NoOp - do not include in merged results")
+                        warn!("NoOp - do not include in merged results")
                     }
                     _ => {
                         error!("Unexpected message type in FanOut::next {}", r);
@@ -298,19 +303,21 @@ impl FanOut {
                 );
             }
 
-            if merged.len() == 1 {
-                let value = merged.pop().unwrap();
-                to.send(Message::JSON {
-                    message: value,
-                    origin: Some(origin),
-                })
-                .unwrap();
-            } else {
-                to.send(Message::JSON {
-                    message: json!(merged),
-                    origin: Some(origin),
-                })
-                .unwrap();
+            if let Some(to) = to {
+                if merged.len() == 1 {
+                    let value = merged.pop().unwrap();
+                    to.send(Message::JSON {
+                        message: value,
+                        origin: Some(origin),
+                    })
+                    .unwrap();
+                } else {
+                    to.send(Message::JSON {
+                        message: json!(merged),
+                        origin: Some(origin),
+                    })
+                    .unwrap();
+                }
             }
             /*
             match message {

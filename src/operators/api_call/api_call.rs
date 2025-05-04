@@ -635,7 +635,7 @@ impl AsyncHandleTrait for APICall {
                                         };
                                     } else {
                                         let message = response.json().await.unwrap();
-                                        error!("Message: {:?}", message);
+                                        debug!("Message: {:?}", message);
                                         return Message::JSON { message, origin };
                                     }
                                 }

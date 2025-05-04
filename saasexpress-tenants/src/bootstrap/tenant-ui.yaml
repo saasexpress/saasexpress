@@ -16,7 +16,7 @@ nodes:
     config:
       url: http://localhost:8081
       # Running locally use:
-      # url: http://localhost:5173
+      #url: http://localhost:5173
 
 edges:
   - { from: start, to: rp }
