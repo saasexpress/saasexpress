@@ -144,6 +144,10 @@ impl Operator for OperatorWrapper {
         info!("Not implemented");
     }
 
+    fn finalize(&mut self) {
+        self.handle.lock().unwrap().finalize();
+    }
+
     fn control(&mut self, _message: Message) {
         match _message {
             Message::Init {

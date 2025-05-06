@@ -147,6 +147,41 @@ impl Operator for NOOP {
                 }
             }
 
+            Message::Tuple {
+                message_1,
+                message_2,
+                origin,
+                ..
+            } => {
+                if let Some(origin_message) = origin {
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        // tokio::spawn(async move {
+                        //     debug!("Sending MPSC response");
+                        //     mpsc_respond_to
+                        //         .send(_message)
+                        //         .await
+                        //         .expect("[JSON] Failed to send response");
+                        // });
+                    } else {
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
+
+                        let result = respond_to.send(Message::Tuple {
+                            message_1,
+                            message_2,
+                            origin: None,
+                        });
+                        match result {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to send: {}", e);
+                            }
+                        }
+                    }
+                } else {
+                    warn!("No origin provided - so no channel to send to for Tuple");
+                }
+            }
+
             Message::NoOp {} => {
                 debug!("NOOP - NoOp message");
             }

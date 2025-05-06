@@ -465,7 +465,7 @@ impl AsyncHandleTrait for APICall {
                             let method = self.method.clone().unwrap();
 
                             tokio::spawn(async move {
-                                let mut url_path = "/".to_string();
+                                let mut url_path = "".to_string();
                                 if !default_path.is_empty() {
                                     url_path = default_path;
                                 }
@@ -596,7 +596,7 @@ impl AsyncHandleTrait for APICall {
                             }
                         } else {
                             let method = self.method.as_ref().unwrap();
-                            let mut url_path = "/".to_string();
+                            let mut url_path = "".to_string();
                             if !default_path.is_empty() {
                                 url_path = default_path;
                             }

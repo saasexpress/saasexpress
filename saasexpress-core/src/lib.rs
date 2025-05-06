@@ -34,9 +34,11 @@ pub fn build_graph(yaml: Value) -> Graph {
 
 #[cfg(test)]
 mod saasexpress_core_tests {
+    use serde_json::json;
     use tracing::{Level, debug, info};
 
     use crate::graph::graph::GraphRun;
+    use crate::graph::registry::GraphRegistry;
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -110,5 +112,117 @@ mod saasexpress_core_tests {
             serde_json::to_string_pretty(&message).unwrap()
         );
         assert_eq!(message.as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_fan_out() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: fan_out
+        nodes:
+        - id: fanout
+          action: FanOut
+        - id: fanout_1
+          action: Passthrough
+        - id: fanout_2
+          action: Passthrough
+        edges:
+        - from: fanout
+          to: fanout_1
+        - from: fanout
+          to: fanout_2
+        "#;
+
+        info!("Graph: {}", GRAPH);
+        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        assert_eq!(graph.name, "fan_out");
+
+        let response = graph.end_to_end_json(json!({"name":"joe"})).await;
+
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected Standard message");
+        };
+
+        assert_eq!(message.as_array().unwrap().len(), 2);
+        assert_eq!(message[0].get("name").unwrap(), "joe");
+        assert_eq!(message[1].get("name").unwrap(), "joe");
+    }
+
+    #[tokio::test]
+    async fn test_callout() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: callout
+        nodes:
+        - id: callout
+          action: Callout
+          config:
+            graph_name: worker
+        edges: []
+        "#;
+
+        const GRAPH_WORKER: &str = r#"
+        name: worker
+        nodes:
+        - id: start
+          action: Stub
+          config:
+            name: Joe
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+        let graph_registry = GraphRegistry::get_instance();
+
+        let graph_worker = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
+        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        graph_registry.lock().unwrap().add_graph(graph_worker);
+        graph_registry.lock().unwrap().add_graph(graph);
+
+        let reg = graph_registry
+            .lock()
+            .unwrap()
+            .get_graph_by_name("callout")
+            .unwrap();
+
+        let mut graph = reg.lock().unwrap();
+
+        graph.finalize();
+
+        assert_eq!(graph.name, "callout");
+
+        let response = graph.end_to_end_standard("hello".as_bytes().to_vec()).await;
+
+        info!("Response : {:?}", response);
+
+        let Message::Tuple {
+            message_1,
+            message_2,
+            ..
+        } = response
+        else {
+            panic!("Expected Standard message");
+        };
+
+        let Message::Standard { message, .. } = message_1.as_ref() else {
+            panic!("Expected Standard message");
+        };
+
+        assert_eq!(message.to_vec(), "hello".as_bytes().to_vec());
+
+        let Message::JSON { message, .. } = message_2.as_ref() else {
+            panic!("Expected Standard message");
+        };
+
+        let nm = message.get("name").unwrap();
+        assert_eq!(nm, "Joe");
     }
 }

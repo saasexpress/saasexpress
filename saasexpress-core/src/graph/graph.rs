@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::sync::{Arc, Mutex};
 
+use fastrace::prelude::SpanContext;
 use futures::channel::oneshot;
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -12,10 +13,11 @@ use crate::ports::ports::Ports;
 
 use super::super::operators::op_actor_handle::OperatorActorHandle;
 
-use super::message::{Message, OriginMessage};
+use super::message::{self, DebuggableSpan, Message, OriginMessage};
 use super::meta::NodeMeta;
 use super::processors::basic::BasicProcessor;
 use super::processors::port::Port;
+use super::registry::GraphRegistry;
 use async_trait::async_trait;
 use std::ops::{Deref, DerefMut};
 
@@ -114,6 +116,13 @@ pub trait Operator: Send + Sync + Debug {
     fn name(&self) -> String;
     //fn meta(&self) -> NodeMeta;
 
+    //fn init(&mut self, graphs: Vec<&mut Graph>);
+    fn init(&mut self, graphs: &mut Graph);
+
+    fn finalize(&mut self) {
+        debug!("Default finalize operator {} - no action", self.name());
+    }
+
     /// performs the work of the operator
     fn handle(&self, message: Message) -> Message;
 
@@ -132,7 +141,6 @@ pub trait Operator: Send + Sync + Debug {
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
     fn wait(&self) -> Message;
-    fn init(&mut self, graph: &mut Graph);
 
     fn send_ptr(&self, _message: Arc<Message>) {
         let message = _message.to_owned();
@@ -171,6 +179,9 @@ impl GraphMod for Graph {
 
 pub trait GraphRun {
     async fn end_to_end(&mut self, message: Vec<u8>) -> Message;
+    async fn end_to_end_json(&mut self, message: Value) -> Message;
+    async fn end_to_end_standard(&mut self, message: Vec<u8>) -> Message;
+
     async fn end_to_end_2(&mut self, message: Vec<u8>) -> Message;
 
     async fn process(&mut self, message: Message) -> Message;
@@ -327,6 +338,21 @@ impl Graph {
         }
         self
     }
+
+    pub fn finalize(&mut self) {
+        self.nodes.iter().for_each(|(_id, op)| {
+            let mut op = op.lock().unwrap();
+            op.finalize();
+        });
+        debug!("Default finalize graph - no action");
+    }
+
+    pub fn start(&self, message: Message) {
+        let node = self.nodes.get(&self.start_node).unwrap().clone();
+
+        let node = node.lock().unwrap();
+        node.send(message);
+    }
 }
 
 impl GraphRun for Graph {
@@ -337,13 +363,57 @@ impl GraphRun for Graph {
 
         let (respond_to, recv) = oneshot::channel();
 
+        let root_span = fastrace::Span::root("end_to_end", SpanContext::random());
+
         node.send(Message::ReqReply {
             message,
             respond_to,
             path: "".to_string(),
             method: "".to_string(),
             query: "".to_string(),
-            span: None,
+            span: Some(DebuggableSpan(root_span)),
+        });
+
+        recv.await.unwrap()
+    }
+
+    async fn end_to_end_json(&mut self, message: Value) -> Message {
+        let node = self.nodes.get(&self.start_node).unwrap().clone();
+
+        let node = node.lock().unwrap();
+
+        let (respond_to, recv) = oneshot::channel();
+
+        let root_span = fastrace::Span::root("end_to_end", SpanContext::random());
+
+        let origin = OriginMessage::new(Some(respond_to))
+            .session("0".to_string())
+            .with_span(Some(DebuggableSpan(root_span)));
+
+        node.send(Message::JSON {
+            message,
+            origin: Some(origin),
+        });
+
+        recv.await.unwrap()
+    }
+
+    async fn end_to_end_standard(&mut self, message: Vec<u8>) -> Message {
+        let node = self.nodes.get(&self.start_node).unwrap().clone();
+
+        let node = node.lock().unwrap();
+
+        let (respond_to, recv) = oneshot::channel();
+
+        let root_span = fastrace::Span::root("end_to_end", SpanContext::random());
+
+        let origin = OriginMessage::new(Some(respond_to))
+            .session("0".to_string())
+            .with_span(Some(DebuggableSpan(root_span)));
+
+        node.send(Message::Standard {
+            message,
+            origin: Some(origin),
         });
 
         recv.await.unwrap()

@@ -1,17 +1,21 @@
 use std::sync::{Arc, Mutex};
 
-use serde_json::json;
-use tracing::{error, warn};
+use fastrace::Span;
+use fastrace::local::LocalSpan;
+use futures::channel::oneshot;
+use tracing::info;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
-use crate::graph::message::Message;
+use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::graph::Operator;
+use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Callout {
     graph_name: String,
+    graph: Option<Arc<Mutex<Graph>>>,
     next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
 }
 
@@ -24,6 +28,7 @@ impl From<serde_yaml::Value> for Callout {
             .to_string();
         Callout {
             graph_name,
+            graph: None,
             next: Vec::new(),
         }
     }
@@ -43,30 +48,19 @@ impl Operator for Callout {
     }
 
     fn handle(&self, _message: Message) -> Message {
-        match _message {
-            Message::Standard { message, .. } => {
-                let this = self.to_owned();
-                tokio::spawn(async move {
-                    warn!("Callout... forward message {:?}", message);
-                    this.next(Message::JSON {
-                        message: json!({}),
-                        origin: None,
-                    })
-                });
-                Message::NoOp {}
-            }
-            _ => {
-                error!("Unexpected message type {}", _message);
-                Message::Error {
-                    error: "Unexpected message type".to_string(),
-                }
-            }
-        }
+        return _message;
     }
 
-    fn init(&mut self, _: &mut Graph) {
-        panic!("Not implemented");
-        // need all graphs, so we can find the graph that we will be starting
+    fn init(&mut self, _: &mut Graph) {}
+
+    fn finalize(&mut self) {
+        let graph_registry = crate::graph::registry::GraphRegistry::get_instance();
+        let graph = graph_registry
+            .lock()
+            .unwrap()
+            .get_graph_by_name(&self.graph_name)
+            .unwrap();
+        self.graph = Some(graph);
     }
 
     fn control(&mut self, _message: Message) {
@@ -83,7 +77,7 @@ impl Operator for Callout {
     }
 
     fn send(&self, message: Message) {
-        self.handle(message);
+        self.next(message);
     }
 
     fn wait(&self) -> Message {
@@ -96,11 +90,116 @@ impl Operator for Callout {
 }
 
 impl Callout {
-    fn next(&self, _message: Message) {
-        for node in &self.next {
-            node.lock().unwrap().send(_message);
-            break;
-        }
+    fn next(&self, mut _message: Message) {
+        // setup span for tracing
+        let parent_span = _message.get_span().expect("Failed to get span");
+        let callout_span = Span::enter_with_parent("callout", parent_span);
+        let callout_inner_span = Span::enter_with_parent("callout_inner", parent_span);
+
+        // let _origin = _message
+        //     .get_origin()
+        //     .expect("Failed to get origin from message");
+
+        let graph = self.graph.as_ref().expect("Graph not initialized").clone();
+
+        let next_node_mutex = self.next.get(0).unwrap();
+
+        let next_nd = Arc::clone(next_node_mutex);
+
+        let (tx, rx) = oneshot::channel::<Message>();
+
+        tokio::spawn(
+            async move {
+                match _message {
+                    Message::Standard {
+                        message, origin, ..
+                    } => {
+                        let (sender, recv) = oneshot::channel();
+
+                        let callout_message = Message::Standard {
+                            message: Vec::new(),
+                            origin: Some(
+                                OriginMessage::new(Some(sender))
+                                    .with_span(Some(DebuggableSpan(callout_inner_span))),
+                            ),
+                        };
+
+                        {
+                            let _lspan = LocalSpan::enter_with_local_parent("start_graph");
+
+                            let _graph = graph.as_ref();
+                            let graph = _graph.lock().unwrap();
+
+                            info!("Calling out to graph: {}", graph.name);
+                            graph.start(callout_message);
+                        }
+
+                        let response = recv.await.unwrap();
+                        info!("Callout received response {:?}", response);
+
+                        let tup = Message::Tuple {
+                            message_1: Box::new(Message::Standard {
+                                message,
+                                origin: None,
+                            }),
+                            message_2: Box::new(response),
+                            origin,
+                        };
+
+                        tx.send(tup).expect("Failed to send response");
+                    }
+                    Message::ReqReply {
+                        message,
+                        respond_to,
+                        ..
+                    } => {
+                        let (sender, recv) = oneshot::channel();
+
+                        let callout_message = Message::Standard {
+                            message: Vec::new(),
+                            origin: Some(
+                                OriginMessage::new(Some(sender))
+                                    .with_span(Some(DebuggableSpan(callout_inner_span))),
+                            ),
+                        };
+
+                        {
+                            let _lspan = LocalSpan::enter_with_local_parent("start_graph");
+
+                            let _graph = graph.as_ref();
+                            let graph = _graph.lock().unwrap();
+
+                            info!("Calling out to graph: {}", graph.name);
+                            graph.start(callout_message);
+                        }
+
+                        let response = recv.await.unwrap();
+                        info!("Callout received response {:?}", response);
+
+                        let tup = Message::Tuple {
+                            message_1: Box::new(Message::Standard {
+                                message,
+                                origin: None,
+                            }),
+                            message_2: Box::new(response),
+                            origin: Some(OriginMessage::new(Some(respond_to))),
+                        };
+
+                        tx.send(tup).expect("Failed to send response");
+                    }
+                    _ => {
+                        panic!("Unexpected message type {}", _message);
+                    }
+                }
+            }
+            .in_span(callout_span),
+        );
+        tokio::spawn(async move {
+            let response = rx.await.expect("Failed to receive response");
+
+            let next_node = next_nd.clone();
+            next_node.lock().unwrap().send(response);
+        });
     }
 
     fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {

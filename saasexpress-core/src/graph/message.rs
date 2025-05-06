@@ -115,6 +115,11 @@ pub enum Message {
         respond_to: oneshot::Sender<Message>,
         span: Option<DebuggableSpan>,
     },
+    Tuple {
+        message_1: Box<Message>,
+        message_2: Box<Message>,
+        origin: Option<OriginMessage>,
+    },
     Init {
         id: String,
         next: Vec<Arc<Mutex<dyn Operator>>>,
@@ -155,6 +160,7 @@ impl Message {
             Message::Standard { origin, .. } => origin.take(),
             Message::JSON { origin, .. } => origin.take(),
             Message::HTTP { origin, .. } => origin.take(),
+            Message::Tuple { message_1, .. } => message_1.take_origin(),
             _ => None,
         }
     }
@@ -164,6 +170,7 @@ impl Message {
             Message::Standard { origin, .. } => origin.as_ref(),
             Message::JSON { origin, .. } => origin.as_ref(),
             Message::HTTP { origin, .. } => origin.as_ref(),
+            Message::Tuple { message_1, .. } => message_1.get_origin(),
             _ => None,
         }
     }
@@ -282,6 +289,13 @@ impl Display for Message {
             Message::HTTP { message, .. } => write!(f, "HTTP message: {:?}", message),
             Message::ReqReply { message, .. } => write!(f, "ReqReply message: {:?}", message),
             Message::Init { .. } => write!(f, "Init message"),
+            Message::Tuple {
+                message_1,
+                message_2,
+                ..
+            } => {
+                write!(f, "Tuple message: {:?} {:?}", message_1, message_2)
+            }
             Message::Error { .. } => write!(f, "Error message"),
         }
     }

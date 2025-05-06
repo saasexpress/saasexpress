@@ -21,7 +21,7 @@ pub(crate) fn init_tracer() {
         SpanExporter::builder()
             .with_tonic()
             .with_endpoint(otel_endpoint)
-            .with_protocol(opentelemetry_otlp::Protocol::Grpc)
+            .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
             .with_timeout(opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT_DEFAULT)
             .build()
             .expect("initialize oltp exporter"),
@@ -43,7 +43,7 @@ pub(crate) fn init_logs() {
     tracing_subscriber::registry()
     .with(tracing_subscriber::EnvFilter::new(
         std::env::var("RUST_LOG").unwrap_or_else(|_| {
-            "saasexpress_tenants=debug,saasexpress_core=info,saasexpress=debug,tower_http=info".into()
+            "saasexpress_tenants=debug,saasexpress_core=debug,saasexpress=debug,tower_http=info".into()
         }),
     ))
     .with(tracing_subscriber::fmt::layer())

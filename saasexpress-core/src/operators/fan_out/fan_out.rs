@@ -105,7 +105,9 @@ impl FanOut {
 
         //let _guard = fanout_span.set_local_parent();
 
-        let _origin = _message.get_origin().unwrap();
+        let _origin = _message
+            .get_origin()
+            .expect("Failed to get origin from message");
 
         //let origin = _message.take_origin().unwrap();
 
@@ -125,19 +127,19 @@ impl FanOut {
             Option<DebuggableSpan>,
         ) {
             let info = match msg {
-                Message::ReqReply {
-                    message,
-                    respond_to,
-                    span,
-                    ..
-                } => {
-                    let s: String = message
-                        .iter()
-                        .map(|b| *b as char)
-                        .collect::<String>()
-                        .to_string();
-                    (serde_json::from_str(&s).unwrap(), Some(respond_to), span)
-                }
+                // Message::ReqReply {
+                //     message,
+                //     respond_to,
+                //     span,
+                //     ..
+                // } => {
+                //     let s: String = message
+                //         .iter()
+                //         .map(|b| *b as char)
+                //         .collect::<String>()
+                //         .to_string();
+                //     (serde_json::from_str(&s).unwrap(), Some(respond_to), span)
+                // }
                 Message::HTTP {
                     message,
                     status,
@@ -229,14 +231,15 @@ impl FanOut {
                 let fan_span = Span::enter_with_parent(format!("fanout:{}", index), &span);
 
                 let result = async {
-                    let fan2_span = Span::enter_with_local_parent(format!("fanout2:{}", index));
+                    let fan_inner_span =
+                        Span::enter_with_local_parent(format!("fanout2:{}", index));
 
                     let result = s
                         .send(Message::JSON {
                             message: data.0.to_owned(),
                             origin: Some(
                                 OriginMessage::new(Some(resp_tx1))
-                                    .with_span(Some(DebuggableSpan(fan2_span))),
+                                    .with_span(Some(DebuggableSpan(fan_inner_span))),
                             ),
                         })
                         .await;
@@ -313,7 +316,7 @@ impl FanOut {
                     .unwrap();
                 } else {
                     to.send(Message::JSON {
-                        message: json!(merged),
+                        message: serde_json::Value::Array(merged),
                         origin: Some(origin),
                     })
                     .unwrap();

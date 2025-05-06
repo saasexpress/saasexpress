@@ -235,6 +235,18 @@ impl Singleton {
                                 Json(json!(message)).into_response()
                             }
 
+                            Message::Tuple {
+                                message_1,
+                                message_2,
+                                ..
+                            } => {
+                                debug!("Handler (JSON) [OK] [{}]", req_id);
+
+                                LocalSpan::add_event(Event::new("Request OK".to_string()));
+
+                                Json(json!(format!("{:?} {:?}", message_1, message_2)))
+                                    .into_response()
+                            }
                             _ => {
                                 error!("Handler [PANIC] [{}]", req_id);
                                 // Record error in the span

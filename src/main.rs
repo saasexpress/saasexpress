@@ -9,6 +9,8 @@ use commands::{args::parse_commands, get::get};
 use fastrace::prelude::*;
 use futures::channel::oneshot;
 use otlp::{init_logs, init_tracer};
+use saasexpress_core::graph;
+use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_tenants::TenantsService;
 use tracing::info;
 mod bootstrap;
@@ -74,9 +76,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
         let _guard = start.set_local_parent();
 
-        TenantsService::saasexpress_graphs()
-            .iter()
-            .for_each(|yaml| build_graph(yaml.to_owned()));
+        let graph_registry = GraphRegistry::get_instance();
+
+        {
+            let mut graph_registry = graph_registry.lock().unwrap();
+
+            TenantsService::saasexpress_graphs()
+                .iter()
+                .for_each(|yaml| graph_registry.add_graph(build_graph(yaml.to_owned())));
+        }
+
+        let graphs = {
+            let graph_registry = graph_registry.lock().unwrap();
+            graph_registry.get_graphs()
+        };
+
+        graphs.iter().for_each(|graph| {
+            let mut graph = graph.lock().unwrap();
+            info!("Graph: {:?}", graph.name);
+            graph.finalize();
+        });
 
         bootstrap::bootstrap();
     }

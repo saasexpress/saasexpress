@@ -13,7 +13,7 @@ pub fn bootstrap() {
 }
 
 #[trace]
-pub fn build_graph(yaml: Value) {
+pub fn build_graph(yaml: Value) -> Graph {
     let graph_name = yaml["name"].as_str().unwrap().to_string();
 
     // Record graph name in the current span
@@ -66,4 +66,5 @@ pub fn build_graph(yaml: Value) {
 
     info!("Initializing graph");
     graph.no_processor().init();
+    graph
 }
