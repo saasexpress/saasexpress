@@ -24,6 +24,9 @@ nodes:
   - id: bufin
     action: BufferToJSON
 
+  - id: faker
+    action: Faker
+
   - id: in
     action: MessageTranslator
     config:
@@ -33,7 +36,7 @@ nodes:
           "message": "{action} {resource} ({id}) {key}",
           "result":  "success",
           "params": {
-            "actor": "User Bill",
+            "actor": temp.faker.name,
             "action": temp.http_in.method,
             "resource": "Tenant",
             "id": temp.http_in.params.id,
@@ -65,7 +68,8 @@ edges:
   - { from: fanout, to: bufin }
   - { from: fanout, to: done }
   # - { from: start, to: bufin }
-  - { from: bufin, to: in }
+  - { from: bufin, to: faker }
+  - { from: faker, to: in }
   - { from: in, to: j2b }
   - { from: j2b, to: create }
   - { from: create, to: terminate }
