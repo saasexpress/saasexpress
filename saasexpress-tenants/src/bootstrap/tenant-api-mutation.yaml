@@ -34,9 +34,9 @@ nodes:
           "result":  "success",
           "params": {
             "actor": "User Bill",
-            "action":  temp.http_in.method,
+            "action": temp.http_in.method,
             "resource": "Tenant",
-            "id": use_one(data.id, temp.http_in.params.id),
+            "id": temp.http_in.params.id,
             "key": input.resource
           }
         }

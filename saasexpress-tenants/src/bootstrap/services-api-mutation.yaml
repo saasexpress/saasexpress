@@ -3,7 +3,7 @@
 # - have "variables" in the content-enricher
 #
 #
-name: tenant-api-mutation
+name: service-api-mutation
 nodes:
   - id: start
     action: HTTPIn
