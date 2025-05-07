@@ -57,7 +57,10 @@ impl OpActor {
                         end,
                     });
                 }
-
+                Message::Control { command, origin } => {
+                    info!("Control message received: {:?}", command);
+                    self.handle.control(Message::Control { command, origin });
+                }
                 _ => {
                     let hdl = self.handle.get();
 

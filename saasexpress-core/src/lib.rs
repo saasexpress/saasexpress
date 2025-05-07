@@ -179,11 +179,11 @@ mod saasexpress_core_tests {
         "#;
 
         info!("Graph: {}", GRAPH);
-        let graph_registry = GraphRegistry::get_instance();
 
         let graph_worker = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
         let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
+        let graph_registry = GraphRegistry::get_instance();
         graph_registry.lock().unwrap().add_graph(graph_worker);
         graph_registry.lock().unwrap().add_graph(graph);
 
@@ -224,5 +224,58 @@ mod saasexpress_core_tests {
 
         let nm = message.get("name").unwrap();
         assert_eq!(nm, "Joe");
+    }
+
+    #[tokio::test]
+    async fn test_settings() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: settings
+        nodes:
+        - id: settings
+          action: Settings
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+
+        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        let graph_registry = GraphRegistry::get_instance();
+        {
+            graph_registry.lock().unwrap().add_graph(graph);
+        }
+
+        let graphs = graph_registry.lock().unwrap().get_graphs();
+
+        graphs.iter().for_each(|graph| {
+            let mut graph = graph.lock().unwrap();
+            info!("Graph: {} {}", graph.name, graph.nodes.len());
+            graph.finalize();
+        });
+
+        let reg = {
+            graph_registry
+                .lock()
+                .unwrap()
+                .get_graph_by_name("settings")
+                .unwrap()
+        };
+        let mut graph = { reg.lock().unwrap() };
+
+        assert_eq!(graph.name, "settings");
+
+        let response = graph.end_to_end_json(json!({"name": "Joe"})).await;
+
+        info!("Response : {:?}", response);
+
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected Standard message");
+        };
+
+        assert_eq!(message.get("name").unwrap(), "Joe");
     }
 }

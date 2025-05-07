@@ -7,6 +7,7 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 use crate::graph::message::Message;
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 #[derive(Debug)]
 pub(crate) struct JSONToBuffer;
@@ -48,7 +49,7 @@ impl Operator for JSONToBuffer {
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Not implemented");
     }
 

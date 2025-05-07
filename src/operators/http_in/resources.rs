@@ -18,7 +18,6 @@ use tonic::metadata::MetadataMap;
 use saasexpress_core::graph::message::Message;
 
 use crate::operators::http_in::websocket::ws_handler;
-use axum::http::HeaderValue;
 use axum::{
     Json, Router,
     body::{Bytes, to_bytes},
@@ -27,6 +26,7 @@ use axum::{
     response::IntoResponse,
     routing::{any, delete, get, post, put},
 };
+use axum::{extract::Path, http::HeaderValue};
 use axum_extra::{TypedHeader, headers};
 use futures::channel::oneshot;
 use hyper::{HeaderMap, Method, StatusCode};
@@ -105,6 +105,7 @@ impl Singleton {
                                  user_agent: Option<TypedHeader<headers::UserAgent>>,
                                  method: Method,
                                  ConnectInfo(addr): ConnectInfo<SocketAddr>,
+                                 Path(params_map): Path<HashMap<String, String>>,
                                  request: Request| {
                 let req_id;
                 {
@@ -142,16 +143,24 @@ impl Singleton {
                         .await;
                 }
 
-                let query = request
-                    .uri()
-                    .path_and_query()
-                    .unwrap()
-                    .query()
-                    .unwrap_or_default()
-                    .to_string();
+                //let path_query = request.uri().path_and_query().unwrap();
 
-                debug!("Path = {}", request.uri().path());
                 let path = request.uri().path().to_string();
+
+                let query = {
+                    request
+                        .uri()
+                        .path_and_query()
+                        .unwrap()
+                        .query()
+                        .unwrap_or_default()
+                        .to_string()
+                };
+
+                // params_vec(request).await;
+                // let params = {Path::<HashMap<String, String>>::from_request(request, &state)
+                //     .await
+                //     .unwrap();
 
                 let body = request.into_body();
                 let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
@@ -166,12 +175,27 @@ impl Singleton {
 
                 debug!("Handler [WAIT] [{}]", req_id);
 
+                let q = serde_html_form::from_str::<Vec<(String, String)>>(&query).unwrap();
+
+                let q = q
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect::<HashMap<String, String>>();
+
+                let temp = json!({
+                    "http_in": {
+                        "query_string": query,
+                        "query": q,
+                        "path": path,
+                        "params": params_map,
+                        "method": method.to_string()
+                    }
+                });
+
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),
                     respond_to: send,
-                    path: path.clone(),
-                    query: query.clone(),
-                    method: method.to_string(),
+                    temp: Arc::new(Mutex::new(temp)),
                     span: Some(DebuggableSpan(root_span)),
                 };
 
@@ -227,7 +251,7 @@ impl Singleton {
                                     .into_response()
                             }
 
-                            Message::JSON { message, origin } => {
+                            Message::JSON { message, .. } => {
                                 debug!("Handler (JSON) [OK] [{}]", req_id);
 
                                 LocalSpan::add_event(Event::new("Request OK".to_string()));

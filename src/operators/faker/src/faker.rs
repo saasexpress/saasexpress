@@ -4,6 +4,7 @@ use fake::faker::name::en::Name;
 use saasexpress_core::graph::{
     graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
     message::Message,
+    meta::NodeMeta,
 };
 use tracing::warn;
 
@@ -50,7 +51,7 @@ impl Operator for Faker {
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         warn!("Not implemented");
     }
 

@@ -7,6 +7,7 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 use crate::graph::message::Message;
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Stub {
@@ -51,7 +52,7 @@ impl Operator for Stub {
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {}
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
     fn control(&mut self, _: Message) {}
 
     fn send(&self, _: Message) {

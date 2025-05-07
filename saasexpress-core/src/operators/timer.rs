@@ -7,13 +7,14 @@ use fastrace::prelude::SpanContext;
 use futures::channel::oneshot;
 use serde_json::json;
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 use fastrace::future::FutureExt;
 
@@ -53,7 +54,7 @@ impl Operator for Timer {
         panic!("Timer does not handle any messages");
     }
 
-    fn init(&mut self, _: &mut Graph) {}
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
 
     fn finalize(&mut self) {
         if self.on_start {
@@ -92,7 +93,7 @@ impl Operator for Timer {
 
             tokio::spawn(async move {
                 loop {
-                    sleep(std::time::Duration::from_secs(10));
+                    sleep(std::time::Duration::from_secs(30));
 
                     let root_span = Span::root(format!("timer {:?}", name), SpanContext::random());
 
@@ -124,6 +125,10 @@ impl Operator for Timer {
                     self.add_next(n);
                 }
             }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
             _ => {
                 panic!("Unexpected message type for control");
             }

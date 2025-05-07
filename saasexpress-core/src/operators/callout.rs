@@ -3,13 +3,14 @@ use std::sync::{Arc, Mutex};
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use futures::channel::oneshot;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
@@ -51,7 +52,7 @@ impl Operator for Callout {
         return _message;
     }
 
-    fn init(&mut self, _: &mut Graph) {}
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
 
     fn finalize(&mut self) {
         let graph_registry = crate::graph::registry::GraphRegistry::get_instance();
@@ -70,6 +71,10 @@ impl Operator for Callout {
                     self.add_next(n);
                 }
             }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
             _ => {
                 panic!("Unexpected message type for control {}", _message);
             }

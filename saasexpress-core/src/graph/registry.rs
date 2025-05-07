@@ -23,10 +23,16 @@ impl GraphRegistry {
     }
 
     pub fn get_graph_by_name(&self, name: &str) -> Option<Arc<Mutex<Graph>>> {
-        self.graphs
-            .iter()
-            .find(|graph| graph.lock().unwrap().name == name)
-            .cloned()
+        Some(Arc::clone(
+            self.graphs
+                .iter()
+                .find(|graph| graph.lock().unwrap().name == name)
+                .unwrap(),
+        ))
+    }
+
+    pub fn iterate_graphs(&self) -> Vec<Arc<Mutex<Graph>>> {
+        self.graphs.iter().map(|graph| Arc::clone(graph)).collect()
     }
 
     pub fn get_instance() -> &'static Mutex<GraphRegistry> {

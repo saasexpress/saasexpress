@@ -55,3 +55,4 @@ tonic-health = "0.11.0"
 
 fastrace = {version = "0.7", features=["enable"]}
 fastrace-opentelemetry = "0.10.0"
+serde_html_form = "0.2.7"

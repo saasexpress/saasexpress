@@ -9,6 +9,7 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
 use crate::graph::message::{Message, OriginMessage};
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 //use futures::SinkExt;
 
@@ -39,7 +40,7 @@ impl Operator for NOOP {
         panic!("NOOP - Not implemented");
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Not implemented");
     }
 
@@ -155,13 +156,17 @@ impl Operator for NOOP {
             } => {
                 if let Some(origin_message) = origin {
                     if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
-                        // tokio::spawn(async move {
-                        //     debug!("Sending MPSC response");
-                        //     mpsc_respond_to
-                        //         .send(_message)
-                        //         .await
-                        //         .expect("[JSON] Failed to send response");
-                        // });
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::Tuple {
+                                    message_1,
+                                    message_2,
+                                    origin: None,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
                     } else {
                         let respond_to = origin_message.respond_to.expect("No respond_to channel");
 

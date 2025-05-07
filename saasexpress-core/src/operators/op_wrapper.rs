@@ -8,6 +8,7 @@ use tracing::{debug, error, info, warn};
 use crate::graph::graph::{AsyncHandleTrait, Operator};
 use crate::graph::graph::{Graph, OperatorType};
 use crate::graph::message::Message;
+use crate::graph::meta::NodeMeta;
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
@@ -140,7 +141,7 @@ impl Operator for OperatorWrapper {
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         info!("Not implemented");
     }
 
@@ -156,9 +157,6 @@ impl Operator for OperatorWrapper {
                 start,
                 end,
             } => {
-                // for n in next {
-                //     self.add_next(n);
-                // }
                 let mut hdl = self.handle.lock().unwrap();
 
                 hdl.control(Message::Init {
@@ -167,6 +165,12 @@ impl Operator for OperatorWrapper {
                     start,
                     end,
                 });
+            }
+            Message::Control { command, origin } => {
+                let mut hdl = self.handle.lock().unwrap();
+
+                info!("Control command: {:?}", command);
+                hdl.control(Message::Control { command, origin });
             }
             _ => {
                 panic!("Unexpected message type for control");

@@ -15,10 +15,12 @@ pub fn env_settings(base: String) -> Vec<Setting> {
 
     let mut settings = Vec::new();
     for (key, value) in env::vars().filter(|(k, _)| k.starts_with(&base)) {
-        settings.push(Setting {
-            key: key[base.len() + 1..].to_string(),
+        let setting = Setting {
+            key: key[base.len()..].to_string(),
             value,
-        });
+        };
+        info!("[{}] key: {}, value: {}", base, setting.key, setting.value);
+        settings.push(setting);
         info!("{:?}", settings);
     }
     settings

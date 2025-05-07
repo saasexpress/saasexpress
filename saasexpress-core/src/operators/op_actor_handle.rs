@@ -14,6 +14,7 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 use crate::graph::message::Message;
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 use super::op_actor::OpActor;
 
@@ -70,13 +71,18 @@ impl Operator for OperatorActorHandle {
         return _message;
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         warn!("Not implemented");
     }
 
     fn control(&mut self, _message: Message) {
+        info!("Control message received: {:?}", _message);
         match _message {
             Message::Init { .. } => match self.sender.try_send(_message) {
+                Ok(_) => debug!("Message sent to {}", self.name),
+                Err(e) => panic!("Failed to send: {}", e),
+            },
+            Message::Control { .. } => match self.sender.try_send(_message) {
                 Ok(_) => debug!("Message sent to {}", self.name),
                 Err(e) => panic!("Failed to send: {}", e),
             },
@@ -89,6 +95,9 @@ impl Operator for OperatorActorHandle {
     fn send(&self, _message: Message) {
         match _message {
             Message::Init { .. } => {
+                error!("Unexpected message type {}", _message);
+            }
+            Message::Control { .. } => {
                 error!("Unexpected message type {}", _message);
             }
             _ => match self.sender.try_send(_message) {

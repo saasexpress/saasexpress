@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use async_std::task::Builder;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use hyper::Method;
 use reqwest::Client;
-use saasexpress_core::graph::message::{Message, OriginMessage};
+use saasexpress_core::graph::message::{ControlCommand, Message, OriginMessage};
+use saasexpress_core::graph::meta::NodeMeta;
 use saasexpress_core::settings::settings::{Setting, env_settings};
 use serde_json::{Value, json};
 use tokio::runtime::{Handle, Runtime};
@@ -19,6 +21,8 @@ use futures::future;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use reqwest_websocket::Message as WsMessage;
 use reqwest_websocket::RequestBuilderExt;
+
+use super::http::HTTPBuilder;
 
 #[derive(Clone, Debug)]
 pub(crate) struct APICall {
@@ -48,7 +52,7 @@ impl From<serde_yaml::Value> for APICall {
             content_type,
             forward,
             ws,
-            settings: env_settings("API_CALL_REQWEST".to_string()),
+            settings: Vec::new(),
             client: Client::new(),
         }
     }
@@ -79,220 +83,6 @@ impl AsyncHandleTrait for APICall {
                 origin: None,
             })
         })
-
-        // let client = Client::new();
-        // let url = self.url.clone();
-        // let forward = self.forward;
-        // let ws = self.ws;
-        // let default_path = self.path.clone();
-
-        // error!("APICall handle (passthrough)... {}", url);
-
-        // Box::pin(async move {
-        //     let m = Message::ReqReply {
-        //         respond_to,
-        //         path,
-        //         query,
-        //         method,
-        //         message,
-        //     } = message;
-        //     return m;
-        // })
-        // let a = match message {
-        //     Message::ReqReply {
-        //         respond_to,
-        //         path,
-        //         query,
-        //         method,
-        //         message,
-        //     } => {
-        //         let mut url_path = path;
-        //         if !default_path.is_empty() {
-        //             url_path = default_path;
-        //         }
-        //         let response;
-        //         let url = format!("{}{}?{}", url, url_path, query);
-
-        //         debug!("Request [{}] {}", method, url);
-        //         //let req = Request::new(method, u);
-
-        //         response = client
-        //             .request(Method::try_from(method.as_str()).unwrap(), url)
-        //             .header("Content-Type", "application/json")
-        //             .header("Accept", "application/json")
-        //             .body(message)
-        //             .send()
-        //             .await;
-
-        //         //response = client.get(&url).send().await;
-        //         match response {
-        //             Ok(response) => {
-        //                 if !response.status().is_success() {
-        //                     warn!(
-        //                         "Error: ({}) {}",
-        //                         response.status(),
-        //                         response.text().await.unwrap()
-        //                     );
-        //                     return Message::Standard {
-        //                         message: b"Error".to_vec(),
-        //                         origin: Some(OriginMessage { respond_to }),
-        //                     };
-        //                 } else {
-        //                     return Message::JSON {
-        //                         message: response.json().await.unwrap(),
-        //                         //message: response.bytes().await.unwrap().to_vec(),
-        //                         origin: Some(OriginMessage { respond_to }),
-        //                     };
-        //                 }
-        //             }
-        //             Err(e) => {
-        //                 warn!("Error making request: {}", e);
-        //                 return Message::Standard {
-        //                     message: b"Error".to_vec(),
-        //                     origin: Some(OriginMessage { respond_to }),
-        //                 };
-        //             }
-        //         }
-        //     }
-        //     Message::Standard { message, origin } => {
-        //         warn!("APICall handle (passthrough)... {}", url);
-
-        //         if forward {
-        //             //url = format!("{}?{}", url, String::from_utf8_lossy(&message));
-        //         }
-
-        //         // Make a GET request
-        //         if ws {
-        //             debug!("WebSocket request to {}", url);
-
-        //             tokio::spawn(async move {
-        //                 let response = client.get(&url).upgrade().send().await;
-        //                 match response {
-        //                     Ok(ws_response) => {
-        //                         debug!("WebSocket UPGRADED");
-
-        //                         // Turns the response into a WebSocket stream.
-        //                         let websocket = ws_response.into_websocket().await.unwrap();
-
-        //                         let (mut tx, mut rx) = websocket.split();
-
-        //                         tokio::spawn(future::join(
-        //                             async move {
-        //                                 for i in 1..11 {
-        //                                     debug!("Sending message {i}");
-        //                                     tx.send(WsMessage::Text(format!("Hello, World! #{i}")))
-        //                                         .await
-        //                                         .unwrap();
-        //                                 }
-        //                             },
-        //                             async move {
-        //                                 loop {
-        //                                     let result = rx.try_next().await;
-        //                                     match result {
-        //                                         Ok(Some(message)) => match message {
-        //                                             WsMessage::Close { code, reason } => {
-        //                                                 debug!("Received close {code} {reason}");
-        //                                             }
-        //                                             WsMessage::Text(text) => {
-        //                                                 debug!("Received text message: {text}");
-        //                                             }
-        //                                             WsMessage::Binary(_) => {
-        //                                                 debug!("Received binary message");
-        //                                             }
-        //                                             _ => {
-        //                                                 debug!("Received other message");
-        //                                             }
-        //                                         },
-        //                                         Ok(None) => {
-        //                                             debug!("WebSocket closed");
-        //                                             break;
-        //                                         }
-        //                                         Err(e) => {
-        //                                             warn!("Error receiving message: {}", e);
-        //                                             break;
-        //                                         }
-        //                                     }
-        //                                 }
-        //                             },
-        //                         ));
-
-        //                         // let split = websocket.try_next();
-
-        //                         // tokio::spawn(async move {
-        //                         //     // The WebSocket implements `Sink<Message>`.
-        //                         //     let result = websocket
-        //                         //         .send(WsMessage::Text("Hello, World".into()))
-        //                         //         .await;
-
-        //                         //     // need a way of sending messages to the websocket
-        //                         //     // and receiving messages from the websocket
-        //                         //     match result {
-        //                         //         Ok(_) => {
-        //                         //             debug!("[WS] sent message")
-        //                         //         }
-        //                         //         Err(e) => {
-        //                         //             warn!("[WS] Error sending message: {}", e);
-        //                         //         }
-        //                         //     }
-        //                         // });
-        //                         // //The WebSocket is also a `TryStream` over `Message`s.
-        //                         // while let Some(message) = split.await.unwrap() {
-        //                         //     if let WsMessage::Text(text) = message {
-        //                         //         println!("received: {text}")
-        //                         //     }
-        //                         // }
-
-        //                         // need a handler similar to the http_in websocket
-        //                         // but in reverse
-        //                         return Message::Standard {
-        //                             message: b"WebSocket".to_vec(),
-        //                             origin,
-        //                         };
-        //                     }
-        //                     Err(e) => {
-        //                         warn!("Error making request: {}", e);
-        //                         return Message::Standard {
-        //                             message: b"Error".to_vec(),
-        //                             origin,
-        //                         };
-        //                     }
-        //                 }
-        //             });
-        //             Message::Standard {
-        //                 message: b"do nothing".to_vec(),
-        //                 origin: None,
-        //             }
-        //         } else {
-        //             let response;
-        //             response = client.get(&url).send().await;
-        //             match response {
-        //                 Ok(response) => {
-        //                     if !response.status().is_success() {
-        //                         warn!("Error: {}", response.status());
-        //                         return Message::Standard {
-        //                             message: b"Error".to_vec(),
-        //                             origin,
-        //                         };
-        //                     } else {
-        //                         return Message::Standard {
-        //                             message: response.bytes().await.unwrap().to_vec(),
-        //                             origin,
-        //                         };
-        //                     }
-        //                 }
-        //                 Err(e) => {
-        //                     warn!("Error making request: {}", e);
-        //                     return Message::Standard {
-        //                         message: b"Error".to_vec(),
-        //                         origin,
-        //                     };
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     _ => panic!("Unexpected message type {}", message),
-        // };
-        // Box::pin(async move { Arc::new(a) })
     }
 
     fn async_handle<'life0, 'async_trait>(
@@ -319,56 +109,55 @@ impl AsyncHandleTrait for APICall {
                 let s = Span::enter_with_local_parent("api_call_inner");
                 s.set_local_parent();
                 //let _span = LocalSpan::enter_with_local_parent("api_call");
+
                 match message {
                     Message::ReqReply {
                         respond_to,
-                        path,
-                        query,
-                        method,
+                        temp,
                         message,
                         span,
                     } => {
-                        let mut url_path = path;
-                        if !default_path.is_empty() {
-                            url_path = default_path;
-                        }
-                        let response;
-                        let url = format!("{}{}?{}", url, url_path, query);
-
-                        debug!("--> [{}] {}", method, url);
-
-                        let builder = {
-                            let s = Span::enter_with_local_parent("url_builder");
-                            s.set_local_parent();
-                            let mut builder =
-                                client.request(Method::try_from(method.as_str()).unwrap(), url);
-
-                            for setting in self.settings.iter() {
-                                builder = builder.header(
-                                    setting.key.clone().replace("_", "-"),
-                                    setting.value.clone(),
-                                );
+                        let (method, path, query) = {
+                            let temp = temp.lock().unwrap();
+                            let http_in = temp.get("http_in");
+                            if let Some(http_in) = http_in {
+                                let method = http_in.get("method").unwrap().as_str().unwrap();
+                                let path = http_in.get("path").unwrap().as_str().unwrap();
+                                let query = http_in.get("query_string").unwrap().as_str().unwrap();
+                                (method.to_string(), path.to_string(), query.to_string())
+                            } else {
+                                ("GET".to_string(), "".to_string(), "".to_string())
                             }
-
-                            builder
-                                .header("Content-Type", "application/json")
-                                //.header("Accept", "application/json")
-                                .body(message)
                         };
-                        debug!("ReqReply Builder: {:?}", builder);
 
-                        response = {
+                        let method = self.method.clone().unwrap_or(method);
+                        let url =
+                            HTTPBuilder::derive_url(&self.url, path, &self.path, query.clone());
+
+                        let builder = HTTPBuilder::new(method.as_str(), url.as_str())
+                            .set_headers(&self.settings)
+                            .set_header("Content-Type", "application/json")
+                            .set_body(message);
+
+                        let response = {
                             let s = Span::enter_with_local_parent("upstream_request");
                             s.set_local_parent();
+
                             builder.send().await
                         };
+
+                        // let temp = json!({
+                        //     "resource": self.url,
+                        //     "http_method": method,
+                        //     "query": query,
+                        // });
 
                         //response = client.get(&url).send().await;
                         match response {
                             Ok(response) => {
-                                debug!("<-- {}", response.status());
+                                debug!("<-- (ReqReply) {}", response.status());
                                 if !response.status().is_success() {
-                                    error!("Failed [{}] {}", method, url_path,);
+                                    error!("Failed [{}] {}", method, url);
                                     let r_status = response.status();
                                     let r_text = response.text().await.unwrap();
                                     error!("Failed ({}) {}", r_status, r_text);
@@ -412,7 +201,9 @@ impl AsyncHandleTrait for APICall {
                                         headers,
                                         status,
                                         origin: Some(
-                                            OriginMessage::new(Some(respond_to)).with_span(span),
+                                            OriginMessage::new(Some(respond_to))
+                                                .with_span(span)
+                                                .with_temp(temp),
                                         ),
                                     };
                                 } else {
@@ -437,7 +228,9 @@ impl AsyncHandleTrait for APICall {
                                         headers,
                                         status,
                                         origin: Some(
-                                            OriginMessage::new(Some(respond_to)).with_span(span),
+                                            OriginMessage::new(Some(respond_to))
+                                                .with_span(span)
+                                                .with_temp(temp),
                                         ),
                                     };
                                 }
@@ -595,35 +388,23 @@ impl AsyncHandleTrait for APICall {
                                 origin: None,
                             }
                         } else {
-                            let method = self.method.as_ref().unwrap();
-                            let mut url_path = "".to_string();
-                            if !default_path.is_empty() {
-                                url_path = default_path;
-                            }
-                            let response;
-                            let url = format!("{}{}?", url, url_path);
+                            let url = HTTPBuilder::derive_url(
+                                &self.url,
+                                "".to_string(),
+                                &self.path,
+                                "".to_string(),
+                            );
 
-                            debug!("--> [{}] {}", method, url);
+                            let builder = HTTPBuilder::new(
+                                self.method.as_ref().expect("Method required"),
+                                url.as_str(),
+                            )
+                            .set_headers(&self.settings)
+                            .set_body(message)
+                            .payloads_json();
 
-                            let mut builder =
-                                client.request(Method::try_from(method.as_str()).unwrap(), url);
+                            let response = builder.send().await;
 
-                            for setting in self.settings.iter() {
-                                builder = builder.header(
-                                    setting.key.clone().replace("_", "-"),
-                                    setting.value.clone(),
-                                );
-                            }
-
-                            response = builder
-                                .header("Content-Type", "application/json")
-                                .header("Accept", "application/json")
-                                .body(message)
-                                .send()
-                                .await;
-
-                            //let response;
-                            //response = client.get(&url).send().await;
                             match response {
                                 Ok(response) => {
                                     debug!("<-- {}", response.status());
@@ -685,160 +466,36 @@ impl Operator for APICall {
         Some(Arc::new(self.to_owned()))
     }
 
-    // fn get(&self) -> AsyncHandle {
-    //     let closure = move |message: Message| {
-    //         let url = self.url.clone();
-    //         task::spawn(async move {
-    //             let client = Client::new();
-    //             let response = client.get(url).send();
-    //             match response.await {
-    //                 Ok(response) => {
-    //                     if !response.status().is_success() {
-    //                         warn!("Error: {}", response.status());
-    //                     }
-    //                 }
-    //                 Err(e) => {
-    //                     warn!("Error making request: {}", e);
-    //                 }
-    //             }
-    //         })
-    //     };
-
-    //     AsyncHandle {
-    //         closure: Box::new(closure),
-    //     }
-    // }
-
     fn handle(&self, _message: Message) -> Message {
         panic!("Should use async_handle");
-        /*
-        match _message {
-            Message::Standard { message: _, origin } => {
-                warn!("APICall handle (passthrough)... {}", self.url);
-
-                // Create a client
-                // Make a GET request
-                let url = self.url.clone();
-
-                // let blocking_task = tokio::task::spawn_blocking(|| {
-                //     info!("hi");
-                //     reqwest::blocking::get(url)
-                // });
-                let response = reqwest::blocking::get(url);
-
-                match response {
-                    Ok(response) => {
-                        if !response.status().is_success() {
-                            warn!("Error: {}", response.status());
-                            return Message::Standard {
-                                message: b"Error".to_vec(),
-                                origin,
-                            };
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Error making request: {}", e);
-                        return Message::Standard {
-                            message: b"Error".to_vec(),
-                            origin,
-                        };
-                    }
-                }
-                // if let Err(e) = response {
-                //     warn!("Error making request: {}", e);
-                //     return Message::Standard {
-                //         message: b"Error".to_vec(),
-                //         origin,
-                //     };
-                // } else {
-                //     let response = response.unwrap();
-                //     if !response.status().is_success() {
-                //         warn!("Error: {}", response.status());
-                //         return Message::Standard {
-                //             message: b"Error".to_vec(),
-                //             origin,
-                //         };
-                //     }
-                //     let body = response.text().unwrap();
-                //     return Message::Standard {
-                //         message: body.as_bytes().to_vec(),
-                //         origin,
-                //     };
-                // }
-                return Message::Standard {
-                    message: b"Success".to_vec(),
-                    origin,
-                };
-            }
-            Message::ReqReply {
-                message: _,
-                respond_to,
-                ..
-            } => {
-                warn!("APICall handle (passthrough)... {}", self.url);
-
-                // Create a client
-                // Make a GET request
-                let url = self.url.clone();
-
-                let rt = Runtime::new().unwrap();
-                // Get a handle from this runtime
-                let handle = rt.handle();
-
-                // Spawn a blocking function onto the runtime using the handle
-                let _a = handle.spawn_blocking(|| {
-                    warn!("now running on a worker thread");
-                });
-
-                let blocking_task = tokio::task::spawn_blocking(|| {
-                    info!("blocking task");
-                    reqwest::blocking::get(url)
-                });
-                // ERROR: Cannot start a runtime from within a runtime. This happens because a
-                // function (like `block_on`) attempted to block the current thread while the
-                // thread is being used to drive asynchronous tasks.
-
-                let response = handle.block_on(async { blocking_task.await.unwrap() });
-
-                match response {
-                    Ok(response) => {
-                        if !response.status().is_success() {
-                            warn!("Error: {}", response.status());
-                            return Message::Standard {
-                                message: b"Error".to_vec(),
-                                origin: Some(OriginMessage::new(respond_to)),
-                            };
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Error making request: {}", e);
-                        return Message::Standard {
-                            message: b"Error".to_vec(),
-                            origin: Some(OriginMessage::new(respond_to)),
-                        };
-                    }
-                }
-
-                return Message::Standard {
-                    message: b"Success".to_vec(),
-                    origin: Some(OriginMessage::new(respond_to)),
-                };
-            }
-            _ => panic!("Unexpected message type {}", _message),
-        }
-        */
     }
 
-    fn init(&mut self, _: &mut Graph) {
-        debug!("Not implemented");
+    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        self.settings = env_settings(graph.base_env_vars_settings(node_meta))
     }
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { .. } => {
-                // start reverse proxy server
-                debug!("Configuring RP {}", self.url);
+            Message::Init { .. } => {}
+
+            Message::Control { command, .. } => {
+                let mut current_settings = self.settings.to_owned();
+                match command {
+                    ControlCommand::SetSettings { settings } => {
+                        settings.iter().for_each(|(k, v)| {
+                            current_settings.push(Setting {
+                                key: k.replace("-", "_").to_uppercase().to_string(),
+                                value: v.as_str().unwrap_or("").to_string(),
+                            });
+                        });
+                    }
+                    _ => {
+                        panic!("Invalid control command {:?}", command);
+                    }
+                }
+                self.settings = current_settings;
             }
+
             _ => {
                 panic!("Unexpected message type for control");
             }

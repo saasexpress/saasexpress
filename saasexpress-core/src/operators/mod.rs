@@ -10,6 +10,7 @@ pub(crate) mod op_actor;
 pub(crate) mod op_actor_handle;
 pub(crate) mod op_wrapper;
 pub(crate) mod passthrough;
+pub(crate) mod settings;
 pub(crate) mod shell;
 pub(crate) mod stub;
 pub(crate) mod template;

@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use fastrace::prelude::SpanContext;
 use futures::channel::oneshot;
-use serde_json::Value;
+use serde_json::{Value, json};
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::operators::op_wrapper::OperatorWrapper;
 use crate::ports::ports::Ports;
@@ -78,6 +78,8 @@ pub struct Graph {
     /// Collection of nodes in the Graph, indexed by their unique ID
     pub nodes: HashMap<String, Arc<Mutex<dyn Operator + 'static>>>,
 
+    pub node_meta: HashMap<String, NodeMeta>,
+
     /// Mapping of node IDs to their outgoing edges (children)
     edges: HashMap<String, HashSet<String>>,
 
@@ -117,7 +119,9 @@ pub trait Operator: Send + Sync + Debug {
     //fn meta(&self) -> NodeMeta;
 
     //fn init(&mut self, graphs: Vec<&mut Graph>);
-    fn init(&mut self, graphs: &mut Graph);
+    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        debug!("Default init operator {} - no action", self.name());
+    }
 
     fn finalize(&mut self) {
         debug!("Default finalize operator {} - no action", self.name());
@@ -197,6 +201,7 @@ impl Graph {
             start_node: String::new(),
             //_nodes: HashMap::new(),
             nodes: HashMap::new(),
+            node_meta: HashMap::new(),
             edges: HashMap::new(),
             processor: None,
             ports: Ports {
@@ -218,14 +223,15 @@ impl Graph {
             self.start_node = id.to_string();
         }
 
-        operator.init(self);
+        let node_meta = NodeMeta::new(id, operator.name());
+
+        operator.init(self, &node_meta);
+
+        self.node_meta.insert(id.to_string(), node_meta);
 
         info!("Node: {}({})", operator.name(), id.to_string());
 
         let typ = operator._type();
-
-        //        let wrapped_op = OperatorWrapper::new(operator);
-        //let wrapped_op = operator;
 
         match typ {
             OperatorType::Endpoint => {
@@ -344,7 +350,6 @@ impl Graph {
             let mut op = op.lock().unwrap();
             op.finalize();
         });
-        debug!("Default finalize graph - no action");
     }
 
     pub fn start(&self, message: Message) {
@@ -352,6 +357,12 @@ impl Graph {
 
         let node = node.lock().unwrap();
         node.send(message);
+    }
+
+    pub fn base_env_vars_settings(&self, node_meta: &NodeMeta) -> String {
+        format!("{}_{}_", self.name, node_meta.id)
+            .replace("-", "_")
+            .to_uppercase()
     }
 }
 
@@ -365,12 +376,16 @@ impl GraphRun for Graph {
 
         let root_span = fastrace::Span::root("end_to_end", SpanContext::random());
 
+        let temp = json!({
+            "path": "".to_string(),
+            "method": "".to_string(),
+            "query": "".to_string(),
+        });
+
         node.send(Message::ReqReply {
             message,
             respond_to,
-            path: "".to_string(),
-            method: "".to_string(),
-            query: "".to_string(),
+            temp: Arc::new(Mutex::new(temp)),
             span: Some(DebuggableSpan(root_span)),
         });
 

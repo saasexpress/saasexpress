@@ -10,6 +10,7 @@ use crate::graph::message::OriginMessage;
 use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 //use chrono::{NaiveDate, TimeZone, Utc};
 
 #[derive(Debug)]
@@ -42,13 +43,18 @@ impl Operator for BufferToJSON {
                 message,
                 respond_to,
                 span,
+                temp,
                 ..
             } => {
                 debug!("Passthrough message");
 
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
 
-                let origin = Some(OriginMessage::new(Some(respond_to)).with_span(span));
+                let origin = Some(
+                    OriginMessage::new(Some(respond_to))
+                        .with_span(span)
+                        .with_temp(temp),
+                );
 
                 return to_json(result, origin);
             }
@@ -76,7 +82,7 @@ impl Operator for BufferToJSON {
         };
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Not implemented");
     }
 

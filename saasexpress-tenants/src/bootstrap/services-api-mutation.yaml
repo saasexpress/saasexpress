@@ -30,12 +30,14 @@ nodes:
       engine: cel-interpreter
       template: |
         {
-          "message": "{action} {resource} ({id})",
+          "message": "{action} {resource} ({id}) {key}",
           "result":  "success",
           "params": {
-            "action":  input.http_method,
+            "actor": "User Jane",
+            "action":  temp.http_in.method,
             "resource": "Service",
-            "id": data.id
+            "id": data.id,
+            "key": input.resource
           }
         }
 

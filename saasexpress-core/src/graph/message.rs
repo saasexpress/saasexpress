@@ -24,6 +24,13 @@ use tracing::error;
 use super::graph::Operator;
 
 #[derive(Debug)]
+pub enum ControlCommand {
+    SetSettings {
+        settings: HashMap<String, serde_json::Value>,
+    },
+}
+
+#[derive(Debug)]
 pub struct OriginMessageV2<T> {
     session: Option<String>,
     span: Option<DebuggableSpan>,
@@ -49,6 +56,7 @@ pub struct OriginMessage {
     pub session: Option<String>,
     pub mpsc_respond_to: Option<mpsc::Sender<Message>>,
     pub span: Option<DebuggableSpan>,
+    pub temp: Arc<Mutex<Value>>,
 }
 
 // impl Drop for OriginMessage {
@@ -64,6 +72,7 @@ impl OriginMessage {
             session: None,
             mpsc_respond_to: None,
             span: None,
+            temp: Arc::new(Mutex::new(Value::Null)),
         }
     }
     pub fn with_span(mut self, span: Option<DebuggableSpan>) -> Self {
@@ -78,6 +87,35 @@ impl OriginMessage {
     }
     pub fn mpsc_respond_to(mut self, mpsc_respond_to: mpsc::Sender<Message>) -> Self {
         self.mpsc_respond_to = Some(mpsc_respond_to);
+        self
+    }
+
+    pub fn with_temp(mut self, temp: Arc<Mutex<Value>>) -> Self {
+        self.temp = temp;
+        self
+    }
+
+    pub fn temp_push(self, key: String, data: Value) -> Self {
+        match self.temp.try_lock() {
+            Ok(mut temp) => {
+                if temp.is_null() {
+                    *temp = serde_json::json!({});
+                }
+                if let Some(obj) = temp.as_object_mut() {
+                    obj.insert(key, data);
+                }
+            }
+            Err(_) => {
+                error!("Failed to lock temp mutex");
+            }
+        }
+        self
+    }
+
+    pub fn copy_from(mut self, other: OriginMessage) -> Self {
+        self.session = other.session;
+        self.span = other.span;
+        self.temp = other.temp;
         self
     }
 }
@@ -108,16 +146,18 @@ pub enum Message {
         //origin_v2: Option<OriginMessageV2<mpsc::Sender<Message>>>,
     },
     ReqReply {
-        path: String,
-        query: String,
-        method: String,
         message: Vec<u8>,
         respond_to: oneshot::Sender<Message>,
+        temp: Arc<Mutex<Value>>,
         span: Option<DebuggableSpan>,
     },
     Tuple {
         message_1: Box<Message>,
         message_2: Box<Message>,
+        origin: Option<OriginMessage>,
+    },
+    Control {
+        command: ControlCommand,
         origin: Option<OriginMessage>,
     },
     Init {
@@ -289,6 +329,7 @@ impl Display for Message {
             Message::HTTP { message, .. } => write!(f, "HTTP message: {:?}", message),
             Message::ReqReply { message, .. } => write!(f, "ReqReply message: {:?}", message),
             Message::Init { .. } => write!(f, "Init message"),
+            Message::Control { command, .. } => write!(f, "Control message {:?}", command),
             Message::Tuple {
                 message_1,
                 message_2,

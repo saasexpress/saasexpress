@@ -1,25 +1,17 @@
-#
-# curl -v http://localhost:2243/v1/<vault api>
-#
-# VAULT_RP_X_VAULT_TOKEN=
-# VAULT_RP_X_VAULT_NAMESPACE=
-#
-
-name: vault
+name: health
 nodes:
   - id: start
     action: HTTPIn
     config:
-      method: GET
+      method: ^(GET)$
       routes:
-        - /v1/{*rest}
+        - /health-temp
 
   - id: rp
     action: APICall
     config:
-      path: ""
-      url: https://vault.developer.gov.bc.ca
-      method: GET
+      path: "/health"
+      url: http://localhost:2243
 
   - id: b2j
     action: BufferToJSON
@@ -30,8 +22,12 @@ nodes:
       mode: json
       template: |
         {
-          "do_token": data.data.data["do_token"]
+          "status": "UP",
+          "environment": settings,
+          "temp": temp,
+          "data": data
         }
+
 edges:
   - { from: start, to: rp }
   - { from: rp, to: b2j }

@@ -3063,6 +3063,7 @@ dependencies = [
  "saasexpress-faker",
  "saasexpress-tenants",
  "serde",
+ "serde_html_form",
  "serde_json",
  "serde_yaml",
  "simplelog",
@@ -3231,6 +3232,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "serde_html_form"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d2de91cf02bbc07cde38891769ccd5d4f073d22a40683aa4bc7a95781aaa2c4"
+dependencies = [
+ "form_urlencoded",
+ "indexmap 2.9.0",
+ "itoa",
+ "ryu",
+ "serde",
 ]
 
 [[package]]

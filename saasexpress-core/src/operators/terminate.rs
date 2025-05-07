@@ -7,6 +7,7 @@ use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
 use crate::graph::message::Message;
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Terminate;
@@ -34,7 +35,7 @@ impl Operator for Terminate {
         return Message::NoOp {};
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Not implemented");
     }
 

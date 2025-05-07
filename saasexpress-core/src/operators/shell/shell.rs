@@ -6,6 +6,7 @@ use tracing::{debug, error, info, warn};
 use crate::graph::message::{Message, OriginMessage};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType, Origin};
+use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
 
 use super::resources::get_instance;
@@ -228,7 +229,7 @@ impl Operator for Shell {
         }
     }
 
-    fn init(&mut self, _graph: &mut Graph) {
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
         info!(
             "Initializing shell operator with command: {} {}",
             self.command,
@@ -243,6 +244,10 @@ impl Operator for Shell {
                     self.add_next(n);
                 }
             }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
             _ => {
                 panic!("Unexpected message type for control");
             }

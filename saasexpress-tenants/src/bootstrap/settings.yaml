@@ -1,11 +1,11 @@
-name: health
+name: timer-settings
 nodes:
   - id: start
     action: HTTPIn
     config:
       method: ^(GET)$
       routes:
-        - /health
+        - /settings
 
   - id: translate
     action: MessageTranslator
@@ -13,8 +13,16 @@ nodes:
       mode: json
       template: |
         {
-          "status": "UP"
+          "health": {
+            "translate": {
+              "on-demand": "yes!"
+            }
+          }
         }
+
+  - id: settings
+    action: Settings
 
 edges:
   - { from: start, to: translate }
+  - { from: translate, to: settings }

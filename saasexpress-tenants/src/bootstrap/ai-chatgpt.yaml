@@ -1,0 +1,41 @@
+#
+# AI_CHATGPT_CALL_AUTHORIZATION="Bearer sk"
+#
+# curl http://localhost:2243/chatgpt?prompt=hello
+#
+name: ai-chatgpt
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /chatgpt
+
+  - id: prepare
+    action: MessageTranslator
+    config:
+      template: |
+        { 
+          "messages": [
+            {
+                "role": "user",
+                "content": input.query.prompt
+            }
+          ],
+          "model": "gpt-4.1"
+        }
+
+  - id: j2b
+    action: JSONToBuffer
+
+  - id: call
+    action: APICall
+    config:
+      url: https://api.openai.com/v1/chat/completions
+      method: POST
+
+edges:
+  - { from: start, to: prepare }
+  - { from: prepare, to: j2b }
+  - { from: j2b, to: call }

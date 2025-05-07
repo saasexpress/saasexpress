@@ -1,7 +1,8 @@
 use saasexpress_core::{
     graph::{
         graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
-        message::Message,
+        message::{ControlCommand, Message},
+        meta::NodeMeta,
     },
     settings::settings::{Setting, env_settings},
 };
@@ -119,8 +120,8 @@ impl Operator for HTTPIn {
     //     return _message;
     // }
 
-    fn init(&mut self, _: &mut Graph) {
-        debug!("HTTPIn Init");
+    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        self.settings = env_settings(graph.base_env_vars_settings(node_meta))
     }
 
     fn control(&mut self, _message: Message) {
@@ -132,6 +133,24 @@ impl Operator for HTTPIn {
 
                 self.setup_routes(start);
             }
+            Message::Control { command, .. } => {
+                let mut current_settings = self.settings.to_owned();
+                match command {
+                    ControlCommand::SetSettings { settings } => {
+                        settings.iter().for_each(|(k, v)| {
+                            current_settings.push(Setting {
+                                key: k.replace("-", "_").to_uppercase().to_string(),
+                                value: v.as_str().unwrap_or("").to_string(),
+                            });
+                        });
+                    }
+                    _ => {
+                        panic!("Invalid control command {:?}", command);
+                    }
+                }
+                self.settings = current_settings;
+            }
+
             _ => {
                 panic!("Unexpected message type for control");
             }

@@ -14,6 +14,7 @@ use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
 
 use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 use fastrace::future::FutureExt;
 
 #[derive(Debug)]
@@ -62,7 +63,7 @@ impl Operator for FanOut {
         // }
     }
 
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("FanOut::init - nothing to initialize");
     }
 
@@ -73,6 +74,10 @@ impl Operator for FanOut {
                     self.add_next(n);
                 }
             }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
             _ => {
                 panic!("Unexpected message type for control");
             }
@@ -105,10 +110,11 @@ impl FanOut {
 
         //let _guard = fanout_span.set_local_parent();
 
-        let _origin = _message
-            .get_origin()
-            .expect("Failed to get origin from message");
+        // let _origin = _message
+        //     .get_origin()
+        //     .expect("Failed to get origin from message");
 
+        error!("FanOut::next - message: {:?}", _message);
         //let origin = _message.take_origin().unwrap();
 
         // let respond_to;
@@ -125,6 +131,7 @@ impl FanOut {
             serde_json::Value,
             Option<oneshot::Sender<Message>>,
             Option<DebuggableSpan>,
+            Arc<Mutex<serde_json::Value>>,
         ) {
             let info = match msg {
                 // Message::ReqReply {
@@ -167,11 +174,11 @@ impl FanOut {
                             })
                             .unwrap();
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, None, og.span)
+                        (json, None, og.span, og.temp)
                     } else if status == 204 {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, Some(respond_to), og.span)
+                        (json, Some(respond_to), og.span, og.temp)
                     } else {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let s: String = message
@@ -180,7 +187,7 @@ impl FanOut {
                             .collect::<String>()
                             .to_string();
                         let json = serde_json::from_str(&s).unwrap();
-                        (json, Some(respond_to), og.span)
+                        (json, Some(respond_to), og.span, og.temp)
                     }
                 }
                 Message::JSON {
@@ -188,7 +195,7 @@ impl FanOut {
                 } => {
                     let og = origin.unwrap();
                     let respond_to = og.respond_to.expect("No respond_to");
-                    (message, Some(respond_to), og.span)
+                    (message, Some(respond_to), og.span, og.temp)
                 }
                 _ => panic!("Unexpected message type in FanOut::next {}", msg),
             };
@@ -197,6 +204,8 @@ impl FanOut {
         let all_data = all_data(fanout_span, _message);
 
         let data = all_data;
+
+        error!("FanOut::next - data: {:?}", data.3);
         //let respond_to = data.1;
         //let span = data.2;
         //let _origin = all_data.1;
@@ -208,7 +217,12 @@ impl FanOut {
             //let respond_to = origin.respond_to;
             let to = data.1;
             //let message = data.0.to_owned();
-            let origin = OriginMessage::new(None).with_span(data.2);
+
+            let temp = data.3.clone();
+
+            let origin = OriginMessage::new(None)
+                .with_span(data.2)
+                .with_temp(Arc::clone(&temp));
 
             let mut response_receivers = Vec::new();
 
@@ -219,6 +233,8 @@ impl FanOut {
             for _sender in &senders {
                 index += 1;
                 debug!("Sending message to sender {}", index);
+
+                let temp = temp.clone();
 
                 let sender = _sender.clone();
                 let (resp_tx1, resp_rx1) = oneshot::channel::<Message>();
@@ -239,7 +255,8 @@ impl FanOut {
                             message: data.0.to_owned(),
                             origin: Some(
                                 OriginMessage::new(Some(resp_tx1))
-                                    .with_span(Some(DebuggableSpan(fan_inner_span))),
+                                    .with_span(Some(DebuggableSpan(fan_inner_span)))
+                                    .with_temp(temp),
                             ),
                         })
                         .await;
@@ -306,6 +323,7 @@ impl FanOut {
                 );
             }
 
+            error!("Sending with origin {:?}", origin);
             if let Some(to) = to {
                 if merged.len() == 1 {
                     let value = merged.pop().unwrap();
@@ -374,25 +392,30 @@ impl FanOut {
                         message,
                         respond_to,
                         span,
+                        temp,
                         ..
                     } => {
                         let r_to = respond_to;
 
                         operator.lock().unwrap().send(Message::Standard {
                             message,
-                            origin: Some(OriginMessage::new(Some(r_to)).with_span(span)),
+                            origin: Some(
+                                OriginMessage::new(Some(r_to))
+                                    .with_span(span)
+                                    .with_temp(temp),
+                            ),
                         });
                     }
                     Message::JSON {
                         message, origin, ..
                     } => {
-                        let og = origin.unwrap();
-                        let r_to = og.respond_to.expect("No respond_to");
-                        let span = og.span.unwrap();
+                        // let og = origin.unwrap();
+                        // let r_to = og.respond_to.expect("No respond_to");
+                        // let span = og.span.unwrap();
 
                         operator.lock().unwrap().send(Message::JSON {
                             message,
-                            origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
+                            origin, // origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
                         });
                     }
                     _ => {
