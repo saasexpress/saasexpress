@@ -139,7 +139,10 @@ export function uid(str: string) {
 function ActivityDetails({ data, text, onOpen, onClose, isOpen }: any) {
   return (
     <Stack direction="row" alignItems="center" pb={5} data-content-id={data.id}>
-      <Avatar {...stringAvatar(data.params?.actor)} sx={{ mr: 2 }} />
+      <Avatar
+        {...stringAvatar(data.params?.actor)}
+        sx={{ mr: 2, bgcolor: stringToColor(data.params?.actor) }}
+      />
       <Box>
         <Stack direction="row" alignItems="center">
           {data.result === "failed" && (
@@ -185,13 +188,15 @@ function ActivityDetails({ data, text, onOpen, onClose, isOpen }: any) {
   );
 }
 
-function stringToColor(string: string) {
+function stringToColor(name: string) {
   let hash = 0;
   let i;
 
+  if (!name) return "gray.100";
+
   /* eslint-disable no-bitwise */
-  for (i = 0; i < string.length; i += 1) {
-    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  for (i = 0; i < name.length; i += 1) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
 
   let color = "#";
