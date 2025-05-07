@@ -471,7 +471,13 @@ impl Operator for APICall {
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
-        self.settings = env_settings(graph.base_env_vars_settings(node_meta))
+        self.settings = env_settings(graph.base_env_vars_settings(node_meta));
+
+        let a = self.settings.iter().find(|x| x.key == "URL");
+        if a.is_some() {
+            info!("Overriding URL from settings {:?}", a);
+            self.url = a.unwrap().value.clone();
+        }
     }
 
     fn control(&mut self, _message: Message) {
