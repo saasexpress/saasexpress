@@ -3,14 +3,14 @@
 # - have "variables" in the content-enricher
 #
 #
-name: tenant-api-mutation
+name: tenant-api-mut-create
 nodes:
   - id: start
     action: HTTPIn
     config:
-      method: ^(PUT|DELETE)$
+      method: POST
       routes:
-        - /api/tenants/{id}
+        - /api/tenants
 
   - id: rp
     action: APICall
@@ -38,7 +38,7 @@ nodes:
             "actor": temp.faker.name,
             "action": temp.http_in.method,
             "resource": "Tenant",
-            "id": temp.http_in.params.id,
+            "id": data.id,
             "key": input.resource
           }
         }

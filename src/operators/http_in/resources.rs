@@ -329,6 +329,19 @@ impl Singleton {
 
             let path = _path;
             match method.as_str() {
+                "^(PUT|DELETE)$" => {
+                    self.router = main_router
+                        .merge(
+                            Router::new()
+                                .route(path.as_str(), put(handler.clone()))
+                                .with_state(shared_state.clone()),
+                        )
+                        .merge(
+                            Router::new()
+                                .route(path.as_str(), delete(handler.clone()))
+                                .with_state(shared_state.clone()),
+                        );
+                }
                 "^(POST|PUT|DELETE)$" => {
                     self.router = main_router
                         .merge(
@@ -349,20 +362,18 @@ impl Singleton {
                 }
                 "PUT" => {
                     debug!("Adding POST route: {}", path);
-                    self.router = main_router.nest(
-                        path,
+                    self.router = main_router.merge(
                         Router::new()
-                            .route("/".to_string().as_str(), put(handler))
+                            .route(path.as_str(), put(handler.clone()))
                             .with_state(shared_state),
                     );
                 }
                 "POST" | "^(DELETE|POST)$" => {
                     debug!("Adding POST route: {}", path);
-                    self.router = main_router.nest(
-                        path,
+                    self.router = main_router.merge(
                         Router::new()
-                            .route("/".to_string().as_str(), post(handler))
-                            .with_state(shared_state),
+                            .route(path.as_str(), post(handler.clone()))
+                            .with_state(shared_state.clone()),
                     );
                 }
                 "GET" | "^(GET)$" => {
