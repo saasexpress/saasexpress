@@ -1,10 +1,11 @@
 use diesel::prelude::*;
 use diesel::result::Error;
 use std::collections::HashMap;
+use tracing::error;
 
-use crate::db::{get_conn, generate_random_id};
-use crate::models::{Service, DagVariant, NewService, NewDagVariant, UpdateService};
-use crate::schema::{services, dag_variants};
+use crate::db::{generate_random_id, get_conn};
+use crate::models::{DagVariant, NewDagVariant, NewService, Service, UpdateService};
+use crate::schema::{dag_variants, services};
 
 pub fn get_all_services(page: i64, records_per_page: i64) -> Result<Vec<Service>, Error> {
     use crate::schema::services::dsl::*;
@@ -38,32 +39,34 @@ pub fn get_service_by_id(service_id: &str) -> Result<Service, Error> {
         .first::<Service>(conn)
 }
 
-pub fn get_variants_for_service(_service_id: &str) -> Result<Vec<DagVariant>, Error> {
+pub fn get_variants_for_service(a_service_id: &str) -> Result<Vec<DagVariant>, Error> {
     use crate::schema::dag_variants::dsl::*;
 
     let conn = &mut get_conn();
     dag_variants
-        .filter(service_id.eq(service_id))
+        .filter(service_id.eq(a_service_id))
         .filter(deleted_at.is_null())
         .load::<DagVariant>(conn)
 }
 
-pub fn get_variants_with_names(service_id: &str) -> Result<Vec<(String, DagVariant)>, Error> {
-    let variants = get_variants_for_service(service_id)?;
-    let result = variants.into_iter()
-        .map(|v| (v.name.clone(), v))
-        .collect();
+pub fn get_variants_with_names(a_service_id: &str) -> Result<Vec<(String, DagVariant)>, Error> {
+    let variants = get_variants_for_service(a_service_id)?;
+
+    let result = variants.into_iter().map(|v| (v.name.clone(), v)).collect();
     Ok(result)
 }
 
-pub fn create_service(new_service: NewService, variants: HashMap<String, String>) -> Result<Service, Error> {
+pub fn create_service(
+    new_service: NewService,
+    variants: HashMap<String, String>,
+) -> Result<Service, Error> {
     let conn = &mut get_conn();
-    
+
     let service_id = match new_service.id {
         Some(sid) => sid,
         None => generate_random_id(15),
     };
-    
+
     let service_with_id = NewService {
         id: Some(service_id.clone()),
         display_name: new_service.display_name,
@@ -94,12 +97,12 @@ pub fn create_service(new_service: NewService, variants: HashMap<String, String>
 }
 
 pub fn update_service(
-    service_id: &str, 
+    service_id: &str,
     service_update: UpdateService,
-    variants: Option<HashMap<String, String>>
+    variants: Option<HashMap<String, String>>,
 ) -> Result<Service, Error> {
     let conn = &mut get_conn();
-    
+
     conn.transaction(|tx| {
         // Update service
         diesel::update(services::table.filter(services::id.eq(service_id)))
@@ -136,7 +139,6 @@ pub fn delete_service(service_id: &str) -> Result<usize, Error> {
     use crate::schema::services::dsl::*;
 
     let conn = &mut get_conn();
-    
-    diesel::delete(services.filter(id.eq(service_id)))
-        .execute(conn)
+
+    diesel::delete(services.filter(id.eq(service_id))).execute(conn)
 }

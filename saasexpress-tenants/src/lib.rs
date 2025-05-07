@@ -67,6 +67,7 @@ impl TenantsService {
             debug!("Loading service {} - graph: {}", service_id, name);
             // Load the service into the system
             if new_services.contains_key(&service_id) {
+                debug!("Service {} already exists", service_id);
                 let service = new_services.get_mut(&service_id).unwrap();
 
                 if service.add_variant(name.to_string(), graph).is_err() {
@@ -76,6 +77,7 @@ impl TenantsService {
                     )));
                 }
             } else {
+                debug!("New service {}", service_id);
                 let other_display_name = format!("Service {}", service_id);
                 let other_service_url = "http://example.com".to_string();
 
@@ -97,7 +99,7 @@ impl TenantsService {
             }
         }
 
-        for (_service_id, new_service) in new_services {
+        for (a_service_id, new_service) in new_services {
             let service = new_service.service;
             let variants = new_service.variants;
 
@@ -109,9 +111,9 @@ impl TenantsService {
             let variants = service_repo::get_variants_with_names(&created_service.id)
                 .map_err(|e| ApiError::internal(e.to_string()))?;
 
-            let service_dto = ServiceDTO::from(created_service).with_variants(variants);
+            let _service_dto = ServiceDTO::from(created_service).with_variants(variants);
 
-            info!("Service created: {:?}", service_dto);
+            info!("Service created: {:?}", a_service_id);
         }
 
         Ok(())
