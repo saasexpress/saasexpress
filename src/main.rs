@@ -12,7 +12,7 @@ use otlp::{init_logs, init_tracer};
 use saasexpress_core::graph;
 use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_tenants::TenantsService;
-use tracing::info;
+use tracing::{error, info};
 mod bootstrap;
 mod commands;
 mod operators;
@@ -83,7 +83,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
             TenantsService::saasexpress_graphs()
                 .iter()
-                .for_each(|yaml| graph_registry.add_graph(build_graph(yaml.to_owned())));
+                .for_each(|(_service_id, yaml)| {
+                    graph_registry.add_graph(build_graph(yaml.to_owned()))
+                });
         }
 
         let graphs = {
@@ -98,6 +100,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         });
 
         bootstrap::bootstrap();
+    }
+
+    match TenantsService::load_services() {
+        Ok(()) => {
+            info!("Services loaded");
+        }
+        Err(e) => {
+            error!("Error loading services: {:?}", e);
+        }
     }
 
     do_it();

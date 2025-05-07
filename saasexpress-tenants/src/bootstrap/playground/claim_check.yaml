@@ -1,0 +1,36 @@
+# cargo run -- -c examples/faker.yaml
+#
+# curl -v http://localhost:2243/claim_check -d '{}'
+name: claim_check
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: POST
+      routes:
+        - /claim_check
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: faker
+    action: Faker
+    config: {}
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "first_name": temp.faker.name
+        }
+
+  - id: claim_check
+    action: ClaimCheck
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: faker }
+  - { from: faker, to: translate }
+  - { from: translate, to: claim_check }

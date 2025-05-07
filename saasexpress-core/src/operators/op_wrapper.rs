@@ -5,7 +5,7 @@ use fastrace::prelude::SpanContext;
 use fastrace::{Event, Span, trace};
 use tracing::{debug, error, info, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Operator};
+use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Operator};
 use crate::graph::graph::{Graph, OperatorType};
 use crate::graph::message::Message;
 use crate::graph::meta::NodeMeta;
@@ -56,7 +56,15 @@ impl OperatorWrapper {
 
         let start_time = std::time::Instant::now();
         debug!("Middleware {:?} {:?}", message, start_time);
-        let result = hdl.handle(message);
+        debug!("Handle Type = {:?}", hdl._type());
+        let result = match hdl._type() {
+            OperatorType::Filter2 { operator } => {
+                debug!("Filter2 operator");
+                operator.handle(message)
+            }
+            _ => hdl.handle(message),
+        };
+
         let elapsed_time = start_time.elapsed();
 
         tracing::debug!(
@@ -101,7 +109,7 @@ impl OperatorWrapper {
 
 impl Operator for OperatorWrapper {
     fn _type(&self) -> OperatorType {
-        OperatorType::Endpoint
+        self.handle.lock().unwrap()._type()
     }
     fn name(&self) -> String {
         return self.name.clone();
@@ -179,11 +187,13 @@ impl Operator for OperatorWrapper {
     }
 
     fn send(&self, _message: Message) {
+        info!("SEND");
         let message = self.handle(_message);
 
         // this has to be after the handle() to avoid deadlock
         let hdl = self.handle.lock().unwrap();
 
+        info!("HANDLE.SEND");
         hdl.send(message);
     }
 

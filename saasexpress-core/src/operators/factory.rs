@@ -4,9 +4,9 @@ use std::sync::Arc;
 use crate::graph::graph::{Graph, Operator};
 
 use super::{
-    buffer_to_json::BufferToJSON, callout::Callout, fan_out::fan_out::FanOut,
-    json_to_buffer::JSONToBuffer, passthrough::Passthrough, settings::Settings,
-    shell::shell::Shell, stub::Stub, terminate::Terminate, timer::Timer,
+    buffer_to_json::BufferToJSON, callout::Callout, claim_check::claim_check::ClaimCheck,
+    fan_out::fan_out::FanOut, json_to_buffer::JSONToBuffer, passthrough::Passthrough,
+    settings::Settings, shell::shell::Shell, stub::Stub, terminate::Terminate, timer::Timer,
 };
 
 #[derive(Debug)]
@@ -21,6 +21,7 @@ pub enum OperatorSpec {
     Stub(Stub),
     Timer(Timer),
     Settings(Settings),
+    ClaimCheck(ClaimCheck),
 }
 
 impl From<&serde_yaml::Value> for OperatorSpec {
@@ -38,6 +39,7 @@ impl From<&serde_yaml::Value> for OperatorSpec {
             "Stub" => OperatorSpec::Stub(Stub::from(value)),
             "Timer" => OperatorSpec::Timer(Timer::from(value)),
             "Settings" => OperatorSpec::Settings(Settings::from(value)),
+            "ClaimCheck" => OperatorSpec::ClaimCheck(ClaimCheck::from(value)),
             _ => panic!("Unknown operator: {}", name),
         }
     }
@@ -58,6 +60,7 @@ impl Into<OpXX> for OperatorSpec {
             OperatorSpec::Stub(op) => Arc::new(op),
             OperatorSpec::Timer(op) => Arc::new(op),
             OperatorSpec::Settings(op) => Arc::new(op),
+            OperatorSpec::ClaimCheck(op) => Arc::new(op),
         }
     }
 }
@@ -77,6 +80,7 @@ pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
         "Stub" => graph.add_node(id, Stub::from(value)),
         "Timer" => graph.add_node(id, Timer::from(value)),
         "Settings" => graph.add_node(id, Settings::from(value)),
+        "ClaimCheck" => graph.add_node(id, ClaimCheck::from(value)),
         _ => panic!("Unknown operator: {}", name),
     };
 }

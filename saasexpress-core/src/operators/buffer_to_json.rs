@@ -7,7 +7,7 @@ use tracing::{debug, error, warn};
 use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Graph, OperatorType};
 
 use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
@@ -22,22 +22,8 @@ impl From<serde_yaml::Value> for BufferToJSON {
     }
 }
 
-impl Operator for BufferToJSON {
-    fn _type(&self) -> OperatorType {
-        OperatorType::Filter
-    }
-
-    fn name(&self) -> String {
-        "BufferToJSON".to_string()
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
+impl Filter2Operator for BufferToJSON {
     fn handle(&self, _message: Message) -> Message {
-        debug!("BufferToJSON Processing...");
-
         match _message {
             Message::ReqReply {
                 message,
@@ -46,9 +32,17 @@ impl Operator for BufferToJSON {
                 temp,
                 ..
             } => {
-                debug!("Passthrough message");
+                debug!("[Filter2] ReqReply to JSON message");
 
-                let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+                let result: Value = match serde_json::from_slice(&message) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        error!("Error serializing JSON to Vec<u8>: {}", e);
+                        return Message::Error {
+                            error: "Error serializing JSON".to_string(),
+                        };
+                    }
+                };
 
                 let origin = Some(
                     OriginMessage::new(Some(respond_to))
@@ -80,6 +74,26 @@ impl Operator for BufferToJSON {
                 };
             }
         };
+    }
+}
+
+impl Operator for BufferToJSON {
+    fn _type(&self) -> OperatorType {
+        OperatorType::Filter2 {
+            operator: Arc::new(BufferToJSON {}),
+        }
+    }
+
+    fn name(&self) -> String {
+        "BufferToJSON".to_string()
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        panic!("BufferToJSON - Not implemented");
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {

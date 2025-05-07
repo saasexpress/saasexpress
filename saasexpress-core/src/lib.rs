@@ -57,6 +57,10 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn buffertojson_works() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
         const GRAPH: &str = r#"
         name: buffer_to_json
         nodes:
@@ -75,6 +79,37 @@ mod saasexpress_core_tests {
         };
 
         assert_eq!(message.get("_ts").is_some(), true);
+    }
+
+    #[tokio::test]
+    async fn claimcheck_works() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: claim_check
+        nodes:
+          - id: start
+            action: ClaimCheck
+        "#;
+        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        assert_eq!(graph.name, "claim_check");
+
+        let response = graph.end_to_end_standard("{}".as_bytes().to_vec()).await;
+
+        debug!("Message: {:?}", response);
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected JSON message");
+        };
+
+        assert_eq!(
+            message
+                .get("claim_type")
+                .unwrap_or(&serde_json::Value::String("".to_string())),
+            "filesystem"
+        );
     }
 
     #[tokio::test]

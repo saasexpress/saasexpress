@@ -4,6 +4,7 @@ pub mod factory;
 pub(crate) mod json_to_buffer;
 
 pub(crate) mod callout;
+pub(crate) mod claim_check;
 pub(crate) mod fan_out;
 pub(crate) mod noop;
 pub(crate) mod op_actor;

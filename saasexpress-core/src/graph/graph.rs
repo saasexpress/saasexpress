@@ -97,7 +97,11 @@ pub trait AsyncHandleTrait: Sync + Send + Debug {
     async fn async_handle_ptr(&self, message: Arc<Message>) -> Arc<Message>;
 }
 
-#[derive(PartialEq)]
+pub trait Filter2Operator: Sync + Send + Debug {
+    fn handle(&self, message: Message) -> Message;
+}
+
+#[derive(Debug)]
 pub enum OperatorType {
     /// Represents an endpoint operator
     /// that receives messages from the outside world
@@ -110,6 +114,21 @@ pub enum OperatorType {
     /// in the graph
     /// e.g. HTTPOut, MQTTOut, etc.
     Filter,
+
+    Filter2 {
+        operator: Arc<dyn Filter2Operator + 'static>,
+    },
+}
+
+impl PartialEq for OperatorType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (OperatorType::Endpoint, OperatorType::Endpoint) => true,
+            (OperatorType::Filter, OperatorType::Filter) => true,
+            (OperatorType::Filter2 { operator: _ }, OperatorType::Filter2 { operator: _ }) => true,
+            _ => false,
+        }
+    }
 }
 
 // Operator trait - defines how to process a message
@@ -238,6 +257,9 @@ impl Graph {
                 self.add_new_node(id, OperatorWrapper::new(operator));
                 Port::new(self, "abc".to_string());
             }
+            OperatorType::Filter2 { .. } => {
+                self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
+            }
             OperatorType::Filter => {
                 self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
             }
@@ -309,7 +331,9 @@ impl Graph {
                         let opsch = self.nodes.get(child);
                         match opsch {
                             Some(opsc) => childs.push(Arc::clone(opsc)),
-                            None => {}
+                            None => {
+                                panic!("Child {} not found in graph: {}", child, self.name);
+                            }
                         }
                     }
                 }

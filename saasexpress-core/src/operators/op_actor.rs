@@ -3,7 +3,7 @@ use std::{
     thread::sleep,
 };
 
-use crate::graph::message::Message;
+use crate::graph::{graph::OperatorType, message::Message};
 use fastrace::{Span, local::LocalSpan, prelude::SpanContext};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, info_span, instrument, span, warn};
@@ -76,8 +76,17 @@ impl OpActor {
                         };
                         let _guard = span.set_local_parent();
 
-                        let response = self.handle.handle(msg);
-                        self.next(response);
+                        debug!("Handle {:?} {:?}", self.name, self.handle._type());
+
+                        let result = match self.handle._type() {
+                            OperatorType::Filter2 { operator } => {
+                                debug!("Filter2 operator");
+                                operator.handle(msg)
+                            }
+                            _ => self.handle.handle(msg),
+                        };
+
+                        self.next(result);
                     } else {
                         debug!("Async handle found {}", self.name);
 

@@ -59,6 +59,7 @@ impl Operator for OperatorActorHandle {
     fn _type(&self) -> OperatorType {
         OperatorType::Endpoint
     }
+
     fn name(&self) -> String {
         return self.name.clone();
     }
