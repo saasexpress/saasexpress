@@ -62,6 +62,7 @@ pub(crate) struct MessageTranslator {
     engine: MessageTranslatorEngine,
 
     mode: MessageTranslatorMode,
+    in_temp: bool,
     settings: Vec<Setting>,
 }
 
@@ -70,6 +71,7 @@ impl From<serde_yaml::Value> for MessageTranslator {
         MessageTranslator {
             id: "".to_string(),
             template: value["template"].as_str().unwrap_or("").to_string(),
+            in_temp: value["in_temp"].as_bool().unwrap_or(false),
             settings: Vec::new(),
             mode: MessageTranslatorMode::from(value["mode"].as_str().unwrap_or("json").to_string()),
             engine: value
@@ -117,9 +119,22 @@ impl Operator for MessageTranslator {
                     self.parse(&message, input, &temp)
                 };
 
-                Message::JSON {
-                    message: cel_value,
-                    origin,
+                if self.in_temp {
+                    let og = origin.unwrap();
+                    let og = og.temp_push(self.name(), cel_value);
+                    Message::JSON {
+                        message,
+                        origin: Some(
+                            OriginMessage::new(og.respond_to)
+                                .with_span(og.span)
+                                .with_temp(og.temp),
+                        ),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin,
+                    }
                 }
             }
             Message::ReqReply {
@@ -138,26 +153,33 @@ impl Operator for MessageTranslator {
                     "resource": self.id,
                 });
 
-                let json: serde_json::Value = match message {
+                let json: serde_json::Value = match &message {
                     message if message.is_empty() => serde_json::from_str("{}").unwrap(),
                     _ => serde_json::from_slice(&message).unwrap(),
                 };
 
-                let temp = temp.lock().unwrap();
+                let cel_value = {
+                    let _temp = temp.lock().unwrap();
+                    self.parse(&json, input, &_temp)
+                };
 
-                let cel_value = self.parse(&json, input, &temp);
+                if self.in_temp {
+                    let origin = OriginMessage::new(Some(respond_to))
+                        .with_span(span)
+                        .with_temp(temp);
 
-                // Message::ReqReply {
-                //     message: serde_json::to_vec(&cel_value).unwrap(),
-                //     respond_to,
-                //     span,
-                //     path,
-                //     query,
-                //     method,
-                // }
-                Message::JSON {
-                    message: cel_value,
-                    origin: Some(OriginMessage::new(Some(respond_to)).with_span(span)),
+                    // put the temp data into the origin
+                    let origin = origin.temp_push(self.name(), cel_value);
+
+                    Message::Standard {
+                        message,
+                        origin: Some(origin),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin: Some(OriginMessage::new(Some(respond_to)).with_span(span)),
+                    }
                 }
             }
             Message::Exit { origin } => Message::Exit { origin },
