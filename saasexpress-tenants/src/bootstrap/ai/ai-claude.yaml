@@ -37,7 +37,7 @@ nodes:
           "model": "claude-3-7-sonnet-20250219",
           "max_tokens": 1024,
           "messages": [
-              {"role": "user", "content": input.query.prompt}
+              {"role": "user", "content": temp.http_in.query.prompt}
           ]
         }
 

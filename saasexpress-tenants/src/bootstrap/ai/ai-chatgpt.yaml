@@ -20,7 +20,7 @@ nodes:
           "messages": [
             {
                 "role": "user",
-                "content": input.query.prompt
+                "content": temp.http_in.query.prompt
             }
           ],
           "model": "gpt-4.1"
