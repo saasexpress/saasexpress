@@ -221,7 +221,7 @@ async fn interval_trigger(
         let (tx, rx) = oneshot::channel::<Message>();
 
         let message = Message::JSON {
-            message: json!({"timer": "started"}),
+            message: json!({"timer": "triggered"}),
             origin: Some(OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(root_span)))),
         };
 
