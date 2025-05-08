@@ -413,6 +413,15 @@ impl Singleton {
                                 Json(json!(format!("{:?} {:?}", message_1, message_2)))
                                     .into_response()
                             }
+                            Message::Error { error, .. } => {
+                                error!("Handler [ERROR] [{}] {:?}", req_id, error);
+                                LocalSpan::add_event(Event::new("Error"));
+
+                                let body =
+                                    json!({ "status": "Error", "req-id": req_id, "detail": error });
+
+                                (StatusCode::from_u16(400).unwrap(), Json(body)).into_response()
+                            }
                             _ => {
                                 error!("Handler [PANIC] [{}]", req_id);
                                 // Record error in the span

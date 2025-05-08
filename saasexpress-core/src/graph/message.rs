@@ -168,7 +168,9 @@ pub enum Message {
     },
     Error {
         error: String,
+        origin: Option<OriginMessage>,
     },
+
     NoOp {},
 }
 

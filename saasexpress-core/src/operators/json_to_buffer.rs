@@ -38,6 +38,7 @@ impl Operator for JSONToBuffer {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 };
             }
         };

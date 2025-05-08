@@ -47,6 +47,7 @@ impl Filter2Operator for ClaimCheck {
                     error!("Error serializing JSON to Vec<u8>: {}", e);
                     return Message::Error {
                         error: "Error serializing JSON".to_string(),
+                        origin,
                     };
                 }
             },
@@ -54,6 +55,7 @@ impl Filter2Operator for ClaimCheck {
                 error!("Unexpected message type {}", _message);
                 Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 }
             }
         }

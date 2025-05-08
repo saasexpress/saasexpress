@@ -191,6 +191,33 @@ impl Operator for NOOP {
                 debug!("NOOP - NoOp message");
             }
 
+            Message::Error { error, origin } => {
+                if let Some(origin_message) = origin {
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::Error {
+                                    error: error.to_owned(),
+                                    origin: None,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
+                    } else {
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
+
+                        respond_to
+                            .send(Message::Error {
+                                error: error.to_owned(),
+                                origin: None,
+                            })
+                            .expect("[Standard] Failed to send response");
+                    }
+                } else {
+                    warn!("No respond_to channel to send to");
+                }
+            }
             Message::Exit { .. } => {
                 warn!("Exit - do nothing");
             }

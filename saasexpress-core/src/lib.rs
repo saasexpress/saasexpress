@@ -314,4 +314,69 @@ mod saasexpress_core_tests {
 
         assert_eq!(message.get("name").unwrap(), "Joe");
     }
+
+    #[tokio::test]
+    async fn test_canodamo_sample_ok() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: canonical_model
+        nodes:
+        - id: start
+          action: CanonicalModelSample
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+
+        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        assert_eq!(graph.name, "canonical_model");
+
+        let response = graph.end_to_end_json(json!({"name": "Joe"})).await;
+
+        info!("Response : {:?}", response);
+
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected Standard message");
+        };
+
+        assert_eq!(message.get("name").unwrap(), "Joe");
+    }
+
+    #[tokio::test]
+    async fn test_canodamo_sample_error() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: canonical_model
+        nodes:
+        - id: start
+          action: CanonicalModelSample
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+
+        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        assert_eq!(graph.name, "canonical_model");
+
+        let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
+
+        info!("Response : {:?}", response);
+
+        let Message::Error { error, .. } = response else {
+            panic!("Expected Error message");
+        };
+
+        assert_eq!(
+            error,
+            "Canonical Model Validation Error - missing field `name`"
+        );
+    }
 }

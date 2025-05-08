@@ -1,69 +1,73 @@
 use core::panic;
 use std::sync::Arc;
 
-use crate::graph::graph::{Graph, Operator};
-
-use super::{
-    buffer_to_json::BufferToJSON, callout::Callout, claim_check::claim_check::ClaimCheck,
-    fan_out::fan_out::FanOut, json_to_buffer::JSONToBuffer, passthrough::Passthrough,
-    settings::Settings, shell::shell::Shell, stub::Stub, terminate::Terminate, timer::Timer,
+use crate::graph::{
+    graph::{Graph, Operator},
+    operator_types::canonical_model::CanonicalModel,
 };
 
-#[derive(Debug)]
-pub enum OperatorSpec {
-    BufferToJSON(BufferToJSON),
-    JSONToBuffer(JSONToBuffer),
-    Passthrough(Passthrough),
-    Terminate(Terminate),
-    FanOut(FanOut),
-    Shell(Shell),
-    Callout(Callout),
-    Stub(Stub),
-    Timer(Timer),
-    Settings(Settings),
-    ClaimCheck(ClaimCheck),
-}
+use super::{
+    buffer_to_json::BufferToJSON, callout::Callout, canodamo_sample::CanonicalModelSample,
+    claim_check::claim_check::ClaimCheck, fan_out::fan_out::FanOut, json_to_buffer::JSONToBuffer,
+    passthrough::Passthrough, settings::Settings, shell::shell::Shell, stub::Stub,
+    terminate::Terminate, timer::Timer,
+};
 
-impl From<&serde_yaml::Value> for OperatorSpec {
-    fn from(spec: &serde_yaml::Value) -> Self {
-        let name = spec["action"].as_str().unwrap();
-        let value = spec["config"].clone();
-        match name {
-            "BufferToJSON" => OperatorSpec::BufferToJSON(BufferToJSON::from(value)),
-            "JSONToBuffer" => OperatorSpec::JSONToBuffer(JSONToBuffer::from(value)),
-            "Passthrough" => OperatorSpec::Passthrough(Passthrough::from(value)),
-            "Terminate" => OperatorSpec::Terminate(Terminate::from(value)),
-            "FanOut" => OperatorSpec::FanOut(FanOut::from(value)),
-            "Shell" => OperatorSpec::Shell(Shell::from(value)),
-            "Callout" => OperatorSpec::Callout(Callout::from(value)),
-            "Stub" => OperatorSpec::Stub(Stub::from(value)),
-            "Timer" => OperatorSpec::Timer(Timer::from(value)),
-            "Settings" => OperatorSpec::Settings(Settings::from(value)),
-            "ClaimCheck" => OperatorSpec::ClaimCheck(ClaimCheck::from(value)),
-            _ => panic!("Unknown operator: {}", name),
-        }
-    }
-}
+// #[derive(Debug)]
+// pub enum OperatorSpec {
+//     BufferToJSON(BufferToJSON),
+//     JSONToBuffer(JSONToBuffer),
+//     Passthrough(Passthrough),
+//     Terminate(Terminate),
+//     FanOut(FanOut),
+//     Shell(Shell),
+//     Callout(Callout),
+//     Stub(Stub),
+//     Timer(Timer),
+//     Settings(Settings),
+//     ClaimCheck(ClaimCheck),
+// }
 
-pub type OpXX = Arc<dyn Operator + 'static>;
+// impl From<&serde_yaml::Value> for OperatorSpec {
+//     fn from(spec: &serde_yaml::Value) -> Self {
+//         let name = spec["action"].as_str().unwrap();
+//         let value = spec["config"].clone();
+//         match name {
+//             "BufferToJSON" => OperatorSpec::BufferToJSON(BufferToJSON::from(value)),
+//             "JSONToBuffer" => OperatorSpec::JSONToBuffer(JSONToBuffer::from(value)),
+//             "Passthrough" => OperatorSpec::Passthrough(Passthrough::from(value)),
+//             "Terminate" => OperatorSpec::Terminate(Terminate::from(value)),
+//             "FanOut" => OperatorSpec::FanOut(FanOut::from(value)),
+//             "Shell" => OperatorSpec::Shell(Shell::from(value)),
+//             "Callout" => OperatorSpec::Callout(Callout::from(value)),
+//             "Stub" => OperatorSpec::Stub(Stub::from(value)),
+//             "Timer" => OperatorSpec::Timer(Timer::from(value)),
+//             "Settings" => OperatorSpec::Settings(Settings::from(value)),
+//             "ClaimCheck" => OperatorSpec::ClaimCheck(ClaimCheck::from(value)),
+//             _ => panic!("Unknown operator: {}", name),
+//         }
+//     }
+// }
 
-impl Into<OpXX> for OperatorSpec {
-    fn into(self) -> OpXX {
-        match self {
-            OperatorSpec::Callout(op) => Arc::new(op),
-            OperatorSpec::BufferToJSON(op) => Arc::new(op),
-            OperatorSpec::JSONToBuffer(op) => Arc::new(op),
-            OperatorSpec::Passthrough(op) => Arc::new(op),
-            OperatorSpec::Terminate(op) => Arc::new(op),
-            OperatorSpec::FanOut(op) => Arc::new(op),
-            OperatorSpec::Shell(op) => Arc::new(op),
-            OperatorSpec::Stub(op) => Arc::new(op),
-            OperatorSpec::Timer(op) => Arc::new(op),
-            OperatorSpec::Settings(op) => Arc::new(op),
-            OperatorSpec::ClaimCheck(op) => Arc::new(op),
-        }
-    }
-}
+// pub type OpXX = Arc<dyn Operator + 'static>;
+
+// impl Into<OpXX> for OperatorSpec {
+//     fn into(self) -> OpXX {
+//         match self {
+//             OperatorSpec::Callout(op) => Arc::new(op),
+//             OperatorSpec::BufferToJSON(op) => Arc::new(op),
+//             OperatorSpec::JSONToBuffer(op) => Arc::new(op),
+//             OperatorSpec::Passthrough(op) => Arc::new(op),
+//             OperatorSpec::Terminate(op) => Arc::new(op),
+//             OperatorSpec::FanOut(op) => Arc::new(op),
+//             OperatorSpec::Shell(op) => Arc::new(op),
+//             OperatorSpec::Stub(op) => Arc::new(op),
+//             OperatorSpec::Timer(op) => Arc::new(op),
+//             OperatorSpec::Settings(op) => Arc::new(op),
+//             OperatorSpec::ClaimCheck(op) => Arc::new(op),
+//         }
+//     }
+// }
 
 pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
     let id = spec["id"].as_str().unwrap();
@@ -81,6 +85,10 @@ pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
         "Timer" => graph.add_node(id, Timer::from(value)),
         "Settings" => graph.add_node(id, Settings::from(value)),
         "ClaimCheck" => graph.add_node(id, ClaimCheck::from(value)),
+        "CanonicalModelSample" => graph.add_node(
+            id,
+            CanonicalModel::new("CanonicalModelSample", CanonicalModelSample::from(value)),
+        ),
         _ => panic!("Unknown operator: {}", name),
     };
 }

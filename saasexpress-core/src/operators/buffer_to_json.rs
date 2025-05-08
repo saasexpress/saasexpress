@@ -52,6 +52,7 @@ impl Filter2Operator for BufferToJSON {
                         error!("Error serializing JSON to Vec<u8>: {}", e);
                         return Message::Error {
                             error: "Error serializing JSON".to_string(),
+                            origin: None,
                         };
                     }
                 };
@@ -81,6 +82,7 @@ impl Filter2Operator for BufferToJSON {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 };
             }
         };

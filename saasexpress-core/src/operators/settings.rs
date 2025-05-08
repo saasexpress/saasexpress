@@ -108,6 +108,7 @@ impl Operator for Settings {
                 error!("Unexpected message type {}", _message);
                 Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 }
             }
         }

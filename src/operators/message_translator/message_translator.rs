@@ -193,6 +193,7 @@ impl Operator for MessageTranslator {
                 error!("Unexpected message type {}", _message);
                 Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 }
             }
         }

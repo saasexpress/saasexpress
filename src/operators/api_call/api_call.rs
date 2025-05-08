@@ -407,6 +407,7 @@ impl AsyncHandleTrait for APICall {
                                     error!("{} {}", method, url);
                                     return Message::Error {
                                         error: "Only GET method is supported".to_string(),
+                                        origin,
                                     };
                                 }
 
@@ -479,6 +480,7 @@ impl AsyncHandleTrait for APICall {
                         error!("Unexpected message type {}", message);
                         return Message::Error {
                             error: "Unexpected message type".to_string(),
+                            origin: None,
                         };
                     }
                 }

@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
+use crate::graph::operator_types::canonical_model::CanonicalModel;
+
 use crate::operators::op_wrapper::OperatorWrapper;
 use crate::ports::ports::Ports;
 
@@ -15,6 +17,7 @@ use super::super::operators::op_actor_handle::OperatorActorHandle;
 
 use super::message::{self, DebuggableSpan, Message, OriginMessage};
 use super::meta::NodeMeta;
+use super::operator_types::canonical_model::CanonicalModelOperator;
 use super::processors::basic::BasicProcessor;
 use super::processors::port::Port;
 use super::registry::GraphRegistry;
@@ -117,6 +120,10 @@ pub enum OperatorType {
 
     Filter2 {
         operator: Arc<dyn Filter2Operator + 'static>,
+    },
+
+    CanonicalModel {
+        // operator: Arc<dyn CanonicalModelOperator + 'static>,
     },
 }
 
@@ -261,6 +268,9 @@ impl Graph {
                 self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
             }
             OperatorType::Filter => {
+                self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
+            }
+            OperatorType::CanonicalModel {} => {
                 self.add_new_node(id, OperatorWrapper::new(OperatorActorHandle::new(operator)));
             }
         }
