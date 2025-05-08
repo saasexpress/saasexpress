@@ -131,6 +131,7 @@ impl SocketSession {
                 .with_span(Some(DebuggableSpan(span))),
         );
 
+        warn!("Sending exit message to graph");
         state
             .start
             .lock()

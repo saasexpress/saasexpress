@@ -402,14 +402,14 @@ impl AsyncHandleTrait for APICall {
 
                             let method = self.method.clone().unwrap_or("GET".to_string());
 
-                            if method != "GET" {
-                                debug!("{} {}", method, url);
-                                return Message::Error {
-                                    error: "Only GET method is supported".to_string(),
-                                };
-                            }
-
                             if self.sse {
+                                if method != "GET" {
+                                    error!("{} {}", method, url);
+                                    return Message::Error {
+                                        error: "Only GET method is supported".to_string(),
+                                    };
+                                }
+
                                 let mpsc_respond_to = origin
                                     .as_ref()
                                     .and_then(|o| o.mpsc_respond_to.clone())
