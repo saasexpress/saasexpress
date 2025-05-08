@@ -33,6 +33,7 @@ impl Display for Engine {
 pub(crate) struct HTTPIn {
     engine: Engine,
     ws: bool,
+    sse: bool,
     routes: Vec<String>,
     method: String,
     next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
@@ -57,10 +58,12 @@ impl From<Value> for HTTPIn {
             })
             .unwrap_or(Engine::Axum);
         let ws = value["ws"].as_bool().unwrap_or(false);
+        let sse = value["sse"].as_bool().unwrap_or(false);
 
         HTTPIn {
             engine,
             ws,
+            sse,
             routes,
             method,
             next: Vec::new(),
@@ -87,10 +90,12 @@ impl From<serde_yaml::Value> for HTTPIn {
             })
             .unwrap_or(Engine::Axum);
         let ws = value["ws"].as_bool().unwrap_or(false);
+        let sse = value["sse"].as_bool().unwrap_or(false);
 
         HTTPIn {
             engine,
             ws,
+            sse,
             routes,
             method,
             next: Vec::new(),
@@ -182,17 +187,6 @@ impl Operator for HTTPIn {
 }
 
 impl HTTPIn {
-    pub async fn new(routes: Vec<String>, method: String) -> HTTPIn {
-        HTTPIn {
-            engine: Engine::Axum,
-            ws: false,
-            routes,
-            method,
-            next: Vec::new(),
-            settings: env_settings("HTTPIN_AXUM".to_string()),
-        }
-    }
-
     fn next(&self, message: Message) {
         let mut counter = 0;
         for n in &self.next {
@@ -216,6 +210,7 @@ impl HTTPIn {
             self.routes.to_owned(),
             self.method.to_owned(),
             self.ws,
+            self.sse,
             start,
         );
     }

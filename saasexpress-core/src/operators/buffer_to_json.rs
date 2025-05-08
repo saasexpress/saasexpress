@@ -1,7 +1,8 @@
 use core::panic;
-use serde_json::Value;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use tracing::{debug, error, warn};
 
 use crate::graph::message::Message;
@@ -11,7 +12,7 @@ use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Graph, OperatorType
 
 use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
-//use chrono::{NaiveDate, TimeZone, Utc};
+use crate::timestamp::{NaiveDateTimeExt, now};
 
 #[derive(Debug)]
 pub(crate) struct BufferToJSON;
@@ -54,6 +55,10 @@ impl Filter2Operator for BufferToJSON {
             }
             Message::Standard { message, origin } => {
                 debug!("Standard not expected");
+                if message.is_empty() {
+                    let empty = json!({});
+                    return to_json(empty, origin);
+                }
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
                 return to_json(result, origin);
             }
@@ -118,19 +123,9 @@ impl Operator for BufferToJSON {
 }
 
 fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
-    // let naive_date = NaiveDate::from_ymd_opt(2016, 7, 8).unwrap();
-    // let naive_datetime = naive_date.and_hms_opt(9, 10, 11).unwrap();
-    // let dt = Utc.from_utc_datetime(&naive_datetime);
-
-    // let dt = Utc::now();
-    let dt = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("Time went backwards");
-    let dt = dt.as_secs();
-
     data.as_object_mut()
         .unwrap()
-        .insert("_ts".to_string(), Value::Number(dt.into()));
+        .insert("_ts".to_string(), Value::String(now().to_rfc3339()));
 
     return Message::JSON {
         message: data,

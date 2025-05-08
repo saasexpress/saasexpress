@@ -149,7 +149,7 @@ impl Operator for OperatorWrapper {
         }
     }
 
-    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+    fn init(&mut self, _graph: &mut Graph, _node_meta: &NodeMeta) {
         info!("Not implemented");
     }
 
@@ -187,13 +187,11 @@ impl Operator for OperatorWrapper {
     }
 
     fn send(&self, _message: Message) {
-        info!("SEND");
         let message = self.handle(_message);
 
         // this has to be after the handle() to avoid deadlock
         let hdl = self.handle.lock().unwrap();
 
-        info!("HANDLE.SEND");
         hdl.send(message);
     }
 

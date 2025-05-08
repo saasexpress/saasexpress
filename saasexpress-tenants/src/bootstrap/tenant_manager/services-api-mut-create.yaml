@@ -3,7 +3,7 @@
 # - have "variables" in the content-enricher
 #
 #
-name: service-api-mutation
+name: service-api-mut-create
 nodes:
   - id: start
     action: HTTPIn

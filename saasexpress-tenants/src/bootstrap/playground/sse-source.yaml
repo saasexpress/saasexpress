@@ -1,0 +1,35 @@
+name: sse-source
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      sse: true
+      method: ^(GET)$
+      routes:
+        - /sse-source
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: timer
+    action: Timer
+    config:
+      interval_ms: 500
+      iterations: 5
+      on_start: false
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "sse": "stuff",
+          "data": data,
+          "_ts": now()
+        }
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: timer }
+  - { from: timer, to: translate }

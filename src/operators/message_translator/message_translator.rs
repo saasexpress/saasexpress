@@ -16,6 +16,7 @@ use saasexpress_core::{
         message::{Message, OriginMessage},
     },
     settings::settings::{Setting, env_settings},
+    timestamp::{NaiveDateTimeExt, now},
 };
 use saasexpress_core::{
     graph::{message::ControlCommand, meta::NodeMeta},
@@ -269,10 +270,7 @@ impl MessageTranslator {
             let mut context = Context::default();
             let _guard = LocalSpan::enter_with_local_parent("context");
 
-            context.add_function("add", |a: i64, b: i64| a + b);
-
-            context.add_function("use_one", |a: Arc<String>, b: Arc<String>| use_one(a, b));
-            context.add_function("is_empty", is_empty);
+            context = add_functions(context);
 
             debug!("Templ {}", self.template);
             debug!("Data {}", serde_json::to_string_pretty(data).unwrap());
@@ -343,4 +341,13 @@ fn use_one(a: Arc<String>, b: Arc<String>) -> String {
         return b.to_string();
     }
     return "".to_string();
+}
+
+fn add_functions(mut context: Context) -> Context {
+    context.add_function("add", |a: i64, b: i64| a + b);
+
+    context.add_function("use_one", |a: Arc<String>, b: Arc<String>| use_one(a, b));
+    context.add_function("is_empty", is_empty);
+    context.add_function("now", || now().to_rfc3339());
+    context
 }

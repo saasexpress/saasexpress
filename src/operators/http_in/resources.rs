@@ -5,30 +5,40 @@ use opentelemetry::{
     propagation::{Extractor, Injector},
     trace::SpanKind,
 };
-use saasexpress_core::graph::{graph::Operator, message::DebuggableSpan};
+use saasexpress_core::graph::{
+    graph::Operator,
+    message::{DebuggableSpan, OriginMessage},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::{Arc, Mutex, OnceLock},
     thread::sleep,
+    time::Duration,
 };
-use tonic::metadata::MetadataMap;
+use tokio_stream::StreamExt as _;
+use tonic::{IntoStreamingRequest, metadata::MetadataMap};
 
+use axum::response::sse::Event as SseEvent;
+use axum_extra::extract::cookie::CookieJar;
 use saasexpress_core::graph::message::Message;
 
-use crate::operators::http_in::websocket::ws_handler;
+use crate::operators::http_in::{sse::sse_start, websocket::ws_handler};
 use axum::{
     Json, Router,
     body::{Bytes, to_bytes},
     extract::{ConnectInfo, Request, State, WebSocketUpgrade},
     http::HeaderName,
-    response::IntoResponse,
+    response::{IntoResponse, Sse},
     routing::{any, delete, get, post, put},
 };
 use axum::{extract::Path, http::HeaderValue};
-use axum_extra::{TypedHeader, headers};
-use futures::channel::oneshot;
+use axum_extra::{
+    TypedHeader,
+    headers::{self, Cookie},
+};
+use futures::{channel::oneshot, stream};
 use hyper::{HeaderMap, Method, StatusCode};
 use opentelemetry::trace::Tracer;
 use serde_json::json;
@@ -41,10 +51,25 @@ use tracing::{debug, error, info, instrument, warn};
 use axum::extract::FromRequest;
 use fastrace::future::FutureExt;
 
+use futures::stream::Stream;
+use std::{convert::Infallible, path::PathBuf};
+use tokio_stream::StreamExt as _;
+use tower_http::services::ServeDir;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
 #[derive(Debug)]
 pub struct MySharedState {
+    sse: bool,
     pub start: Arc<Mutex<dyn Operator + 'static>>,
     pub counter: Arc<Mutex<u32>>,
+}
+
+impl MySharedState {
+    fn next_counter(&self) -> String {
+        let mut counter = self.counter.lock().unwrap();
+        *counter += 1;
+        format!("{:0>8}", *counter)
+    }
 }
 
 pub struct Singleton {
@@ -63,6 +88,7 @@ impl Singleton {
         paths: Vec<String>,
         method: String,
         ws: bool,
+        sse: bool,
         _start: Arc<Mutex<dyn Operator + 'static>>,
     ) {
         let start = _start;
@@ -80,13 +106,7 @@ impl Singleton {
                        ConnectInfo(addr): ConnectInfo<SocketAddr>| {
                     // send message to the first operator of the flow
 
-                    let req_id;
-                    {
-                        let mut counter = state.counter.lock().unwrap();
-                        *counter += 1;
-                        req_id = counter.clone();
-                    }
-                    let req_id = format!("{:0>8}", req_id);
+                    let req_id = state.next_counter();
 
                     let root = Span::root(format!("http_in_request_ws"), SpanContext::random())
                         .with_property(|| ("http.request_id", req_id.clone()));
@@ -101,19 +121,122 @@ impl Singleton {
             //let mut rng = rand::rng();
             //let counter = Arc::new(Mutex::new("0"));
 
+            let handler_sse = async |state: State<Arc<MySharedState>>,
+                                     user_agent: Option<TypedHeader<headers::UserAgent>>,
+                                     method: Method,
+                                     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+                                     Path(params_map): Path<HashMap<String, String>>,
+                                     cookie_jar: CookieJar,
+                                     request: Request| {
+                let req_id = state.next_counter();
+
+                let root = Span::root(format!("http_in_request {}", method), SpanContext::random())
+                    .with_property(|| ("http.request_id", req_id.clone()))
+                    .with_property(|| ("http.method", method.to_string()))
+                    .with_property(|| ("http.target", request.uri().path().to_string()));
+
+                root.add_event(Event::new("Request received".to_string()));
+
+                let root_span = Span::enter_with_parent("response_span", &root);
+
+                debug!(
+                    "Handler [IN] [{}] {} {}",
+                    req_id,
+                    method,
+                    request.uri().path(),
+                );
+
+                //let path_query = request.uri().path_and_query().unwrap();
+
+                let path = request.uri().path().to_string();
+
+                let query = {
+                    request
+                        .uri()
+                        .path_and_query()
+                        .unwrap()
+                        .query()
+                        .unwrap_or_default()
+                        .to_string()
+                };
+
+                // params_vec(request).await;
+                // let params = {Path::<HashMap<String, String>>::from_request(request, &state)
+                //     .await
+                //     .unwrap();
+
+                let body = request.into_body();
+
+                let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
+
+                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
+                    if !body_str.is_empty() {
+                        debug!("Body = {}", body_str);
+                    }
+                }
+
+                debug!("Handler [WAIT] [{}]", req_id);
+
+                let query_tuples =
+                    serde_html_form::from_str::<Vec<(String, String)>>(&query).unwrap();
+
+                let query_map = query_tuples
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect::<HashMap<String, String>>();
+
+                let cookies = cookie_jar
+                    .iter()
+                    .map(|cookie| (cookie.name(), cookie.value()))
+                    .collect::<Vec<_>>();
+
+                let temp_key = "http_in".to_string();
+
+                let temp = json!({
+                    temp_key: {
+                        "query_string": query,
+                        "query": query_map,
+                        "cookies": cookies,
+                        "path": path,
+                        "params": params_map,
+                        "method": method.to_string()
+                    }
+                });
+
+                let origin = Some(
+                    OriginMessage::new(None)
+                        .session(req_id)
+                        .with_span(Some(DebuggableSpan(root_span)))
+                        .with_temp(Arc::new(Mutex::new(temp))),
+                );
+                let message = Message::Standard {
+                    message: body_bytes.to_vec(),
+                    origin,
+                };
+
+                let stream = sse_start(state, message);
+
+                Sse::new(
+                    stream.map(|value| {
+                        Ok::<_, Infallible>(SseEvent::default().data(value.to_string()))
+                    }),
+                )
+                .keep_alive(
+                    axum::response::sse::KeepAlive::new()
+                        .interval(Duration::from_secs(10))
+                        .text("keep-alive-text"),
+                )
+                .into_response()
+            };
+
             let handler = async |state: State<Arc<MySharedState>>,
                                  user_agent: Option<TypedHeader<headers::UserAgent>>,
                                  method: Method,
                                  ConnectInfo(addr): ConnectInfo<SocketAddr>,
                                  Path(params_map): Path<HashMap<String, String>>,
+                                 cookie_jar: CookieJar,
                                  request: Request| {
-                let req_id;
-                {
-                    let mut counter = state.counter.lock().unwrap();
-                    *counter += 1;
-                    req_id = counter.clone();
-                }
-                let req_id = format!("{:0>8}", req_id);
+                let req_id = state.next_counter();
 
                 let root = Span::root(format!("http_in_request {}", method), SpanContext::random())
                     .with_property(|| ("http.request_id", req_id.clone()))
@@ -140,7 +263,8 @@ impl Singleton {
                         .unwrap();
 
                     return ws_handler(state, ws_upgrade, user_agent, ConnectInfo(addr), root_span)
-                        .await;
+                        .await
+                        .into_response();
                 }
 
                 //let path_query = request.uri().path_and_query().unwrap();
@@ -175,17 +299,26 @@ impl Singleton {
 
                 debug!("Handler [WAIT] [{}]", req_id);
 
-                let q = serde_html_form::from_str::<Vec<(String, String)>>(&query).unwrap();
+                let query_tuples =
+                    serde_html_form::from_str::<Vec<(String, String)>>(&query).unwrap();
 
-                let q = q
+                let query_map = query_tuples
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect::<HashMap<String, String>>();
 
+                let cookies = cookie_jar
+                    .iter()
+                    .map(|cookie| (cookie.name(), cookie.value()))
+                    .collect::<Vec<_>>();
+
+                let temp_key = "http_in".to_string();
+
                 let temp = json!({
-                    "http_in": {
+                    temp_key: {
                         "query_string": query,
-                        "query": q,
+                        "query": query_map,
+                        "cookies": cookies,
                         "path": path,
                         "params": params_map,
                         "method": method.to_string()
@@ -323,9 +456,12 @@ impl Singleton {
             //     };
 
             let shared_state = Arc::new(MySharedState {
+                sse,
                 start: start.clone(),
                 counter: Arc::new(Mutex::new(0)),
             });
+
+            //let handler = if sse { handler_sse } else { handler };
 
             let path = _path;
             match method.as_str() {
@@ -379,11 +515,19 @@ impl Singleton {
                 "GET" | "^(GET)$" => {
                     debug!("Adding GET route: {}", path);
 
-                    self.router = main_router.merge(
-                        Router::new()
-                            .route(path.to_string().as_str(), get(handler))
-                            .with_state(shared_state),
-                    );
+                    if sse {
+                        self.router = main_router.merge(
+                            Router::new()
+                                .route(path.to_string().as_str(), get(handler_sse))
+                                .with_state(shared_state),
+                        );
+                    } else {
+                        self.router = main_router.merge(
+                            Router::new()
+                                .route(path.to_string().as_str(), get(handler))
+                                .with_state(shared_state),
+                        );
+                    }
                 }
                 "DELETE" => {
                     debug!("Adding GET route: {}", path);

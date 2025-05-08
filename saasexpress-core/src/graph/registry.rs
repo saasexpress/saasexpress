@@ -15,6 +15,9 @@ impl GraphRegistry {
     }
 
     pub fn add_graph(&mut self, graph: Graph) {
+        if self.exists(&graph.name) {
+            panic!("Graph with name {} already exists", graph.name);
+        }
         self.graphs.push(Arc::new(Mutex::new((graph))));
     }
 
@@ -37,6 +40,12 @@ impl GraphRegistry {
 
     pub fn get_instance() -> &'static Mutex<GraphRegistry> {
         INSTANCE.get_or_init(|| Mutex::new(GraphRegistry::new()))
+    }
+
+    fn exists(&self, name: &str) -> bool {
+        self.graphs
+            .iter()
+            .any(|graph| graph.lock().unwrap().name == name)
     }
 }
 

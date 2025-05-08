@@ -1,7 +1,7 @@
 # cargo run -- -c examples/faker.yaml
 #
 # curl -v http://localhost:2243/faker-intemp -d '{"name":"joe"}'
-name: shell
+name: faker-intemp
 nodes:
   - id: start
     action: HTTPIn

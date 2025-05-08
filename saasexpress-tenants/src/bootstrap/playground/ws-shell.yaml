@@ -1,4 +1,4 @@
-name: ws-3
+name: ws-shell
 nodes:
   - id: start
     action: HTTPIn

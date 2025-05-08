@@ -4,8 +4,10 @@ use std::sync::{Arc, Mutex};
 use async_std::task::Builder;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
+use futures::channel::mpsc;
 use hyper::Method;
 use reqwest::Client;
+use reqwest_eventsource::{Event, EventSource};
 use saasexpress_core::graph::message::{ControlCommand, Message, OriginMessage};
 use saasexpress_core::graph::meta::NodeMeta;
 use saasexpress_core::settings::settings::{Setting, env_settings};
@@ -32,6 +34,7 @@ pub(crate) struct APICall {
     pub content_type: Option<String>,
     pub forward: bool,
     pub ws: bool,
+    pub sse: bool,
     settings: Vec<Setting>,
     client: Client,
 }
@@ -42,6 +45,7 @@ impl From<serde_yaml::Value> for APICall {
         let path = value["path"].as_str().unwrap_or("").to_string();
         let forward = value["forward"].as_bool().unwrap_or(false);
         let ws = value["ws"].as_bool().unwrap_or(false);
+        let sse = value["sse"].as_bool().unwrap_or(false);
         let method = value["method"].as_str().map(|s| s.to_string());
         let content_type = value["content_type"].as_str().map(|s| s.to_string());
 
@@ -52,6 +56,7 @@ impl From<serde_yaml::Value> for APICall {
             content_type,
             forward,
             ws,
+            sse,
             settings: Vec::new(),
             client: Client::new(),
         }
@@ -395,37 +400,77 @@ impl AsyncHandleTrait for APICall {
                                 "".to_string(),
                             );
 
-                            let builder = HTTPBuilder::new(
-                                self.method.as_ref().expect("Method required"),
-                                url.as_str(),
-                            )
-                            .set_headers(&self.settings)
-                            .set_body(message)
-                            .payloads_json();
+                            let method = self.method.clone().unwrap_or("GET".to_string());
 
-                            let response = builder.send().await;
+                            if method != "GET" {
+                                debug!("{} {}", method, url);
+                                return Message::Error {
+                                    error: "Only GET method is supported".to_string(),
+                                };
+                            }
 
-                            match response {
-                                Ok(response) => {
-                                    debug!("<-- {}", response.status());
-                                    if !response.status().is_success() {
-                                        warn!("Error: {}", response.status());
+                            if self.sse {
+                                let mpsc_respond_to = origin
+                                    .as_ref()
+                                    .and_then(|o| o.mpsc_respond_to.clone())
+                                    .unwrap();
+
+                                let mut es = EventSource::get(url);
+
+                                while let Some(event) = es.next().await {
+                                    match event {
+                                        Ok(Event::Open) => info!("SSE Connection Open!"),
+                                        Ok(Event::Message(message)) => {
+                                            let json = serde_json::from_str(&message.data);
+                                            if json.is_err() {
+                                                error!("Error parsing JSON: {}", json.unwrap_err());
+                                                continue;
+                                            }
+                                            mpsc_respond_to
+                                                .send(Message::JSON {
+                                                    message: json.unwrap(),
+                                                    origin: None,
+                                                })
+                                                .await
+                                                .unwrap();
+                                        }
+                                        Err(err) => {
+                                            info!("Error - closing event stream: {}", err);
+                                            es.close();
+                                        }
+                                    }
+                                }
+                                Message::NoOp {}
+                            } else {
+                                let builder = HTTPBuilder::new(method.as_str(), url.as_str())
+                                    .set_headers(&self.settings)
+                                    .set_body(message)
+                                    .payloads_json();
+
+                                let response = builder.send().await;
+
+                                match response {
+                                    Ok(response) => {
+                                        debug!("<-- {}", response.status());
+                                        if !response.status().is_success() {
+                                            warn!("Error: {}", response.status());
+                                            return Message::Standard {
+                                                message: b"Error".to_vec(),
+                                                origin,
+                                            };
+                                        } else {
+                                            let message = response.json().await.unwrap();
+                                            debug!("Message: {:?}", message);
+                                            return Message::JSON { message, origin };
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!("Error making request: {}", e);
                                         return Message::Standard {
                                             message: b"Error".to_vec(),
                                             origin,
                                         };
-                                    } else {
-                                        let message = response.json().await.unwrap();
-                                        debug!("Message: {:?}", message);
-                                        return Message::JSON { message, origin };
                                     }
-                                }
-                                Err(e) => {
-                                    warn!("Error making request: {}", e);
-                                    return Message::Standard {
-                                        message: b"Error".to_vec(),
-                                        origin,
-                                    };
                                 }
                             }
                         }

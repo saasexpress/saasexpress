@@ -1,4 +1,4 @@
-name: health
+name: health-temp
 nodes:
   - id: start
     action: HTTPIn
@@ -22,10 +22,9 @@ nodes:
       mode: json
       template: |
         {
-          "status": "UP",
-          "environment": settings,
+          "settings": settings,
           "temp": temp,
-          "data": data
+          "health": data
         }
 
 edges:

@@ -13,9 +13,7 @@ nodes:
       mode: json
       template: |
         {
-          "status": "UP",
-          "environment": settings,
-          "temp": temp
+          "status": "UP"
         }
 
 edges:
