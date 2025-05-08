@@ -9,8 +9,8 @@ use crate::graph::message::{Message, OriginMessage};
 use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 
-use super::check_fs::CheckFs;
 use super::check_fs::CheckFsImpl;
+use super::check_fs::CheckStorage;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ClaimCheck {
@@ -29,7 +29,7 @@ impl ClaimCheck {
     fn save(&self, message: Vec<u8>, origin: Option<OriginMessage>) -> Message {
         let cfs = CheckFsImpl {};
 
-        let claim_check = cfs.check_fs(message);
+        let claim_check = cfs.store(message);
         info!("ClaimCheck: {:?}", claim_check);
         Message::JSON {
             message: serde_json::to_value(claim_check).unwrap(),

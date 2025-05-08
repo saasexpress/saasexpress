@@ -1,0 +1,49 @@
+name: cookie
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /cookie
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      in_temp: true
+      temp_group: http_in
+      template: |
+        {
+          "response": {
+            "set-cookies": [
+              {
+                "name": "cookie1",
+                "value": "value1",
+                "path": "/cookie",
+                "domain": "localhost",
+                "http_only": true,
+                "same_site": "Strict",
+                "secure": false,
+                "expire_hours": 24*8
+              },
+              {
+                "name": "cookie2",
+                "value": "value2",
+                "path": "/",
+                "domain": "localhost",
+                "same_site": "Lax",
+                "http_only": false,
+                "secure": true,
+                "expire_hours": 24*30
+              }
+            ]
+            }
+        }
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: translate }

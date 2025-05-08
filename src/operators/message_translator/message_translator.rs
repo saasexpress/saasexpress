@@ -64,6 +64,7 @@ pub(crate) struct MessageTranslator {
 
     mode: MessageTranslatorMode,
     in_temp: bool,
+    temp_group: Option<String>,
     settings: Vec<Setting>,
 }
 
@@ -73,6 +74,7 @@ impl From<serde_yaml::Value> for MessageTranslator {
             id: "".to_string(),
             template: value["template"].as_str().unwrap_or("").to_string(),
             in_temp: value["in_temp"].as_bool().unwrap_or(false),
+            temp_group: value["temp_group"].as_str().map(|s| s.to_string()),
             settings: Vec::new(),
             mode: MessageTranslatorMode::from(value["mode"].as_str().unwrap_or("json").to_string()),
             engine: value
@@ -121,8 +123,11 @@ impl Operator for MessageTranslator {
                 };
 
                 if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
                     let og = origin.unwrap();
-                    let og = og.temp_push(self.name(), cel_value);
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let og = og.temp_push(temp_group, cel_value);
                     Message::JSON {
                         message,
                         origin: Some(
@@ -160,8 +165,8 @@ impl Operator for MessageTranslator {
                 };
 
                 let cel_value = {
-                    let _temp = temp.lock().unwrap();
-                    self.parse(&json, input, &_temp)
+                    let temp = temp.lock().unwrap();
+                    self.parse(&json, input, &temp)
                 };
 
                 if self.in_temp {
@@ -201,6 +206,10 @@ impl Operator for MessageTranslator {
             node_meta.id,
             self.engine,
         );
+        if self.temp_group.is_none() {
+            self.temp_group = Some(node_meta.id.to_string());
+        }
+
         self.settings = env_settings(graph.base_env_vars_settings(node_meta))
     }
 

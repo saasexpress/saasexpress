@@ -5,9 +5,12 @@ use opentelemetry::{
     propagation::{Extractor, Injector},
     trace::SpanKind,
 };
-use saasexpress_core::graph::{
-    graph::Operator,
-    message::{DebuggableSpan, OriginMessage},
+use saasexpress_core::{
+    graph::{
+        graph::Operator,
+        message::{DebuggableSpan, OriginMessage},
+    },
+    timestamp::now,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -24,7 +27,7 @@ use axum::response::sse::Event as SseEvent;
 use axum_extra::extract::cookie::CookieJar;
 use saasexpress_core::graph::message::Message;
 
-use crate::operators::http_in::{sse::sse_start, websocket::ws_handler};
+use crate::operators::http_in::{cookies::set_cookies, sse::sse_start, websocket::ws_handler};
 use axum::{
     Json, Router,
     body::{Bytes, to_bytes},
@@ -36,8 +39,11 @@ use axum::{
 use axum::{extract::Path, http::HeaderValue};
 use axum_extra::{
     TypedHeader,
-    headers::{self, Cookie},
+    headers::{self},
 };
+
+use axum_extra::extract::cookie::Cookie;
+
 use futures::{channel::oneshot, stream};
 use hyper::{HeaderMap, Method, StatusCode};
 use opentelemetry::trace::Tracer;
@@ -56,6 +62,8 @@ use std::{convert::Infallible, path::PathBuf};
 use tokio_stream::StreamExt as _;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use saasexpress_core::timestamp::NaiveDateTimeExt;
 
 #[derive(Debug)]
 pub struct MySharedState {
@@ -281,11 +289,6 @@ impl Singleton {
                         .to_string()
                 };
 
-                // params_vec(request).await;
-                // let params = {Path::<HashMap<String, String>>::from_request(request, &state)
-                //     .await
-                //     .unwrap();
-
                 let body = request.into_body();
                 let body_bytes = to_bytes(body, usize::MAX).await.unwrap();
 
@@ -325,10 +328,14 @@ impl Singleton {
                     }
                 });
 
+                let temp = Arc::new(Mutex::new(temp));
+
+                let later_temp = temp.clone();
+
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),
                     respond_to: send,
-                    temp: Arc::new(Mutex::new(temp)),
+                    temp,
                     span: Some(DebuggableSpan(root_span)),
                 };
 
@@ -389,7 +396,9 @@ impl Singleton {
 
                                 LocalSpan::add_event(Event::new("Request OK".to_string()));
 
-                                Json(json!(message)).into_response()
+                                let headers = set_cookies(later_temp);
+
+                                (headers, Json(json!(message))).into_response()
                             }
 
                             Message::Tuple {

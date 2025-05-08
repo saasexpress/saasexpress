@@ -35,6 +35,17 @@ impl Filter2Operator for BufferToJSON {
             } => {
                 debug!("[Filter2] ReqReply to JSON message");
 
+                let origin = Some(
+                    OriginMessage::new(Some(respond_to))
+                        .with_span(span)
+                        .with_temp(temp),
+                );
+
+                if message.is_empty() {
+                    let empty = json!({});
+                    return to_json(empty, origin);
+                }
+
                 let result: Value = match serde_json::from_slice(&message) {
                     Ok(m) => m,
                     Err(e) => {
@@ -44,12 +55,6 @@ impl Filter2Operator for BufferToJSON {
                         };
                     }
                 };
-
-                let origin = Some(
-                    OriginMessage::new(Some(respond_to))
-                        .with_span(span)
-                        .with_temp(temp),
-                );
 
                 return to_json(result, origin);
             }

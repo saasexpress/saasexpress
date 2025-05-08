@@ -16,6 +16,16 @@ nodes:
   - id: b2j
     action: BufferToJSON
 
+  - id: translate0
+    action: MessageTranslator
+    config:
+      mode: json
+      in_temp: true
+      template: |
+        {
+          "info": true
+        }
+
   - id: translate
     action: MessageTranslator
     config:
@@ -30,4 +40,5 @@ nodes:
 edges:
   - { from: start, to: rp }
   - { from: rp, to: b2j }
-  - { from: b2j, to: translate }
+  - { from: b2j, to: translate0 }
+  - { from: translate0, to: translate }

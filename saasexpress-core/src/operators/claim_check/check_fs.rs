@@ -1,14 +1,14 @@
-use super::{claim_check::ClaimCheck, model::ClaimCheckReference};
+use super::model::ClaimCheckReference;
 use uuid::Uuid;
 
-pub trait CheckFs {
-    fn check_fs(&self, message: Vec<u8>) -> ClaimCheckReference;
+pub trait CheckStorage {
+    fn store(&self, message: Vec<u8>) -> ClaimCheckReference;
 }
 
 pub struct CheckFsImpl;
 
-impl CheckFs for CheckFsImpl {
-    fn check_fs(&self, message: Vec<u8>) -> ClaimCheckReference {
+impl CheckStorage for CheckFsImpl {
+    fn store(&self, message: Vec<u8>) -> ClaimCheckReference {
         let uuid = Uuid::new_v4();
 
         // write to filesystem
