@@ -35,20 +35,14 @@ impl Operator for Stub {
         None
     }
 
-    fn handle(&self, _message: Message) -> Message {
+    fn handle(&self, mut _message: Message) -> Message {
+        let origin = _message.take_origin();
         match _message {
-            Message::Standard { origin, .. } => {
+            _ => {
                 return Message::JSON {
                     message: self.yaml_to_json(self.value.as_ref().unwrap()),
                     origin,
                 };
-            }
-            _ => {
-                error!("Unexpected message type {}", _message);
-                Message::Error {
-                    error: "Unexpected message type".to_string(),
-                    origin: None,
-                }
             }
         }
     }

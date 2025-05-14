@@ -9,7 +9,16 @@ nodes:
     action: AITool
     config:
       schema:
-        name: tool_clarify
+        name: clarify_request
+        description: Ask user for clarification when request is unclear
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Question to ask user for clarification
+          required:
+            - question
 
   - id: translate
     action: MessageTranslator

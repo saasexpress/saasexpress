@@ -604,7 +604,7 @@ mod saasexpress_core_tests {
         let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
 
         let Message::JSON { message, .. } = response else {
-            panic!("Expected JSON message");
+            panic!("Expected JSON message - {}", response);
         };
 
         assert_eq!(

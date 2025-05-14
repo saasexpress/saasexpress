@@ -9,7 +9,16 @@ nodes:
     action: AITool
     config:
       schema:
-        name: tool_get_details
+        name: get_tenant_details
+        description: Get detailed information about a specific tenant
+        parameters:
+          type: object
+          properties:
+            tenant_id:
+              type: string
+              description: Tenant ID to get details for
+          required:
+            - tenant_id
 
   - id: b2j
     action: BufferToJSON

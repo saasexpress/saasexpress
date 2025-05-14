@@ -1,7 +1,7 @@
 use fastrace::Span;
-use futures::channel::oneshot;
+use futures::channel::oneshot::{self, Canceled};
 use serde_json::{Error, Value, json};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot::Receiver};
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -38,10 +38,11 @@ pub struct AIAgent {
     graph_name: Option<String>,
     name: String,
     state: OperatorState,
-    tool_graph_names: Vec<String>,
+    //tool_graph_names: Vec<String>,
     pub(crate) operator: Arc<dyn AIAgentOperator + Send + Sync + 'static>,
 
     tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
+
     next: Vec<OperatorRole>,
 }
 
@@ -51,15 +52,15 @@ impl AIAgent {
         values: serde_yaml::Value,
         operator: impl AIAgentOperator + Send + Sync + 'static,
     ) -> Self {
-        let tool_graph_names = values
-            .get("tool_graphs")
-            .and_then(|v| v.as_sequence())
-            .map(|seq| {
-                seq.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect::<Vec<String>>()
-            })
-            .unwrap_or_default();
+        // let tool_graph_names = values
+        //     .get("tool_graphs")
+        //     .and_then(|v| v.as_sequence())
+        //     .map(|seq| {
+        //         seq.iter()
+        //             .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        //             .collect::<Vec<String>>()
+        //     })
+        //     .unwrap_or_default();
 
         AIAgent {
             node_fqn: None,
@@ -69,7 +70,6 @@ impl AIAgent {
             operator: Arc::new(operator),
             next: Vec::new(),
             tools: HashMap::new(),
-            tool_graph_names,
         }
     }
 }
@@ -97,7 +97,7 @@ impl Operator for AIAgent {
         self.node_fqn = node_meta.fqn().into();
         self.graph_name = Some(graph.name.clone());
 
-        let tool_graph_names = self.tool_graph_names.clone();
+        //let tool_graph_names = self.tool_graph_names.clone();
 
         // let mut broker = Broker::get_instance().lock().unwrap();
 
@@ -158,6 +158,7 @@ impl Operator for AIAgent {
     }
 
     fn handle(&self, in_message: Message) -> Message {
+        return in_message;
         //let origin = in_message.take_origin();
 
         // if existing conversation, retrieve it
@@ -167,16 +168,6 @@ impl Operator for AIAgent {
         // determine the next function (role = tool) and call it
         // pass conversation to operator (role = storage)
         // return response
-        info!("Tool count: {}", self.tools.keys().len());
-
-        let tool = self.tools.iter().next().unwrap().1;
-
-        let schema = tool.get_schema().unwrap();
-        info!("Tool schema: {:?}", schema);
-        // self.tools.iter().filter(|tool| tool.).for_each(|t| {
-        //     info!("Tool: {}", t.name());
-        // });
-        tool.invoke(in_message)
 
         // match &in_message {
         //     Message::JSON { message: json, .. } => match self.operator.process(json.clone()) {
@@ -209,7 +200,7 @@ impl Operator for AIAgent {
     }
 
     fn send(&self, message: Message) {
-        self.next(OperatorRole::default(), message);
+        self.next(message);
     }
 
     fn finalize(&mut self) -> bool {
@@ -292,16 +283,99 @@ impl AIAgent {
         }
     }
 
-    fn next(&self, role: String, _message: Message) {
-        let mut is_match = true;
-        for node in self.next.iter().filter(|o| o.role == role) {
-            node.operator.lock().unwrap().send(_message);
-            is_match = true;
-            break;
-        }
-        if is_match == false {
-            error!("No matching operator found for role {}", role);
-        }
+    fn next(&self, mut _message: Message) {
+        let next = self.next.clone();
+
+        let tools = self.tools.clone();
+
+        let origin = _message.take_origin();
+
+        info!("Next message: {:?}", _message);
+        let request_msg = match _message {
+            Message::JSON { message, .. } => message,
+            Message::Standard { message, .. } => serde_json::from_slice(&message).unwrap(),
+            _ => {
+                error!("Unexpected message type: {:?}", _message);
+                return;
+            }
+        };
+        let user_prompt = request_msg.get("prompt").unwrap().clone();
+        let user_prompt = user_prompt.as_str().unwrap().to_string();
+
+        // before passing on the message, run the engine part
+        tokio::spawn(async move {
+            // (1) if existing conversation, retrieve it
+            //let storage = callout(next.clone(), "storage".to_string(), json!({})).await;
+            // storage will be added to the conversation history
+
+            // (2) gather up any special prompts
+            let prompts_result = callout(next.clone(), "prompt".to_string(), json!({})).await;
+
+            // (4) wait for response
+            if prompts_result.is_err() {
+                error!("Error getting Prompts: {:?}", prompts_result.err());
+                return;
+            }
+            let prompts_result = prompts_result.unwrap();
+
+            let system_prompt = match prompts_result {
+                Message::JSON { message, .. } => message,
+                Message::Standard { message, .. } => serde_json::from_slice(&message).unwrap(),
+                _ => {
+                    error!("Unexpected Prompts result type: {:?}", prompts_result);
+                    return;
+                }
+            };
+            let system_prompt = system_prompt
+                .get("content")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
+
+            // (2) prepare the llm message which includes the tool schemas()
+            let llm_request =
+                prepare_llm_request(system_prompt, Vec::new(), user_prompt, tools).await;
+
+            info!("{}", serde_yaml::to_string(&llm_request).unwrap());
+            // (3) send to operator (role = llm)
+            let llm_result = callout(next.clone(), "llm".to_string(), json!(llm_request)).await;
+
+            // (4) wait for response
+            if llm_result.is_err() {
+                error!("Error calling LLM: {:?}", llm_result.err());
+                return;
+            }
+            let llm_result = llm_result.unwrap();
+
+            let message = match llm_result {
+                Message::JSON { message, .. } => message,
+                Message::Standard { message, .. } => serde_json::from_slice(&message).unwrap(),
+                _ => {
+                    error!("Unexpected LLM result type: {:?}", llm_result);
+                    return;
+                }
+            };
+
+            info!("LLM result: {:?}", message);
+
+            // (5) determine the next function (role = tool) and call it
+            //let a = next_move(_message, HashMap::new()).await;
+            //aa().await;
+
+            // (6) pass conversation to operator (role = storage)
+
+            // (7) return response
+            let role = OperatorRole::default();
+            let next = next
+                .iter()
+                .filter(|o| o.role == role)
+                .next()
+                .map(|n| n.operator.clone())
+                .unwrap();
+
+            next_send(Message::JSON { message, origin }, next).await;
+        });
     }
 
     fn add_next(&mut self, operator: OperatorRole) {
@@ -380,98 +454,107 @@ impl AIAgent {
 //     });
 // }
 
-async fn all_stuff() {
-    let history = vec![
-        json!({
-            "role": "user",
-            "content": "What is the best product for me?"
-        }),
-        json!({
-            "role": "assistant",
-            "content": "I can help you with that. Can you please provide more details about what you're looking for?"
-        }),
-    ];
+async fn next_send(message: Message, next: OperatorRef) {
+    let next = next.lock().unwrap();
+    next.send(message);
+}
 
-    let system_prompt = "";
-    let user_prompt = "";
+async fn prepare_llm_request(
+    system_prompt: String,
+    mut history: Vec<Value>,
+    user_prompt: String,
+    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
+) -> Value {
+    let tool_schemas = tools
+        .iter()
+        .map(|(_name, tool)| {
+            let schema = tool.get_schema().unwrap();
+            json!({
+                "type": "function",
+                "function": schema
+            })
+        })
+        .collect::<Vec<_>>();
 
-    let payload = json!(
-        {
-      "messages": [
+    let mut messages = Vec::new();
+    messages.append(
+        json!([
         {
             "role": "system",
             "content": system_prompt
-        },
-        history,
+        }])
+        .as_array_mut()
+        .unwrap(),
+    );
+    messages.append(&mut history);
+    messages.append(
+        json!([
         {
             "role": "user",
             "content": user_prompt
-        }
-      ],
-      "tool_choice": "auto",
-      "model": "gpt-4.1",
+        }])
+        .as_array_mut()
+        .unwrap(),
+    );
 
-      "tools": [
-        {
-          "type": "function",
-          "function": {
-            "name": "search_tenants",
-            "description": "Search for tenants using keywords",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "keywords": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "Keywords to search for"
-                }
-              },
-              "required": [
-                "keywords"
-              ]
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "get_tenant_details",
-            "description": "Get detailed information about a specific tenant",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "product_id": {
-                  "type": "string",
-                  "description": "Tenant ID to get details for"
-                }
-              },
-              "required": [
-                "tenant_id"
-              ]
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "clarify_request",
-            "description": "Ask user for clarification when request is unclear",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "question": {
-                  "type": "string",
-                  "description": "Question to ask user for clarification"
-                }
-              },
-              "required": [
-                "question"
-              ]
-            }
-          }
-        }
-      ]
-    });
+    json!({
+      "messages": messages,
+      "model": "gpt-4.1",
+      "tools": tool_schemas,
+      "tool_choice": "auto"
+    })
+}
+
+async fn do_callout(message: Value, next: OperatorRef) -> oneshot::Receiver<Message> {
+    let (tx, rx) = oneshot::channel::<Message>();
+
+    let message = Message::JSON {
+        message,
+        origin: Some(OriginMessage::new(Some(tx))),
+    };
+
+    let next = next.lock().unwrap();
+    next.send(message);
+
+    rx
+}
+
+async fn aa() {
+    info!("OK");
+}
+async fn next_move(
+    in_message: Message,
+    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
+) -> Message {
+    info!("Tool count: {}", tools.keys().len());
+
+    let tool = tools.iter().next().unwrap().1;
+
+    let schema = tool.get_schema().unwrap();
+    info!("Tool schema: {:?}", schema);
+    // self.tools.iter().filter(|tool| tool.).for_each(|t| {
+    //     info!("Tool: {}", t.name());
+    // });
+    tool.invoke(in_message)
+}
+
+async fn callout(
+    next_list: Vec<OperatorRole>,
+    role: String,
+    json: Value,
+) -> Result<Message, Canceled> {
+    let next = next_list
+        .iter()
+        .filter(|o| o.role == role)
+        .next()
+        .map(|n| n.operator.clone());
+
+    if next.is_none() {
+        error!("No matching operator found for role {}", role);
+        return Err(Canceled);
+    }
+    let next = next.unwrap().clone();
+
+    let llm_result = do_callout(json, next).await.await;
+    llm_result
 }
