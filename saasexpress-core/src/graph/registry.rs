@@ -1,9 +1,14 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, OnceLock},
+    thread::spawn,
 };
 
-use super::graph::{Graph, GraphMod, GraphRun};
+use tracing::{error, info, warn};
+
+use crate::control_bus::{ControlEvent, get_control_bus};
+
+use super::graph::{Graph, GraphMod, GraphRun, OperatorState};
 
 pub struct GraphRegistry {
     graphs: Vec<Arc<Mutex<Graph>>>,
@@ -14,11 +19,14 @@ impl GraphRegistry {
         GraphRegistry { graphs: Vec::new() }
     }
 
-    pub fn add_graph(&mut self, graph: Graph) {
+    pub fn add_graph(&mut self, graph: Graph) -> Arc<Mutex<Graph>> {
         if self.exists(&graph.name) {
             panic!("Graph with name {} already exists", graph.name);
         }
-        self.graphs.push(Arc::new(Mutex::new((graph))));
+        let arc_graph = Arc::new(Mutex::new(graph));
+        let returned_graph = Arc::clone(&arc_graph);
+        self.graphs.push(arc_graph);
+        returned_graph
     }
 
     pub fn get_graphs(&self) -> Vec<Arc<Mutex<Graph>>> {
@@ -26,12 +34,19 @@ impl GraphRegistry {
     }
 
     pub fn get_graph_by_name(&self, name: &str) -> Option<Arc<Mutex<Graph>>> {
-        Some(Arc::clone(
-            self.graphs
-                .iter()
-                .find(|graph| graph.lock().unwrap().name == name)
-                .unwrap(),
-        ))
+        fn eq(graph: &Arc<Mutex<Graph>>, name: &str) -> bool {
+            graph.try_lock().is_ok() && graph.lock().unwrap().name == name
+        }
+
+        let graph = self.graphs.iter().find(|graph| eq(graph, name));
+
+        match graph {
+            Some(graph) => Some(Arc::clone(graph)),
+            None => {
+                warn!("Graph not found {}", name);
+                None
+            }
+        }
     }
 
     pub fn iterate_graphs(&self) -> Vec<Arc<Mutex<Graph>>> {
@@ -46,6 +61,30 @@ impl GraphRegistry {
         self.graphs
             .iter()
             .any(|graph| graph.lock().unwrap().name == name)
+    }
+
+    pub fn get_graph(graph_name: &str) -> Option<Arc<Mutex<Graph>>> {
+        let graph_registry = GraphRegistry::get_instance();
+
+        let graph_registry = graph_registry.lock();
+        match graph_registry {
+            Ok(_) => {}
+            Err(err) => {
+                error!("Failed to lock graph registry for {} {}", graph_name, err);
+                return None;
+            }
+        }
+        let graph_registry = graph_registry.unwrap();
+
+        graph_registry.get_graph_by_name(&graph_name)
+    }
+
+    pub fn clear(&mut self) {
+        while self.graphs.len() > 0 {
+            info!("POPPING");
+            self.graphs.pop();
+            info!("POPPED");
+        }
     }
 }
 

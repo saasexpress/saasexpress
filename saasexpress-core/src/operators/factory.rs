@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use crate::graph::{
     graph::{Graph, Operator},
-    operator_types::canonical_model::CanonicalModel,
+    operator_types::{ai_agent::AIAgent, ai_tool::AITool, canonical_model::CanonicalModel},
 };
 
 use super::{
-    buffer_to_json::BufferToJSON, callout::Callout, canodamo_sample::CanonicalModelSample,
-    claim_check::claim_check::ClaimCheck, fan_out::fan_out::FanOut, json_to_buffer::JSONToBuffer,
-    passthrough::Passthrough, settings::Settings, shell::shell::Shell, stub::Stub,
-    terminate::Terminate, timer::Timer,
+    ai_agent::AIAgentV1, ai_tool::AIToolV1, buffer_to_json::BufferToJSON, callout::Callout,
+    canodamo_sample::CanonicalModelSample, claim_check::claim_check::ClaimCheck,
+    fan_out::fan_out::FanOut, json_to_buffer::JSONToBuffer, passthrough::Passthrough,
+    settings::Settings, shell::shell::Shell, stub::Stub, terminate::Terminate, timer::Timer,
 };
 
 // #[derive(Debug)]
@@ -89,6 +89,11 @@ pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
             id,
             CanonicalModel::new("CanonicalModelSample", CanonicalModelSample::from(value)),
         ),
+        "AIAgent" => graph.add_node(
+            id,
+            AIAgent::new("AIAgent", value.clone(), AIAgentV1::from(value.clone())),
+        ),
+        "AITool" => graph.add_node(id, AITool::new("AITool", AIToolV1::from(value.clone()))),
         _ => panic!("Unknown operator: {}", name),
     };
 }

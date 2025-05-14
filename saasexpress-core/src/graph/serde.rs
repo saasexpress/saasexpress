@@ -35,6 +35,8 @@ struct Edge {
     from: String,
     /// Destination node ID
     to: String,
+
+    role: Option<String>,
 }
 
 impl RawGraph {
@@ -74,21 +76,25 @@ impl RawGraph {
     }
 }
 
-impl From<RawGraph> for Graph {
-    fn from(raw_graph: RawGraph) -> Self {
-        let mut graph = Graph::new(raw_graph.name);
+// impl From<RawGraph> for Graph {
+//     fn from(raw_graph: RawGraph) -> Self {
+//         let mut graph = Graph::new(raw_graph.name);
 
-        for _node in raw_graph.nodes {
-            // let op: Arc<dyn Operator + 'static>;
+//         for _node in raw_graph.nodes {
+//             // let op: Arc<dyn Operator + 'static>;
 
-            // let operator = OperatorType::from(node);
-            // graph.add_node(&node.id, op);
-        }
+//             // let operator = OperatorType::from(node);
+//             // graph.add_node(&node.id, op);
+//         }
 
-        for edge in raw_graph.edges {
-            graph.add_edge(edge.from, edge.to);
-        }
+//         for edge in raw_graph.edges {
+//             graph.add_edge(
+//                 edge.from,
+//                 edge.to,
+//                 edge.role.unwrap_or_else(|| "default".to_string()),
+//             );
+//         }
 
-        graph
-    }
-}
+//         graph
+//     }
+// }

@@ -6,6 +6,8 @@ pub(crate) mod json_to_buffer;
 pub(crate) mod callout;
 pub(crate) mod canodamo_sample;
 
+pub(crate) mod ai_agent;
+pub(crate) mod ai_tool;
 pub(crate) mod claim_check;
 pub(crate) mod fan_out;
 pub(crate) mod noop;

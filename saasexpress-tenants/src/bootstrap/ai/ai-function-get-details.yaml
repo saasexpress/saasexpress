@@ -1,0 +1,35 @@
+# https://martinfowler.com/articles/function-call-LLM.html
+#
+# curl http://localhost:2243/invoke/get_details -d '{"id": "123"}'
+#
+
+name: ai-function-get-details
+nodes:
+  - id: start
+    action: AITool
+    config:
+      schema:
+        name: tool_get_details
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: search
+    action: APICall
+    config:
+      method: GET
+      path: /api/tenants/{data.id}
+      url: http://localhost:2243
+
+  - id: result
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "response": "{data.name} : price: {data.price}, description: {data.description}"
+        }
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: search }
+  - { from: search, to: result }

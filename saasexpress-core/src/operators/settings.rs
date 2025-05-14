@@ -8,7 +8,9 @@ use futures::channel::oneshot;
 use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{
+    AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorState, OperatorType,
+};
 
 use crate::graph::message::{ControlCommand, Message, OriginMessage};
 
@@ -19,7 +21,8 @@ use crate::graph::registry::GraphRegistry;
 #[derive(Clone, Debug)]
 pub(crate) struct Settings {
     graphs: Vec<Arc<Mutex<Graph>>>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
+    state: OperatorState,
 }
 
 impl From<serde_yaml::Value> for Settings {
@@ -27,6 +30,7 @@ impl From<serde_yaml::Value> for Settings {
         Settings {
             graphs: Vec::new(),
             next: Vec::new(),
+            state: OperatorState::Pending,
         }
     }
 }
@@ -118,11 +122,18 @@ impl Operator for Settings {
         warn!("Not implemented");
     }
 
-    fn finalize(&mut self) {
-        let graph_registry = GraphRegistry::get_instance();
-        let graph_registry = graph_registry.lock().unwrap();
-        self.graphs = graph_registry.get_graphs();
-        error!("Finalizing with {} graph(s)", self.graphs.len());
+    fn state(&self) -> OperatorState {
+        self.state.clone()
+    }
+
+    fn finalize(&mut self) -> bool {
+        // let graph_registry = GraphRegistry::get_instance();
+        // let graph_registry = graph_registry.lock().unwrap();
+        // self.graphs = graph_registry.get_graphs();
+        // self.state = OperatorState::Ready;
+        // error!("Finalizing with {} graph(s)", self.graphs.len());
+        self.state = OperatorState::Ready;
+        true
     }
 
     fn control(&mut self, _message: Message) {
@@ -158,10 +169,10 @@ impl Operator for Settings {
 impl Settings {
     fn next(&self, message: Message) {
         let next_node = self.next.get(0).unwrap();
-        next_node.lock().unwrap().send(message);
+        next_node.operator.lock().unwrap().send(message);
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 }

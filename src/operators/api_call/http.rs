@@ -29,11 +29,12 @@ impl HTTPBuilder {
         }
     }
 
+    #[fastrace::trace(short_name = true)]
     pub async fn send(self) -> Result<reqwest::Response, reqwest::Error> {
-        info!("--> Sending request");
-        info!("Builder : {:?}", self.builder);
+        debug!("--> Sending request");
+        debug!("Builder : {:?}", self.builder);
         let response = self.builder.send().await;
-        info!("<-- Response received");
+        debug!("<-- Response received");
         response
     }
 

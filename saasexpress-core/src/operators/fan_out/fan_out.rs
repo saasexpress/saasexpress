@@ -8,7 +8,9 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
+use crate::graph::graph::{
+    AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorType, Origin,
+};
 
 use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
@@ -19,7 +21,7 @@ use fastrace::future::FutureExt;
 
 #[derive(Debug)]
 pub(crate) struct FanOut {
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRef>,
     senders: Vec<mpsc::Sender<Message>>,
 }
 
@@ -374,8 +376,10 @@ impl FanOut {
         tokio::spawn(future);
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         //self.next.push(operator);
+
+        let operator = operator.operator;
 
         let (tx1, mut rx1) = mpsc::channel::<Message>(1);
 
@@ -447,7 +451,7 @@ impl FanOut {
     //         .collect::<Vec<Message>>();
     // }
 
-    fn setup_routes(&self, _start: Arc<Mutex<dyn Operator + 'static>>) {}
+    fn setup_routes(&self, _start: OperatorRef) {}
 }
 // /// Distributes a message to three receivers, collects all their responses,
 // /// and sends the combined result back through the original oneshot sender.

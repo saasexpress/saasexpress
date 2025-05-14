@@ -5,7 +5,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::graph::message::{Message, OriginMessage};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType, Origin};
+use crate::graph::graph::{
+    AsyncHandleTrait, Graph, Operator, OperatorRef, OperatorRole, OperatorType, Origin,
+};
 use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
 
@@ -15,7 +17,7 @@ use super::resources::get_instance;
 pub(crate) struct Shell {
     command: String,
     args: Vec<String>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
 }
 
 impl From<serde_yaml::Value> for Shell {
@@ -272,7 +274,7 @@ impl Shell {
         let mut counter = 0;
         for n in &self.next {
             if counter == 0 {
-                n.lock().unwrap().send(message);
+                n.operator.lock().unwrap().send(message);
                 break;
             } else {
                 info!("Not implemented");
@@ -281,7 +283,7 @@ impl Shell {
         }
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 }

@@ -1,8 +1,9 @@
 // Operator.Engine(NodeId)
 #[derive(Debug)]
 pub struct NodeMeta {
-    pub id: String,
+    pub graph: String,
     pub name: String,
+    pub operator: String,
     pub engine: Option<String>,
     pub description: String,
     pub tags: Vec<String>,
@@ -11,15 +12,26 @@ pub struct NodeMeta {
 }
 
 impl NodeMeta {
-    pub fn new(id: &str, name: String) -> Self {
+    pub fn new(graph: &str, name: &str, operator: String) -> Self {
         NodeMeta {
-            id: id.to_string(),
-            name,
+            graph: graph.to_string(),
+            name: name.to_string(),
+            operator,
             engine: None,
             description: "".to_string(),
             tags: Vec::new(),
             properties: Vec::new(),
             logo: Vec::new(),
         }
+    }
+
+    pub fn fqn(&self) -> String {
+        let engine = if self.engine.is_some() {
+            format!(".{}", self.engine.as_ref().unwrap())
+        } else {
+            "".to_string()
+        };
+
+        format!("{}.{}({}{})", self.graph, self.name, self.operator, engine)
     }
 }

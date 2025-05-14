@@ -1,0 +1,477 @@
+use fastrace::Span;
+use futures::channel::oneshot;
+use serde_json::{Error, Value, json};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
+
+use crate::{
+    broker::Broker,
+    control_bus::ControlEvent,
+    graph::{
+        graph::{
+            AsyncHandleTrait, Graph, GraphStatus, Operator, OperatorRef, OperatorRole,
+            OperatorState, OperatorType,
+        },
+        message::{Message, OriginMessage},
+        meta::NodeMeta,
+        registry::GraphRegistry,
+    },
+    my_reg::register,
+    settings::settings::env_settings,
+};
+use core::panic;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
+
+use super::ai_tool::AIToolOperator;
+
+pub trait AIAgentOperator: Sync + Send + Debug {
+    fn process(&self, json: Value) -> Result<(), Error>;
+}
+
+#[derive(Debug)]
+pub struct AIAgent {
+    node_fqn: Option<String>,
+    graph_name: Option<String>,
+    name: String,
+    state: OperatorState,
+    tool_graph_names: Vec<String>,
+    pub(crate) operator: Arc<dyn AIAgentOperator + Send + Sync + 'static>,
+
+    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
+    next: Vec<OperatorRole>,
+}
+
+impl AIAgent {
+    pub fn new(
+        name: &str,
+        values: serde_yaml::Value,
+        operator: impl AIAgentOperator + Send + Sync + 'static,
+    ) -> Self {
+        let tool_graph_names = values
+            .get("tool_graphs")
+            .and_then(|v| v.as_sequence())
+            .map(|seq| {
+                seq.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        AIAgent {
+            node_fqn: None,
+            graph_name: None,
+            state: OperatorState::Pending,
+            name: name.to_string(),
+            operator: Arc::new(operator),
+            next: Vec::new(),
+            tools: HashMap::new(),
+            tool_graph_names,
+        }
+    }
+}
+
+impl Operator for AIAgent {
+    fn _type(&self) -> OperatorType {
+        OperatorType::AIAgent {}
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn state(&self) -> OperatorState {
+        self.state.clone()
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        let settings = env_settings(graph.base_env_vars_settings(node_meta));
+
+        self.node_fqn = node_meta.fqn().into();
+        self.graph_name = Some(graph.name.clone());
+
+        let tool_graph_names = self.tool_graph_names.clone();
+
+        // let mut broker = Broker::get_instance().lock().unwrap();
+
+        // for tool_graph_name in tool_graph_names.iter() {
+        //     let pub_msg = broker.publish(tool_graph_name.clone(), vec![]);
+
+        //     tokio::spawn(async move {
+        //         pub_msg.await;
+        //     });
+
+        //     info!("Subscribing to tool graph {}", tool_graph_name);
+        //     let mut rx = broker.subscribe(tool_graph_name.clone());
+
+        //     let tool_graph_name = tool_graph_name.clone();
+        //     tokio::spawn(async move {
+        //         while let Some(message) = rx.recv().await {
+        //             info!("Received message from tool graph {:?}", tool_graph_name);
+        //             // Process the message here
+        //             // let result = operator.process(message.payload);
+        //             // if let Err(e) = result {
+        //             //     error!("Error processing message: {}", e);
+        //             // }
+        //         }
+        //     });
+
+        //     // while let Some(message) = rx.recv().await {
+        //     //     info!("Received message from tool graph {:?}", tool_graph_name);
+        //     // }
+        // }
+
+        // let a = settings.iter().find(|x| x.key == "URL");
+        // if a.is_some() {
+        //     info!("Overriding URL from settings {:?}", a);
+        //     self.url = a.unwrap().value.clone();
+        // }
+    }
+
+    fn control(&mut self, message: Message) {
+        match message {
+            Message::Init {
+                id,
+                next,
+                start,
+                end,
+            } => {
+                for n in next {
+                    self.add_next(n);
+                }
+
+                //let graph_name = self.graph_name.clone().unwrap();
+
+                //watch_control_bus(graph_name, self.node_fqn.clone().unwrap());
+            }
+            _ => {
+                error!("Unexpected message type {}", message);
+            }
+        }
+    }
+
+    fn handle(&self, in_message: Message) -> Message {
+        //let origin = in_message.take_origin();
+
+        // if existing conversation, retrieve it
+        // prepare the llm message which includes the tool schemas()
+        // send to operator (role = llm)
+        // wait for response
+        // determine the next function (role = tool) and call it
+        // pass conversation to operator (role = storage)
+        // return response
+        info!("Tool count: {}", self.tools.keys().len());
+
+        let tool = self.tools.iter().next().unwrap().1;
+
+        let schema = tool.get_schema().unwrap();
+        info!("Tool schema: {:?}", schema);
+        // self.tools.iter().filter(|tool| tool.).for_each(|t| {
+        //     info!("Tool: {}", t.name());
+        // });
+        tool.invoke(in_message)
+
+        // match &in_message {
+        //     Message::JSON { message: json, .. } => match self.operator.process(json.clone()) {
+        //         Ok(_model) => in_message.with_origin(origin),
+        //         Err(e) => {
+        //             error!("Error processing message to AIAgent: {}", e);
+        //             return Message::Error {
+        //                 error: format!("Canonical Model Validation Error - {}", e).to_string(),
+        //                 origin,
+        //             };
+        //         }
+        //     },
+        //     _ => {
+        //         error!("Unexpected message type {}", in_message);
+        //         return Message::Error {
+        //             error: "Unexpected message type".to_string(),
+        //             origin,
+        //         };
+        //     }
+        // }
+        // in_message
+    }
+
+    fn wait(&self) -> Message {
+        panic!("Not implemented");
+    }
+
+    fn get_output_channels(&self) -> &Vec<std::sync::Arc<std::sync::Mutex<dyn Operator>>> {
+        panic!("Not implemented");
+    }
+
+    fn send(&self, message: Message) {
+        self.next(OperatorRole::default(), message);
+    }
+
+    fn finalize(&mut self) -> bool {
+        for operator in self.next.iter() {
+            debug!(
+                "Finalizing AIAgent {:?} {:?}",
+                operator.role,
+                operator.operator.lock().unwrap()
+            );
+            if operator.role == "tool" {
+                let operator = operator.operator.lock().unwrap();
+                let op_type = operator._type();
+                info!("Operator type: {:?}", op_type);
+
+                if let OperatorType::AITool { tool } = op_type {
+                    debug!("Tool match {} {:?}", tool.name(), tool);
+                    self.tools.insert(tool.name(), tool);
+                } else {
+                    error!("Invalid operator type {:?} {}", op_type, operator.name());
+                    return false;
+                }
+            } else if operator.role == "prompt" {
+                let operator = operator.operator.lock().unwrap();
+                let op_type = operator._type();
+                info!("PROMPT Operator type: {:?}", op_type);
+            } else if operator.role == "llm" {
+                let operator = operator.operator.lock().unwrap();
+                let op_type = operator._type();
+                info!("LLM Operator type: {:?}", op_type);
+            } else if operator.role == "default" {
+                // this is fine - where the final response gets passed onto
+            } else {
+                error!(
+                    "Unexpected operator role {:?} {:?}",
+                    operator.role, operator.operator
+                );
+            }
+        }
+        self.state = OperatorState::Ready;
+        true
+    }
+
+    fn send_ptr(&self, _message: Arc<Message>) {
+        let message = _message.to_owned();
+        self.next_ptr(self.handle_ptr(message));
+    }
+
+    fn handle_ptr(&self, message: Arc<Message>) -> Arc<Message> {
+        tracing::debug!("default handle (passthrough)... {}", self.name());
+        return message;
+    }
+
+    fn next_ptr(&self, message: Arc<Message>) {
+        // Sending message to next operator
+        for n in self.get_output_channels() {
+            n.lock().unwrap().send_ptr(message.to_owned());
+            //break;
+        }
+    }
+}
+
+impl AIAgent {
+    async fn req_reply(&self, role: String, mut json: Value) {
+        let mut is_match = true;
+        for node in self.next.iter().filter(|o| o.role == role) {
+            let operator = node.operator.lock().unwrap();
+
+            let (tx, rx) = oneshot::channel();
+            operator.send(Message::JSON {
+                message: json.take(),
+                origin: Some(OriginMessage::new(Some(tx))),
+            });
+
+            let response = rx.await;
+            info!("Response = {:?}", response);
+            is_match = true;
+        }
+        if is_match == false {
+            error!("No matching operator found for role {}", "tool");
+        }
+    }
+
+    fn next(&self, role: String, _message: Message) {
+        let mut is_match = true;
+        for node in self.next.iter().filter(|o| o.role == role) {
+            node.operator.lock().unwrap().send(_message);
+            is_match = true;
+            break;
+        }
+        if is_match == false {
+            error!("No matching operator found for role {}", role);
+        }
+    }
+
+    fn add_next(&mut self, operator: OperatorRole) {
+        self.next.push(operator);
+    }
+
+    #[fastrace::trace]
+    fn start_agent(&self) {
+        self.next.iter().for_each(|n| {
+            let node = Arc::clone(&n.operator);
+
+            // ReqReply tools to get the schema
+            let operator = node.lock().unwrap();
+
+            let (tx, rx) = oneshot::channel();
+
+            let origin = Some(OriginMessage::new(Some(tx)));
+
+            info!("Starting tool {}", operator.name());
+            operator.send(Message::Standard {
+                message: serde_json::to_vec(&json!({"tool": "setup"})).unwrap(),
+                origin,
+            });
+
+            let name = operator.name();
+            let finalize = async move {
+                let response = rx.await.unwrap_or_else(|_| {
+                    error!("Failed to receive response from tool");
+                    Message::Error {
+                        error: "Failed to receive response from tool".to_string(),
+                        origin: None,
+                    }
+                });
+
+                info!("Received response from tool {}: {:?}", name, response);
+            };
+            tokio::spawn(finalize);
+        });
+    }
+}
+
+// fn watch_control_bus(graph_name: String, id: String) {
+//     let (tx, mut rx) = mpsc::channel::<ControlEvent>(100);
+
+//     // Register it
+//     register(&id, tx);
+
+//     tokio::spawn(async move {
+//         // let graph = GraphRegistry::get_graph(&graph_name);
+
+//         // let graph = graph.expect("Failed to get graph!");
+
+//         loop {
+//             // Receive the message
+//             if let Some(msg) = rx.recv().await {
+//                 info!(
+//                     "[Node: {}] Received : {:?}",
+//                     id,
+//                     serde_json::to_string(&msg)
+//                 );
+
+//                 // if msg.graph_name == graph_name {
+//                 //     info!("Received message from itself {}", graph_name);
+//                 // } else {
+//                 //     if msg.state == GraphStatus::Running {
+//                 //         let mut graph = graph.lock().unwrap();
+
+//                 //         graph.poke();
+//                 //     }
+//                 // }
+//             } else {
+//                 warn!("Channel is closed");
+//                 break;
+//             }
+//         }
+//     });
+// }
+
+async fn all_stuff() {
+    let history = vec![
+        json!({
+            "role": "user",
+            "content": "What is the best product for me?"
+        }),
+        json!({
+            "role": "assistant",
+            "content": "I can help you with that. Can you please provide more details about what you're looking for?"
+        }),
+    ];
+
+    let system_prompt = "";
+    let user_prompt = "";
+
+    let payload = json!(
+        {
+      "messages": [
+        {
+            "role": "system",
+            "content": system_prompt
+        },
+        history,
+        {
+            "role": "user",
+            "content": user_prompt
+        }
+      ],
+      "tool_choice": "auto",
+      "model": "gpt-4.1",
+
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "search_tenants",
+            "description": "Search for tenants using keywords",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Keywords to search for"
+                }
+              },
+              "required": [
+                "keywords"
+              ]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "get_tenant_details",
+            "description": "Get detailed information about a specific tenant",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "product_id": {
+                  "type": "string",
+                  "description": "Tenant ID to get details for"
+                }
+              },
+              "required": [
+                "tenant_id"
+              ]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "clarify_request",
+            "description": "Ask user for clarification when request is unclear",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "question": {
+                  "type": "string",
+                  "description": "Question to ask user for clarification"
+                }
+              },
+              "required": [
+                "question"
+              ]
+            }
+          }
+        }
+      ]
+    });
+}

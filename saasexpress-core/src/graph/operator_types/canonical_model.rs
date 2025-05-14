@@ -89,8 +89,9 @@ impl Operator for CanonicalModel {
         panic!("Not implemented");
     }
 
-    fn finalize(&mut self) {
+    fn finalize(&mut self) -> bool {
         tracing::debug!("Default finalize operator {} - no action", self.name());
+        true
     }
 
     fn send_ptr(&self, _message: Arc<Message>) {

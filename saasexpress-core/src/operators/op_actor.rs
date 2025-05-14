@@ -3,7 +3,10 @@ use std::{
     thread::sleep,
 };
 
-use crate::graph::{graph::OperatorType, message::Message};
+use crate::graph::{
+    graph::{OperatorRef, OperatorRole, OperatorType},
+    message::Message,
+};
 use fastrace::{Span, local::LocalSpan, prelude::SpanContext};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, info_span, instrument, span, warn};
@@ -18,7 +21,7 @@ pub(crate) struct OpActor {
     name: String,
     receiver: mpsc::Receiver<Message>,
     handle: Box<dyn Operator + 'static>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
 }
 
 impl OpActor {
@@ -114,12 +117,12 @@ impl OpActor {
 
     fn next(&self, _message: Message) {
         for node in &self.next {
-            node.lock().unwrap().send(_message);
+            node.operator.lock().unwrap().send(_message);
             break;
         }
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 }

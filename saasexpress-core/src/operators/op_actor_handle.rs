@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error, info, info_span, instrument, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorRef, OperatorType};
 
 use crate::graph::message::Message;
 
@@ -25,7 +25,7 @@ use tracing::Instrument;
 pub(crate) struct OperatorActorHandle {
     sender: mpsc::Sender<Message>,
     name: String,
-    _nodes: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    _nodes: Vec<OperatorRef>,
 }
 
 impl OperatorActorHandle {
@@ -77,7 +77,7 @@ impl Operator for OperatorActorHandle {
     }
 
     fn control(&mut self, _message: Message) {
-        info!("Control message received: {:?}", _message);
+        debug!("Control message received: {:?}", _message);
         match _message {
             Message::Init { .. } => match self.sender.try_send(_message) {
                 Ok(_) => debug!("Message sent to {}", self.name),

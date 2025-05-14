@@ -21,13 +21,15 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::error;
 
-use super::graph::Operator;
+use super::graph::{Operator, OperatorRef, OperatorRole};
 
 #[derive(Debug)]
 pub enum ControlCommand {
     SetSettings {
         settings: HashMap<String, serde_json::Value>,
     },
+    Start,
+    Stop,
 }
 
 #[derive(Debug)]
@@ -162,9 +164,9 @@ pub enum Message {
     },
     Init {
         id: String,
-        next: Vec<Arc<Mutex<dyn Operator>>>,
-        end: Arc<Mutex<dyn Operator + 'static>>,
-        start: Arc<Mutex<dyn Operator + 'static>>,
+        next: Vec<OperatorRole>,
+        end: OperatorRef,
+        start: OperatorRef,
     },
     Error {
         error: String,

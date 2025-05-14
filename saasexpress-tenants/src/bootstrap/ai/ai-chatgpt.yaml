@@ -1,7 +1,7 @@
 #
 # AI_CHATGPT_CALL_AUTHORIZATION="Bearer sk"
 #
-# curl http://localhost:2243/chatgpt?prompt=hello
+# curl http://localhost:2243/chatgpt?prompt=find me tenants
 #
 name: ai-chatgpt
 nodes:
@@ -12,6 +12,15 @@ nodes:
       routes:
         - /chatgpt
 
+  # - id: system_prompt
+  #   action: MessageTranslator
+  #   config:
+  #     in_temp: true
+  #     template: |
+  #       {
+  #           "content": "You are a shopping assistant. Use these functions:\n1. search_products: When user wants to find products (e.g., 'show me shirts')\n2. get_product_details: When user asks about a specific product ID (e.g., 'tell me about product p1')\n3. clarify_request: When user's request is unclear"
+  #       }
+
   - id: prepare
     action: MessageTranslator
     config:
@@ -19,10 +28,77 @@ nodes:
         { 
           "messages": [
             {
+                "role": "system",
+                "content": "You are a shopping assistant. Use these functions:\n1. search_products: When user wants to find products (e.g., 'show me shirts')\n2. get_product_details: When user asks about a specific product ID (e.g., 'tell me about product p1')\n3. clarify_request: When user's request is unclear"
+            },
+            {
                 "role": "user",
                 "content": temp.http_in.query.prompt
             }
           ],
+          "_tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "search_tenants",
+                "description": "Search for tenants using keywords",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "keywords": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Keywords to search for"
+                    }
+                  },
+                  "required": [
+                    "keywords"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "get_tenant_details",
+                "description": "Get detailed information about a specific tenant",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "product_id": {
+                      "type": "string",
+                      "description": "Tenant ID to get details for"
+                    }
+                  },
+                  "required": [
+                    "tenant_id"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "clarify_request",
+                "description": "Ask user for clarification when request is unclear",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string",
+                      "description": "Question to ask user for clarification"
+                    }
+                  },
+                  "required": [
+                    "question"
+                  ]
+                }
+              }
+            }
+          ],
+          // "tool_choice": "auto",
           "model": "gpt-4.1"
         }
 
@@ -35,6 +111,9 @@ nodes:
       url: https://api.openai.com/v1/chat/completions
       method: POST
 
+  # evaluate response based on "choices[0].finish_reason"
+  # If tool_calls then callout to the particular function
+  # If
 edges:
   - { from: start, to: prepare }
   - { from: prepare, to: j2b }

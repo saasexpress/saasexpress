@@ -18,7 +18,7 @@ nodes:
     action: APICall
     config:
       path: ""
-      url: https://vault.developer.gov.bc.ca
+      url: http://localhost:8200
       method: GET
 
   - id: b2j

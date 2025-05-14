@@ -1,6 +1,6 @@
 use saasexpress_core::{
     graph::{
-        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        graph::{AsyncHandleTrait, Graph, Operator, OperatorRef, OperatorRole, OperatorType},
         message::{ControlCommand, Message},
         meta::NodeMeta,
     },
@@ -36,7 +36,7 @@ pub(crate) struct HTTPIn {
     sse: bool,
     routes: Vec<String>,
     method: String,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
     settings: Vec<Setting>,
 }
 
@@ -173,7 +173,7 @@ impl Operator for HTTPIn {
 
     fn next_ptr(&self, message: Arc<Message>) {
         for n in &self.next {
-            n.lock().unwrap().send_ptr(message.to_owned());
+            n.operator.lock().unwrap().send_ptr(message.to_owned());
         }
     }
 
@@ -181,8 +181,13 @@ impl Operator for HTTPIn {
         panic!("Not implemented");
     }
 
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        self.next.as_ref()
+    fn get_output_channels(&self) -> &Vec<OperatorRef> {
+        panic!("Not implemented");
+        // self.next
+        //     .iter()
+        //     .map(|n| n.operator)
+        //     .collect::<Vec<OperatorRef>>()
+        //     .as_ref()
     }
 }
 
@@ -191,7 +196,7 @@ impl HTTPIn {
         let mut counter = 0;
         for n in &self.next {
             if counter == 0 {
-                n.lock().unwrap().send(message);
+                n.operator.lock().unwrap().send(message);
                 break;
             } else {
                 info!("Not implemented");
@@ -200,7 +205,7 @@ impl HTTPIn {
         }
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 

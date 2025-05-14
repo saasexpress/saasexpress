@@ -58,7 +58,7 @@ impl MessageTranslatorMode {
 
 #[derive(Debug)]
 pub(crate) struct MessageTranslator {
-    id: String,
+    node_fqn: Option<String>,
     template: String,
     engine: MessageTranslatorEngine,
 
@@ -71,7 +71,7 @@ pub(crate) struct MessageTranslator {
 impl From<serde_yaml::Value> for MessageTranslator {
     fn from(value: serde_yaml::Value) -> Self {
         MessageTranslator {
-            id: "".to_string(),
+            node_fqn: None,
             template: value["template"].as_str().unwrap_or("").to_string(),
             in_temp: value["in_temp"].as_bool().unwrap_or(false),
             temp_group: value["temp_group"].as_str().map(|s| s.to_string()),
@@ -110,7 +110,7 @@ impl Operator for MessageTranslator {
         match _message {
             Message::JSON { message, origin } => {
                 let input = json!({
-                    "resource": self.id,
+                    "resource": self.node_fqn,
                     "http_method": "UNKNOWN",
                     "query": {}
                 });
@@ -156,7 +156,7 @@ impl Operator for MessageTranslator {
                 );
 
                 let input = json!({
-                    "resource": self.id,
+                    "resource": self.node_fqn,
                 });
 
                 let json: serde_json::Value = match &message {
@@ -200,15 +200,9 @@ impl Operator for MessageTranslator {
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
-        self.id = format!(
-            "{}.{}({}).{}",
-            graph.name,
-            self.name(),
-            node_meta.id,
-            self.engine,
-        );
+        self.node_fqn = Some(node_meta.fqn());
         if self.temp_group.is_none() {
-            self.temp_group = Some(node_meta.id.to_string());
+            self.temp_group = Some(node_meta.name.to_string());
         }
 
         self.settings = env_settings(graph.base_env_vars_settings(node_meta))

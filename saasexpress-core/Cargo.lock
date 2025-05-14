@@ -667,6 +667,7 @@ dependencies = [
  "dotenv",
  "fastrace",
  "futures",
+ "once_cell",
  "serde",
  "serde_json",
  "serde_yaml",

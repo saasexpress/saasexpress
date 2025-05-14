@@ -3,19 +3,29 @@ use std::sync::{Arc, Mutex};
 use fastrace::local::LocalSpan;
 use fastrace::prelude::SpanContext;
 use fastrace::{Event, Span, trace};
+use futures::StreamExt;
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Operator};
+use crate::broker::Broker;
+use crate::control_bus::{ControlEvent, get_control_bus};
+use crate::graph;
+use crate::graph::graph::{
+    AsyncHandleTrait, Filter2Operator, GraphStatus, Operator, OperatorRef, OperatorState,
+};
 use crate::graph::graph::{Graph, OperatorType};
 use crate::graph::message::Message;
 use crate::graph::meta::NodeMeta;
+use crate::graph::registry::GraphRegistry;
+use crate::my_reg::register;
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
 pub struct OperatorWrapper {
     name: String,
+    graph_name: Option<String>,
     handle: Arc<Mutex<Box<dyn Operator + 'static>>>,
-    _nodes: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    _nodes: Vec<OperatorRef>,
 }
 
 impl OperatorWrapper {
@@ -28,6 +38,7 @@ impl OperatorWrapper {
 
         Self {
             name: String::clone(&nm),
+            graph_name: None,
             handle: Arc::new(Mutex::new(Box::new(operator))),
             _nodes: Vec::new(),
         }
@@ -114,6 +125,9 @@ impl Operator for OperatorWrapper {
     fn name(&self) -> String {
         return self.name.clone();
     }
+    fn state(&self) -> OperatorState {
+        self.handle.lock().unwrap().state()
+    }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
         let hdl = self.handle.lock().unwrap();
@@ -149,12 +163,13 @@ impl Operator for OperatorWrapper {
         }
     }
 
-    fn init(&mut self, _graph: &mut Graph, _node_meta: &NodeMeta) {
-        info!("Not implemented");
+    fn init(&mut self, graph: &mut Graph, _node_meta: &NodeMeta) {
+        self.graph_name = Some(graph.name.clone());
+        self.handle.lock().unwrap().init(graph, _node_meta);
     }
 
-    fn finalize(&mut self) {
-        self.handle.lock().unwrap().finalize();
+    fn finalize(&mut self) -> bool {
+        self.handle.lock().unwrap().finalize()
     }
 
     fn control(&mut self, _message: Message) {
@@ -165,6 +180,8 @@ impl Operator for OperatorWrapper {
                 start,
                 end,
             } => {
+                let name = id.clone();
+
                 let mut hdl = self.handle.lock().unwrap();
 
                 hdl.control(Message::Init {
@@ -173,6 +190,71 @@ impl Operator for OperatorWrapper {
                     start,
                     end,
                 });
+
+                // let graph_name = self.name.clone();
+                //let self_graph_name = self.graph_name.clone().unwrap();
+
+                //watch_control_bus(self_graph_name, self.name.clone());
+
+                // let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+
+                // {
+                //     let control_bus = get_control_bus();
+                //     let mut control_bus = control_bus.lock().unwrap();
+
+                //     control_bus.new_subscriber(tx);
+                // }
+                // {
+                //     let control_bus = get_control_bus();
+
+                //     let control_bus = control_bus.lock().unwrap();
+                //     // control_bus.send_message(ControlEvent {
+                //     //     graph_name: graph_name.clone(),
+                //     //     operator_names: vec![],
+                //     //     state: OperatorState::Pending,
+                //     // });
+                //     //     .await;
+                // }
+
+                // // wait for incoming control events and take action as required
+                // tokio::spawn(async move {
+                //     //let graph_registry = GraphRegistry::get_instance();
+                //     //let graph_registry = graph_registry.lock().unwrap();
+
+                //     loop {
+                //         let event = rx.recv().await;
+                //         match event {
+                //             Some(event) => {
+                //                 info!(
+                //                     "[{}] Received control event: {:?} {:?}",
+                //                     graph_name, event.graph_name, event.state
+                //                 );
+                //             }
+                //             None => {
+                //                 error!("No control event received");
+                //             }
+                //         }
+                //     }
+                // });
+
+                /*
+                let broker = Broker::get_instance();
+
+                tokio::spawn(async move {
+                    let mut rx = broker.lock().unwrap().subscribe(name);
+                    loop {
+                        let message = rx.recv().await;
+                        match message {
+                            Some(msg) => {
+                                error!("Broker Message! {:?}", msg.payload);
+                            }
+                            None => {
+                                panic!("No message received");
+                            }
+                        }
+                    }
+                });
+                */
             }
             Message::Control { command, origin } => {
                 let mut hdl = self.handle.lock().unwrap();
@@ -265,3 +347,55 @@ impl AsyncHandleTrait for OperatorWrapper {
         Box::pin(async move { Arc::new(Message::NoOp {}) })
     }
 }
+
+// fn watch_control_bus(self_graph_name: String, id: String) {
+//     let (tx, mut rx) = mpsc::channel::<ControlEvent>(100);
+
+//     // Register it
+//     register(&id, tx);
+
+//     tokio::spawn(async move {
+//         let g = { GraphRegistry::get_graph("ai_agent") };
+//         info!("Graph inside: {:?}", g);
+
+//         loop {
+//             // Receive the message
+//             if let Some(msg) = rx.recv().await {
+//                 info!("Received: {:?}", serde_json::to_string(&msg));
+
+//                 // if msg.graph_name == self_graph_name {
+//                 //     if msg.state == GraphStatus::Running {
+//                 //         info!(
+//                 //             "Received message from self graph {} - ignoring",
+//                 //             self_graph_name
+//                 //         );
+//                 //     } else {
+//                 //         let graph = GraphRegistry::get_graph(&self_graph_name);
+
+//                 //         let graph = graph.expect("Failed to get graph!");
+
+//                 //         let mut graph = graph.lock().unwrap();
+
+//                 //         graph.poke();
+//                 //     }
+//                 // } else if msg.state == GraphStatus::Running {
+//                 //     let graph = GraphRegistry::get_graph(&self_graph_name);
+
+//                 //     let graph = graph.expect("Failed to get graph!");
+
+//                 //     let mut graph = graph.lock().unwrap();
+
+//                 //     graph.poke();
+//                 // }
+
+//                 // if graph.state == GraphStatus::Starting && msg.graph_name != graph_name {
+//                 //     info!("Calling finalize on operators again {}", msg.graph_name);
+//                 //     //graph.poke();
+//                 // }
+//             } else {
+//                 warn!("Channel is closed");
+//                 break;
+//             }
+//         }
+//     });
+// }

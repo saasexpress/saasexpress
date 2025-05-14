@@ -10,7 +10,7 @@ use serde_json::json;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorType};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
@@ -24,7 +24,7 @@ pub(crate) struct Timer {
     on_start: bool,
     interval_ms: Option<Duration>,
     iterations: u16,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
 }
 
 impl From<serde_yaml::Value> for Timer {
@@ -63,7 +63,7 @@ impl Operator for Timer {
     fn handle(&self, mut _message: Message) -> Message {
         // Only handle the message if we want to start a timer
         if self.on_start == false && self.interval_ms.is_some() {
-            let sender = self.next.get(0).unwrap().clone();
+            let sender = self.next.get(0).unwrap().clone().operator;
 
             let mpsc_respond_to = _message
                 .get_origin()
@@ -91,7 +91,7 @@ impl Operator for Timer {
 
     fn init(&mut self, _: &mut Graph, _node_meta: &NodeMeta) {}
 
-    fn finalize(&mut self) {
+    fn finalize(&mut self) -> bool {
         if self.on_start {
             let root_span = Span::root("timer", SpanContext::random());
 
@@ -122,7 +122,7 @@ impl Operator for Timer {
                 .in_span(root_span),
             );
         } else if self.interval_ms.is_none() {
-            let sender = self.next.get(0).unwrap().clone();
+            let sender = self.next.get(0).unwrap().clone().operator;
 
             let name = self.name();
 
@@ -145,12 +145,14 @@ impl Operator for Timer {
                     };
 
                     info!("Timer sending message: {:?}", message);
+
                     sender.lock().unwrap().send(message);
 
                     rx.in_span(recv_span).await.unwrap();
                 }
             });
         }
+        true
     }
 
     fn control(&mut self, _message: Message) {
@@ -186,20 +188,20 @@ impl Operator for Timer {
 impl Timer {
     fn next(&self, message: Message) {
         for n in &self.next {
-            let operator = n.lock().unwrap();
+            let operator = n.operator.lock().unwrap();
             operator.send(message);
             break;
         }
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 }
 
 async fn interval_trigger(
     name: String,
-    sender: Arc<Mutex<dyn Operator + 'static>>,
+    sender: OperatorRef,
     mut message: Message,
     interval: Duration,
     iterations: u16,

@@ -1,23 +1,37 @@
 use std::sync::{Arc, Mutex};
 
+use chrono::Duration;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use futures::channel::oneshot;
-use tracing::{debug, info};
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tracing::{debug, error, info, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::broker::Broker;
+use crate::control_bus::ControlEvent;
+use crate::graph;
+use crate::graph::graph::{
+    AsyncHandleTrait, Graph, GraphStatus, OperatorRef, OperatorRole, OperatorState, OperatorType,
+};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
+use crate::graph::registry::GraphRegistry;
+use crate::my_reg::register;
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Callout {
+    node_fqn: Option<String>,
+    self_graph_name: Option<String>,
+
+    state: OperatorState,
     graph_name: String,
     graph: Option<Arc<Mutex<Graph>>>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
 }
 
 impl From<serde_yaml::Value> for Callout {
@@ -28,6 +42,9 @@ impl From<serde_yaml::Value> for Callout {
             .unwrap_or("")
             .to_string();
         Callout {
+            node_fqn: None,
+            self_graph_name: None,
+            state: OperatorState::Pending,
             graph_name,
             graph: None,
             next: Vec::new(),
@@ -37,7 +54,21 @@ impl From<serde_yaml::Value> for Callout {
 
 impl Operator for Callout {
     fn _type(&self) -> OperatorType {
-        OperatorType::Endpoint
+        if self.graph.is_none() {
+            warn!("Callout operator has no graph assigned yet");
+            OperatorType::Endpoint
+        } else {
+            let graph = self.graph.as_ref().unwrap();
+
+            let mut graph = graph.lock().unwrap();
+            let op_node = graph.start_node();
+            op_node.lock().unwrap()._type()
+        }
+    }
+
+    fn state(&self) -> OperatorState {
+        warn!("State! {:?}", self.state);
+        self.state.clone()
     }
 
     fn name(&self) -> String {
@@ -52,16 +83,27 @@ impl Operator for Callout {
         return _message;
     }
 
-    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
+    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        self.node_fqn = Some(node_meta.fqn());
+        self.self_graph_name = Some(graph.name.clone());
+    }
 
-    fn finalize(&mut self) {
-        let graph_registry = crate::graph::registry::GraphRegistry::get_instance();
-        let graph = graph_registry
-            .lock()
-            .unwrap()
-            .get_graph_by_name(&self.graph_name)
-            .unwrap();
-        self.graph = Some(graph);
+    fn finalize(&mut self) -> bool {
+        if self.state == OperatorState::Ready {
+            return true;
+        }
+        let graph_name = self.graph_name.clone();
+
+        let graph = GraphRegistry::get_graph(&graph_name);
+
+        if graph.is_none() {
+            warn!("Graph not found {}", graph_name);
+            false
+        } else {
+            self.graph = graph;
+            self.state = OperatorState::Ready;
+            true
+        }
     }
 
     fn control(&mut self, _message: Message) {
@@ -70,6 +112,12 @@ impl Operator for Callout {
                 for n in next {
                     self.add_next(n);
                 }
+
+                let node_fqn = self.node_fqn.clone().unwrap();
+
+                // let self_graph_name = self.self_graph_name.clone().unwrap();
+                // error!("Callout init {}", node_fqn);
+                // watch_control_bus(self_graph_name, node_fqn);
             }
             Message::Control { .. } => {
                 debug!("Control");
@@ -109,6 +157,8 @@ impl Callout {
 
         let next_node_mutex = self.next.get(0).unwrap();
 
+        let next_node_mutex = &next_node_mutex.operator;
+
         let next_nd = Arc::clone(next_node_mutex);
 
         let (tx, rx) = oneshot::channel::<Message>();
@@ -136,7 +186,7 @@ impl Callout {
                             let graph = _graph.lock().unwrap();
 
                             info!("Calling out to graph: {}", graph.name);
-                            graph.start(callout_message);
+                            graph.call(callout_message);
                         }
 
                         let response = recv.await.unwrap();
@@ -175,7 +225,7 @@ impl Callout {
                             let graph = _graph.lock().unwrap();
 
                             info!("Calling out to graph: {}", graph.name);
-                            graph.start(callout_message);
+                            graph.call(callout_message);
                         }
 
                         let response = recv.await.unwrap();
@@ -207,7 +257,32 @@ impl Callout {
         });
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
     }
 }
+
+// fn watch_control_bus(self_graph_name: String, id: String) {
+//     let (tx, mut rx) = mpsc::channel::<ControlEvent>(100);
+
+//     // Register it
+//     register(&id, tx);
+
+//     tokio::spawn(async move {
+//         loop {
+//             loop {
+//                 // Receive the message
+//                 if let Some(msg) = rx.recv().await {
+//                     info!(
+//                         "[Node: {}] Received : {:?}",
+//                         id,
+//                         serde_json::to_string(&msg)
+//                     );
+//                 } else {
+//                     warn!("Channel is closed");
+//                     break;
+//                 }
+//             }
+//         }
+//     });
+// }

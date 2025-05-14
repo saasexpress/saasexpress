@@ -1,7 +1,7 @@
 use fastrace::trace;
 use saasexpress_core::graph::graph::Graph;
 use serde_yaml::Value;
-use tracing::{Span, info, instrument};
+use tracing::{Span, debug, info, instrument};
 
 use crate::operators::factory::add_node_to_graph;
 use crate::operators::http_in;
@@ -19,7 +19,7 @@ pub fn build_graph(yaml: Value) -> Graph {
     // Record graph name in the current span
     //Span::current().record("graph_name", &graph_name);
 
-    info!(graph_name = %graph_name, "Building graph");
+    debug!(graph_name = %graph_name, "Building graph");
     let mut graph = Graph::new(graph_name);
 
     // Create a span for node processing
@@ -54,9 +54,9 @@ pub fn build_graph(yaml: Value) -> Graph {
 
         let from = edge["from"].as_str().unwrap();
         let to = edge["to"].as_str().unwrap();
-
-        info!(from = %from, to = %to, "Adding edge");
-        graph.add_edge(String::from(from), String::from(to));
+        let role = edge["role"].as_str().unwrap_or("default");
+        debug!(from = %from, to = %to, "Adding edge");
+        graph.add_edge(String::from(from), String::from(to), String::from(role));
     }
 
     // drop(_edges_guard); // Exit the edges span
@@ -64,7 +64,6 @@ pub fn build_graph(yaml: Value) -> Graph {
     // let init_span = tracing::info_span!("graph_initialization");
     // let _init_guard = init_span.enter();
 
-    info!("Initializing graph");
     graph.no_processor().init();
     graph
 }

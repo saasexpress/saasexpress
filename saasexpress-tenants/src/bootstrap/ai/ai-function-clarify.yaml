@@ -1,0 +1,24 @@
+# https://martinfowler.com/articles/function-call-LLM.html
+#
+# curl http://localhost:2243/invoke/clarify -d '{"question": "what is tenant a name"}'
+#
+
+name: ai-function-clarify
+nodes:
+  - id: start
+    action: AITool
+    config:
+      schema:
+        name: tool_clarify
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "response": data.question
+        }
+
+edges:
+  - { from: start, to: translate }

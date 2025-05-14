@@ -1,8 +1,23 @@
-use graph::graph::Graph;
+use control_bus::ControlEvent;
+use graph::{
+    graph::{Graph, GraphBroadcastMessage, GraphStatus, OperatorState},
+    registry::GraphRegistry,
+};
+use tokio::time::timeout;
+
+use my_reg::{broadcast_event, register};
 use operators::factory::add_node_to_graph;
 use serde_yaml::Value;
+use tokio::sync::{
+    broadcast::{Receiver, Sender},
+    mpsc,
+};
+use tracing::{debug, info};
 
+mod broker;
+pub mod control_bus;
 pub mod graph;
+pub mod my_reg;
 pub mod operators;
 mod ports;
 pub mod settings;
@@ -25,21 +40,88 @@ pub fn build_graph(yaml: Value) -> Graph {
         for edge in yaml["edges"].as_sequence().unwrap() {
             let from = edge["from"].as_str().unwrap();
             let to = edge["to"].as_str().unwrap();
-            graph.add_edge(String::from(from), String::from(to));
+            let role = edge["role"].as_str().unwrap_or_else(|| "default");
+            graph.add_edge(String::from(from), String::from(to), String::from(role));
         }
     }
 
     graph.no_processor().init();
+
     graph
+}
+
+pub async fn start_graphs() {
+    let graph_registry = GraphRegistry::get_instance();
+
+    let graph_count = {
+        let graph_registry = graph_registry.lock().unwrap();
+        graph_registry.get_graphs().len()
+    };
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
+
+    register("startup", tx);
+
+    {
+        let graph_registry = graph_registry.lock().unwrap();
+        let graphs = graph_registry.get_graphs();
+        for graph in graphs.iter() {
+            let graph_name = graph.lock().unwrap().name.clone();
+            broadcast_event(ControlEvent {
+                graph_name,
+                state: GraphStatus::Starting,
+                operator_names: vec![],
+            })
+            .await;
+        }
+    }
+
+    let my_duration = tokio::time::Duration::from_millis(1000);
+    let mut counter = 0;
+
+    loop {
+        let msg = timeout(my_duration, rx.recv()).await;
+        match msg {
+            Ok(msg) => match msg {
+                Some(msg) => {
+                    if msg.state == GraphStatus::Running {
+                        counter += 1;
+                    }
+                    info!(
+                        "Received message: {:?} (Ready={}/{})",
+                        serde_json::to_string(&msg),
+                        counter,
+                        graph_count
+                    );
+                    if counter == graph_count {
+                        break;
+                    }
+                }
+                None => {
+                    panic!("No message received");
+                }
+            },
+            Err(_) => {
+                panic!("Timeout waiting for message");
+            }
+        }
+    }
+    info!("All systems a go!");
 }
 
 #[cfg(test)]
 mod saasexpress_core_tests {
-    use serde_json::json;
-    use tracing::{Level, debug, info};
+    use std::thread::sleep;
 
-    use crate::graph::graph::GraphRun;
+    use serde_json::json;
+    use tokio::sync::broadcast;
+    use tracing::{Level, debug, info};
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    use crate::control_bus::ControlEvent;
+    use crate::graph::graph::{GraphBroadcastMessage, GraphRun};
     use crate::graph::registry::GraphRegistry;
+    use crate::my_reg::{broadcast_event, example, register};
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -58,10 +140,6 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn buffertojson_works() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
-
         const GRAPH: &str = r#"
         name: buffer_to_json
         nodes:
@@ -80,13 +158,15 @@ mod saasexpress_core_tests {
         };
 
         assert_eq!(message.get("_ts").is_some(), true);
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn claimcheck_works() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .init();
 
         const GRAPH: &str = r#"
         name: claim_check
@@ -111,11 +191,13 @@ mod saasexpress_core_tests {
                 .unwrap_or(&serde_json::Value::String("".to_string())),
             "filesystem"
         );
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn shell_works() {
-        tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+        // tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
         const GRAPH: &str = r#"
         name: shell
@@ -148,13 +230,15 @@ mod saasexpress_core_tests {
             serde_json::to_string_pretty(&message).unwrap()
         );
         assert_eq!(message.as_array().unwrap().len(), 2);
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn test_fan_out() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .set_default();
 
         const GRAPH: &str = r#"
         name: fan_out
@@ -186,13 +270,15 @@ mod saasexpress_core_tests {
         assert_eq!(message.as_array().unwrap().len(), 2);
         assert_eq!(message[0].get("name").unwrap(), "joe");
         assert_eq!(message[1].get("name").unwrap(), "joe");
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn test_callout() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .init();
 
         const GRAPH: &str = r#"
         name: callout
@@ -219,10 +305,12 @@ mod saasexpress_core_tests {
         let graph_worker = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
         let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
-        let graph_registry = GraphRegistry::get_instance();
-        graph_registry.lock().unwrap().add_graph(graph_worker);
-        graph_registry.lock().unwrap().add_graph(graph);
+        graph_worker.register();
+        graph.register();
 
+        start_graphs().await;
+
+        let graph_registry = GraphRegistry::get_instance();
         let reg = graph_registry
             .lock()
             .unwrap()
@@ -230,8 +318,6 @@ mod saasexpress_core_tests {
             .unwrap();
 
         let mut graph = reg.lock().unwrap();
-
-        graph.finalize();
 
         assert_eq!(graph.name, "callout");
 
@@ -260,13 +346,15 @@ mod saasexpress_core_tests {
 
         let nm = message.get("name").unwrap();
         assert_eq!(nm, "Joe");
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn test_settings() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .init();
 
         const GRAPH: &str = r#"
         name: settings
@@ -280,18 +368,11 @@ mod saasexpress_core_tests {
 
         let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
+        graph.register();
+
+        start_graphs().await;
+
         let graph_registry = GraphRegistry::get_instance();
-        {
-            graph_registry.lock().unwrap().add_graph(graph);
-        }
-
-        let graphs = graph_registry.lock().unwrap().get_graphs();
-
-        graphs.iter().for_each(|graph| {
-            let mut graph = graph.lock().unwrap();
-            info!("Graph: {} {}", graph.name, graph.nodes.len());
-            graph.finalize();
-        });
 
         let reg = {
             graph_registry
@@ -313,13 +394,15 @@ mod saasexpress_core_tests {
         };
 
         assert_eq!(message.get("name").unwrap(), "Joe");
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn test_canodamo_sample_ok() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .set_default();
 
         const GRAPH: &str = r#"
         name: canonical_model
@@ -344,13 +427,15 @@ mod saasexpress_core_tests {
         };
 
         assert_eq!(message.get("name").unwrap(), "Joe");
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
     async fn test_canodamo_sample_error() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .init();
 
         const GRAPH: &str = r#"
         name: canonical_model
@@ -378,5 +463,173 @@ mod saasexpress_core_tests {
             error,
             "Canonical Model Validation Error - missing field `name`"
         );
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
+    }
+
+    #[tokio::test]
+    async fn test_ai_tool() {
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .set_default();
+
+        const GRAPH_TOOL: &str = r#"
+        name: ai_tool
+        nodes:
+        - id: start
+          action: AITool
+          config:
+            name: Joe
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+        edges: []
+        "#;
+
+        let graph_tool = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
+
+        let graph_registry = GraphRegistry::get_instance();
+        {
+            graph_registry.lock().unwrap().add_graph(graph_tool);
+        }
+
+        let reg = {
+            graph_registry
+                .lock()
+                .unwrap()
+                .get_graph_by_name("ai_tool")
+                .unwrap()
+        };
+
+        let mut graph = { reg.lock().unwrap() };
+
+        assert_eq!(graph.name, "ai_tool");
+
+        let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
+
+        info!("Response : {:?}", response);
+
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected Error message");
+        };
+
+        assert_eq!(
+            serde_json::to_string(&message).unwrap(),
+            "{\"input\":{\"first\":\"Joe\"},\"schema\":{\"properties\":{\"name\":{\"type\":\"string\"}},\"type\":\"object\"}}"
+        );
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+    async fn test_ai_agent() {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .init();
+
+        const GRAPH: &str = r#"
+        name: ai_agent
+        nodes:
+        - id: start
+          action: AIAgent
+        - id: tool_a
+          action: Callout
+          config:
+            graph_name: ai_tool
+
+        - id: system_prompt
+          action: Stub
+          config:
+            prompt: |
+                {
+                    "content": "You are a shopping assistant. Use these functions:\n1. search_products: When user wants to find products (e.g., 'show me shirts')\n2. get_product_details: When user asks about a specific product ID (e.g., 'tell me about product p1')\n3. clarify_request: When user's request is unclear",
+                    "history": { "nice": "not quite"}
+                }
+
+        - id: chatgpt_llm
+          action: Stub
+          config:
+            something:
+                returned: true
+
+        edges:
+        - from: start
+          to: tool_a
+          role: tool
+        - from: start
+          to: system_prompt
+          role: prompt
+        - from: start
+          to: chatgpt_llm
+          role: llm
+        "#;
+
+        const GRAPH_TOOL: &str = r#"
+        name: ai_tool
+        nodes:
+        - id: start
+          action: AITool
+          config:
+            name: Joe
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+
+        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_tool = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
+
+        graph.register();
+        graph_tool.register();
+
+        start_graphs().await;
+
+        let reg = {
+            let graph_registry = GraphRegistry::get_instance();
+            graph_registry
+                .lock()
+                .unwrap()
+                .get_graph_by_name("ai_agent")
+                .unwrap()
+        };
+
+        let mut graph = { reg.lock().unwrap() };
+        let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
+
+        let Message::JSON { message, .. } = response else {
+            panic!("Expected JSON message");
+        };
+
+        assert_eq!(
+            serde_json::to_string(&message).unwrap(),
+            "{\"input\":{\"first\":\"Joe\"},\"schema\":{\"properties\":{\"name\":{\"type\":\"string\"}},\"type\":\"object\"}}"
+        );
+
+        //GraphRegistry::get_instance().lock().unwrap().clear();
+    }
+
+    #[tokio::test]
+    async fn test_reg_example() {
+        // tracing_subscriber::fmt()
+        //     .with_max_level(Level::DEBUG)
+        //     .set_default();
+
+        let j = example().await;
+
+        broadcast_event(ControlEvent {
+            graph_name: "ai_agent".to_string(),
+            state: GraphStatus::Running,
+            operator_names: vec![],
+        })
+        .await;
+
+        j.await.ok();
     }
 }
