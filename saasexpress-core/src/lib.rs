@@ -542,11 +542,13 @@ mod saasexpress_core_tests {
         - id: system_prompt
           action: Stub
           config:
-            prompt: |
-                {
-                    "content": "You are a shopping assistant. Use these functions:\n1. search_products: When user wants to find products (e.g., 'show me shirts')\n2. get_product_details: When user asks about a specific product ID (e.g., 'tell me about product p1')\n3. clarify_request: When user's request is unclear",
-                    "history": { "nice": "not quite"}
-                }
+            content: |
+                You are a shopping assistant. Use these functions:
+                
+                1. search_products: When user wants to find products (e.g., 'show me shirts')
+                2. get_product_details: When user asks about a specific product ID (e.g., 'tell me about product p1')
+                3. clarify_request: When user's request is unclear
+                
 
         - id: chatgpt_llm
           action: Stub
@@ -601,7 +603,9 @@ mod saasexpress_core_tests {
         };
 
         let mut graph = { reg.lock().unwrap() };
-        let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
+        let response = graph
+            .end_to_end_json(json!({"prompt": "Do something"}))
+            .await;
 
         let Message::JSON { message, .. } = response else {
             panic!("Expected JSON message - {}", response);
@@ -609,7 +613,7 @@ mod saasexpress_core_tests {
 
         assert_eq!(
             serde_json::to_string(&message).unwrap(),
-            "{\"input\":{\"first\":\"Joe\"},\"schema\":{\"properties\":{\"name\":{\"type\":\"string\"}},\"type\":\"object\"}}"
+            "{\"something\":{\"returned\":true}}"
         );
 
         //GraphRegistry::get_instance().lock().unwrap().clear();

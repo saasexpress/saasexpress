@@ -29,7 +29,14 @@ use std::{
 use super::ai_tool::AIToolOperator;
 
 pub trait AIAgentOperator: Sync + Send + Debug {
-    fn process(&self, json: Value) -> Result<(), Error>;
+    // fn process(&self, json: Value) -> Result<(), Error>;
+    fn process(
+        &self,
+        origin: Option<OriginMessage>,
+        user_prompt: String,
+        next: Vec<OperatorRole>,
+        tools: HashMap<String, OperatorRef>,
+    );
 }
 
 #[derive(Debug)]
@@ -41,7 +48,7 @@ pub struct AIAgent {
     //tool_graph_names: Vec<String>,
     pub(crate) operator: Arc<dyn AIAgentOperator + Send + Sync + 'static>,
 
-    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
+    tools: HashMap<String, OperatorRef>,
 
     next: Vec<OperatorRole>,
 }
@@ -211,13 +218,15 @@ impl Operator for AIAgent {
                 operator.operator.lock().unwrap()
             );
             if operator.role == "tool" {
+                let tool_operator = Arc::clone(&operator.operator);
+
                 let operator = operator.operator.lock().unwrap();
                 let op_type = operator._type();
                 info!("Operator type: {:?}", op_type);
 
                 if let OperatorType::AITool { tool } = op_type {
                     debug!("Tool match {} {:?}", tool.name(), tool);
-                    self.tools.insert(tool.name(), tool);
+                    self.tools.insert(tool.name(), tool_operator);
                 } else {
                     error!("Invalid operator type {:?} {}", op_type, operator.name());
                     return false;
@@ -303,79 +312,9 @@ impl AIAgent {
         let user_prompt = user_prompt.as_str().unwrap().to_string();
 
         // before passing on the message, run the engine part
-        tokio::spawn(async move {
-            // (1) if existing conversation, retrieve it
-            //let storage = callout(next.clone(), "storage".to_string(), json!({})).await;
-            // storage will be added to the conversation history
 
-            // (2) gather up any special prompts
-            let prompts_result = callout(next.clone(), "prompt".to_string(), json!({})).await;
-
-            // (4) wait for response
-            if prompts_result.is_err() {
-                error!("Error getting Prompts: {:?}", prompts_result.err());
-                return;
-            }
-            let prompts_result = prompts_result.unwrap();
-
-            let system_prompt = match prompts_result {
-                Message::JSON { message, .. } => message,
-                Message::Standard { message, .. } => serde_json::from_slice(&message).unwrap(),
-                _ => {
-                    error!("Unexpected Prompts result type: {:?}", prompts_result);
-                    return;
-                }
-            };
-            let system_prompt = system_prompt
-                .get("content")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
-
-            // (2) prepare the llm message which includes the tool schemas()
-            let llm_request =
-                prepare_llm_request(system_prompt, Vec::new(), user_prompt, tools).await;
-
-            info!("{}", serde_yaml::to_string(&llm_request).unwrap());
-            // (3) send to operator (role = llm)
-            let llm_result = callout(next.clone(), "llm".to_string(), json!(llm_request)).await;
-
-            // (4) wait for response
-            if llm_result.is_err() {
-                error!("Error calling LLM: {:?}", llm_result.err());
-                return;
-            }
-            let llm_result = llm_result.unwrap();
-
-            let message = match llm_result {
-                Message::JSON { message, .. } => message,
-                Message::Standard { message, .. } => serde_json::from_slice(&message).unwrap(),
-                _ => {
-                    error!("Unexpected LLM result type: {:?}", llm_result);
-                    return;
-                }
-            };
-
-            info!("LLM result: {:?}", message);
-
-            // (5) determine the next function (role = tool) and call it
-            //let a = next_move(_message, HashMap::new()).await;
-            //aa().await;
-
-            // (6) pass conversation to operator (role = storage)
-
-            // (7) return response
-            let role = OperatorRole::default();
-            let next = next
-                .iter()
-                .filter(|o| o.role == role)
-                .next()
-                .map(|n| n.operator.clone())
-                .unwrap();
-
-            next_send(Message::JSON { message, origin }, next).await;
-        });
+        //tool_operator...
+        self.operator.process(origin, user_prompt, next, tools);
     }
 
     fn add_next(&mut self, operator: OperatorRole) {
@@ -453,108 +392,3 @@ impl AIAgent {
 //         }
 //     });
 // }
-
-async fn next_send(message: Message, next: OperatorRef) {
-    let next = next.lock().unwrap();
-    next.send(message);
-}
-
-async fn prepare_llm_request(
-    system_prompt: String,
-    mut history: Vec<Value>,
-    user_prompt: String,
-    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
-) -> Value {
-    let tool_schemas = tools
-        .iter()
-        .map(|(_name, tool)| {
-            let schema = tool.get_schema().unwrap();
-            json!({
-                "type": "function",
-                "function": schema
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let mut messages = Vec::new();
-    messages.append(
-        json!([
-        {
-            "role": "system",
-            "content": system_prompt
-        }])
-        .as_array_mut()
-        .unwrap(),
-    );
-    messages.append(&mut history);
-    messages.append(
-        json!([
-        {
-            "role": "user",
-            "content": user_prompt
-        }])
-        .as_array_mut()
-        .unwrap(),
-    );
-
-    json!({
-      "messages": messages,
-      "model": "gpt-4.1",
-      "tools": tool_schemas,
-      "tool_choice": "auto"
-    })
-}
-
-async fn do_callout(message: Value, next: OperatorRef) -> oneshot::Receiver<Message> {
-    let (tx, rx) = oneshot::channel::<Message>();
-
-    let message = Message::JSON {
-        message,
-        origin: Some(OriginMessage::new(Some(tx))),
-    };
-
-    let next = next.lock().unwrap();
-    next.send(message);
-
-    rx
-}
-
-async fn aa() {
-    info!("OK");
-}
-async fn next_move(
-    in_message: Message,
-    tools: HashMap<String, Arc<dyn AIToolOperator + Send + Sync + 'static>>,
-) -> Message {
-    info!("Tool count: {}", tools.keys().len());
-
-    let tool = tools.iter().next().unwrap().1;
-
-    let schema = tool.get_schema().unwrap();
-    info!("Tool schema: {:?}", schema);
-    // self.tools.iter().filter(|tool| tool.).for_each(|t| {
-    //     info!("Tool: {}", t.name());
-    // });
-    tool.invoke(in_message)
-}
-
-async fn callout(
-    next_list: Vec<OperatorRole>,
-    role: String,
-    json: Value,
-) -> Result<Message, Canceled> {
-    let next = next_list
-        .iter()
-        .filter(|o| o.role == role)
-        .next()
-        .map(|n| n.operator.clone());
-
-    if next.is_none() {
-        error!("No matching operator found for role {}", role);
-        return Err(Canceled);
-    }
-    let next = next.unwrap().clone();
-
-    let llm_result = do_callout(json, next).await.await;
-    llm_result
-}

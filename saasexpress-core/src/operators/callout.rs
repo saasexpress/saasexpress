@@ -172,7 +172,7 @@ impl Callout {
                         let (sender, recv) = oneshot::channel();
 
                         let callout_message = Message::Standard {
-                            message: Vec::new(),
+                            message: message.clone(),
                             origin: Some(
                                 OriginMessage::new(Some(sender))
                                     .with_span(Some(DebuggableSpan(callout_inner_span))),

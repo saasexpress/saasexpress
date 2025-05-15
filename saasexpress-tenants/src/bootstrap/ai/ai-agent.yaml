@@ -79,21 +79,19 @@ nodes:
   #   action: AITool
   #   config: {}
 
-  # - id: chatgpt
-  #   action: AITool
-  #   config: {}
   - id: chatgpt
-    action: JSONToBuffer
-
-  - id: call
     action: APICall
     config:
       url: https://api.openai.com/v1/chat/completions
       method: POST
 
+  - id: b2j
+    action: BufferToJSON
+
 edges:
   - { from: start, to: user_prompt }
   - { from: user_prompt, to: agent }
+  - { from: agent, to: b2j }
   - { from: agent, to: system_prompt, role: "prompt" }
   # - { from: system_prompt, to: agent }
   # - { from: agent, to: output }
@@ -102,6 +100,6 @@ edges:
   - { from: agent, to: tool_clarify, role: "tool" }
   - { from: agent, to: tool_search, role: "tool" }
   - { from: agent, to: chatgpt, role: "llm" }
-  - { from: chatgpt, to: call }
+  # - { from: chatgpt_j2b, to: chatgpt }
   # - { from: agent, to: agent_memory, role: "storage" }
   # - { from: agent, to: chatgpt, role: "llm" }

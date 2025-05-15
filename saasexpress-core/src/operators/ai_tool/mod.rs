@@ -49,18 +49,19 @@ impl AIToolOperator for AIToolV1 {
     }
 
     fn invoke(&self, _message: Message) -> Message {
-        info!("Invoked AIToolV1");
-        match _message {
-            Message::JSON {
-                message, origin, ..
-            } => Message::JSON {
-                message: json!({"input": message, "schema": &self.schema}),
-                origin,
-            },
-            _ => Message::Error {
-                error: "Invalid message type".to_string(),
-                origin: None,
-            },
-        }
+        info!("Invoked AIToolV1 {:?}", _message);
+        return _message;
+        // match _message {
+        //     Message::JSON {
+        //         message, origin, ..
+        //     } => Message::JSON {
+        //         message: json!({"input": message, "schema": &self.schema}),
+        //         origin,
+        //     },
+        //     _ => Message::Error {
+        //         error: "Invalid message type".to_string(),
+        //         origin: None,
+        //     },
+        // }
     }
 }

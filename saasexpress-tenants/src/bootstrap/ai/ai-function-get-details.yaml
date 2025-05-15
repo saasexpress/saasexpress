@@ -23,11 +23,26 @@ nodes:
   - id: b2j
     action: BufferToJSON
 
+  - id: search_prep
+    action: MessageTranslator
+    config:
+      mode: json
+      in_temp: true
+      temp_group: APICall
+      template: |
+        { 
+            "path": "/api/tenants/" + data.tenant_id,
+            "body": null
+        }
+
+  - id: j2b
+    action: JSONToBuffer
+        
   - id: search
     action: APICall
     config:
       method: GET
-      path: /api/tenants/{data.id}
+      # path: /api/tenants/{data.id}
       url: http://localhost:2243
 
   - id: result
@@ -36,9 +51,11 @@ nodes:
       mode: json
       template: |
         {
-          "response": "{data.name} : price: {data.price}, description: {data.description}"
+          "response": data.displayName + " : price: 34.20, description: " + data.displayName
         }
 edges:
   - { from: start, to: b2j }
-  - { from: b2j, to: search }
+  - { from: b2j, to: search_prep }
+  - { from: search_prep, to: j2b }
+  - { from: j2b, to: search }
   - { from: search, to: result }

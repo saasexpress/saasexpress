@@ -92,7 +92,7 @@ impl AsyncHandleTrait for APICall {
 
     fn async_handle<'life0, 'async_trait>(
         &'life0 self,
-        message: Message,
+        mut message: Message,
     ) -> ::core::pin::Pin<
         Box<dyn ::core::future::Future<Output = Message> + ::core::marker::Send + 'async_trait>,
     >
@@ -100,6 +100,7 @@ impl AsyncHandleTrait for APICall {
         'life0: 'async_trait,
         Self: 'async_trait,
     {
+        let name = self.name();
         let client = self.client.clone();
         let url = self.url.clone();
         let forward = self.forward;
@@ -114,6 +115,37 @@ impl AsyncHandleTrait for APICall {
                 let s = Span::enter_with_local_parent("api_call_inner");
                 s.set_local_parent();
                 //let _span = LocalSpan::enter_with_local_parent("api_call");
+
+                //let temp_params = &temp_params;
+                // let path = if temp_params.is_some() {
+                //     temp_params.unwrap().0
+                // } else {
+                //     "".to_string().as_str()
+                // };
+
+                let temp_params = {
+                    let og = message.get_origin();
+
+                    match og {
+                        Some(og) => {
+                            let temp = message.get_origin().unwrap().temp.clone();
+                            let temp = temp.lock().unwrap();
+
+                            if temp.get(self.name()).is_some() {
+                                let temp = temp.get(name).unwrap();
+                                let path = temp.get("path").unwrap().as_str().unwrap();
+                                let body = temp.get("body").unwrap().as_null().unwrap();
+                                Some((path.to_string(), body))
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    }
+                    // if og.is_none() {
+                    //     return None;
+                    // }
+                };
 
                 match message {
                     Message::ReqReply {
@@ -393,9 +425,13 @@ impl AsyncHandleTrait for APICall {
                                 origin: None,
                             }
                         } else {
+                            let path = temp_params
+                                .is_some()
+                                .then(|| temp_params.unwrap().0)
+                                .unwrap_or("".to_string());
                             let url = HTTPBuilder::derive_url(
                                 &self.url,
-                                "".to_string(),
+                                path,
                                 &self.path,
                                 "".to_string(),
                             );
@@ -455,8 +491,11 @@ impl AsyncHandleTrait for APICall {
                                         debug!("<-- {}", response.status());
                                         if !response.status().is_success() {
                                             warn!("Error: {}", response.status());
-                                            return Message::Standard {
-                                                message: b"Error".to_vec(),
+                                            return Message::Error {
+                                                error: format!(
+                                                    "API Call Error: {}",
+                                                    response.status()
+                                                ),
                                                 origin,
                                             };
                                         } else {
@@ -467,8 +506,8 @@ impl AsyncHandleTrait for APICall {
                                     }
                                     Err(e) => {
                                         warn!("Error making request: {}", e);
-                                        return Message::Standard {
-                                            message: b"Error".to_vec(),
+                                        return Message::Error {
+                                            error: format!("Error making request: {}", e),
                                             origin,
                                         };
                                     }

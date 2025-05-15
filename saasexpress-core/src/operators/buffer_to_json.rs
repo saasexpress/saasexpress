@@ -62,6 +62,7 @@ impl Filter2Operator for BufferToJSON {
             Message::Standard { message, origin } => {
                 debug!("Standard not expected");
                 if message.is_empty() {
+                    warn!("What??? Empty! {:?}", message);
                     let empty = json!({});
                     return to_json(empty, origin);
                 }
