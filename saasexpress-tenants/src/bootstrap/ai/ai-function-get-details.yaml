@@ -51,7 +51,7 @@ nodes:
       mode: json
       template: |
         {
-          "response": data.displayName + " : price: 34.20, description: " + data.displayName
+          "response": data.displayName + " : name: " + data.displayName
         }
 edges:
   - { from: start, to: b2j }
