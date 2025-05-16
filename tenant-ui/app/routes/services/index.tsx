@@ -37,6 +37,7 @@ export default function Page() {
             onCreated={(d: any) => {
               queryClient.invalidateQueries({ queryKey });
               queryClient.invalidateQueries({ queryKey: ["list-services"] });
+              queryClient.removeQueries({ queryKey: ["list-activity"] });
 
               navigate(`/services/${d.id}/editor`);
               APIErrorHandler.notice({

@@ -30,7 +30,7 @@ const useAPIClient = () => {
       options: APIClientProps = {
         throwError: true,
         refetchOnMount: false,
-        keepPreviousData: true,
+        keepPreviousData: false,
       }
     ): UseQueryResult<GetResult, Error> => {
       return useQuery({

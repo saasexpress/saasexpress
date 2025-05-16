@@ -61,7 +61,7 @@ const ProfileForm = ({ item }: ProfileFormProps) => {
       console.log("dispatched", item.id);
       queryClient.invalidateQueries({ queryKey: ["tenant", item.id] });
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+      queryClient.removeQueries({ queryKey: ["list-activity"] });
       setMode("ro");
       APIErrorHandler.notice({
         title: "Tenant",

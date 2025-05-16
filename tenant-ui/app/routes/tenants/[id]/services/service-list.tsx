@@ -2,6 +2,7 @@ import React, { Suspense, use, useState } from "react";
 import { UseQueryResult } from "@tanstack/react-query";
 import useAPIClient, { GetResult } from "@lib/api/APIClient";
 import { Box } from "@mui/material";
+import { Tenant } from "routes/tenants/model";
 
 interface Service {
   id: string;
@@ -55,7 +56,11 @@ function CheckEmptyList({
   );
 }
 
-const ServiceListController = () => {
+interface TenantServiceListProps {
+  item: Tenant;
+}
+
+const ServiceListController = ({item: { id }}: TenantServiceListProps) => {
   const api = useAPIClient();
 
   const [paging, setPaging] = useState<any>({
@@ -69,8 +74,9 @@ const ServiceListController = () => {
   const pageSize = paging.pageSize;
 
   const query = api.get(
-    ["list-services", paging],
-    `/api/activity?page=${page}&recordsPerPage=${pageSize}`
+    ["list-tenant-services", id, paging],
+    //`/api/tenant/${id}/services?page=${page}&recordsPerPage=${pageSize}`
+    `/api/tenants?page=${page}&recordsPerPage=${pageSize}`
   );
 
   const _handleService = (page: number, pageSize: number) => {

@@ -23,8 +23,8 @@ export default function Header({ name, id }: HeaderProps) {
     async (displayName: string) => {
       api.put(`/api/tenants/${id}`, { displayName }, () => {
         queryClient.invalidateQueries({ queryKey: ["tenant", id] });
-        queryClient.invalidateQueries({ queryKey: ["tenants"] });
-        queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+        queryClient.invalidateQueries({ queryKey: ["tenants"] });        
+        queryClient.removeQueries({ queryKey: ["list-activity"] });
         // does not work
         APIErrorHandler.notice({
           title: "Tenant",
@@ -39,7 +39,7 @@ export default function Header({ name, id }: HeaderProps) {
     api.delete(`/api/tenants/${id}`, () => {
       queryClient.cancelQueries({ queryKey: ["tenant", id] });
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+      queryClient.removeQueries({ queryKey: ["list-activity"] });
       // does not work
       APIErrorHandler.notice({
         title: "Tenant",

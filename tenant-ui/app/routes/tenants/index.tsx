@@ -35,8 +35,8 @@ export default function Page() {
           <NewDialog
             onCreated={(d: any) => {
               queryClient.invalidateQueries({ queryKey });
-              queryClient.invalidateQueries({ queryKey: ["list-activity"] });
-
+              queryClient.removeQueries({ queryKey: ["list-activity"] });
+      
               navigate(`/tenants/${d.id}/services`);
               APIErrorHandler.notice({
                 title: "Tenant",

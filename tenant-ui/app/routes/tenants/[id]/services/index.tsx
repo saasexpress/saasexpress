@@ -26,13 +26,6 @@ const Entry = () => {
 
   const d = data?.data;
 
-  const services = [
-    {
-      id: "1",
-      name: "Service 1",
-    },
-  ];
-
   return (
     <Container maxWidth="lg">
       <Header name={d?.displayName} id={d?.id} />
@@ -53,7 +46,7 @@ const Entry = () => {
             title="Services"
             description="Services available and protected by the tenant"
           />
-          <ServiceListController />
+          {d && <ServiceListController item={d}/>}
         </Grid2>
       </Grid2>
     </Container>

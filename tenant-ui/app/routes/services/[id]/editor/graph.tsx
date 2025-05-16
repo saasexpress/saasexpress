@@ -138,7 +138,7 @@ const DynamicGraph: React.FC<DynamicGraphProps> = ({
     api.put(`/api/services/${id}`, data, () => {
       queryClient.invalidateQueries({ queryKey: ["service", id] });
       queryClient.invalidateQueries({ queryKey: ["services"] });
-      queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+      queryClient.removeQueries({ queryKey: ["list-activity"] });
       APIErrorHandler.notice({
         title: "Service",
         content: "Updated visuals",

@@ -24,7 +24,7 @@ export default function Header({ name, id }: HeaderProps) {
       api.put(`/api/services/${id}`, { displayName }, () => {
         queryClient.invalidateQueries({ queryKey: ["service", id] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+        queryClient.removeQueries({ queryKey: ["list-activity"] });
         APIErrorHandler.notice({
           title: "Service",
           content: "Updated successfully",
@@ -38,7 +38,7 @@ export default function Header({ name, id }: HeaderProps) {
     api.delete(`/api/services/${id}`, () => {
       queryClient.cancelQueries({ queryKey: ["service", id] });
       queryClient.invalidateQueries({ queryKey: ["services"] });
-      queryClient.invalidateQueries({ queryKey: ["list-activity"] });
+      queryClient.removeQueries({ queryKey: ["list-activity"] });
       APIErrorHandler.notice({
         title: "Service",
         content: "Deleted successfully",
