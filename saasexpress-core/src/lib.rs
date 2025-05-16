@@ -111,6 +111,7 @@ pub async fn start_graphs() {
 
 #[cfg(test)]
 mod saasexpress_core_tests {
+    use std::panic;
     use std::thread::sleep;
 
     use serde_json::json;
@@ -125,6 +126,37 @@ mod saasexpress_core_tests {
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
+
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
+
+    pub fn initialize() {
+        INIT.call_once(|| {
+            tracing_subscriber::fmt()
+                .with_max_level(Level::DEBUG)
+                .init();
+        });
+    }
+
+    fn setup() {
+        initialize();
+    }
+    fn teardown() {
+        let graph_registry = GraphRegistry::get_instance();
+        let mut graph_registry = graph_registry.lock().unwrap();
+        graph_registry.clear();
+    }
+
+    fn run_test<T>(test: T) -> ()
+    where
+        T: FnOnce() -> () + panic::UnwindSafe,
+    {
+        setup();
+        let result = panic::catch_unwind(|| test());
+        teardown();
+        assert!(result.is_ok())
+    }
 
     #[test]
     fn it_works() {
@@ -164,9 +196,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn claimcheck_works() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: claim_check
@@ -197,7 +227,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn shell_works() {
-        // tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: shell
@@ -236,9 +266,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_fan_out() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .set_default();
+        initialize();
 
         const GRAPH: &str = r#"
         name: fan_out
@@ -276,9 +304,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_callout() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: callout
@@ -352,9 +378,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_settings() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: settings
@@ -400,9 +424,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_canodamo_sample_ok() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .set_default();
+        initialize();
 
         const GRAPH: &str = r#"
         name: canonical_model
@@ -433,9 +455,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_canodamo_sample_error() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: canonical_model
@@ -469,9 +489,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_ai_tool() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .set_default();
+        initialize();
 
         const GRAPH_TOOL: &str = r#"
         name: ai_tool
@@ -525,9 +543,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_ai_agent() {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .init();
+        initialize();
 
         const GRAPH: &str = r#"
         name: ai_agent
@@ -621,9 +637,7 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn test_reg_example() {
-        // tracing_subscriber::fmt()
-        //     .with_max_level(Level::DEBUG)
-        //     .set_default();
+        initialize();
 
         let j = example().await;
 
