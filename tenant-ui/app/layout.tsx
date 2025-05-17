@@ -17,9 +17,9 @@ import { Link, Outlet } from "react-router";
 import InlineAlert from "lib/alerts/InlineAlert";
 import { useAppContext } from "context";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import MenuIcon from "@mui/icons-material/Menu";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import Signin from "@components/auth/signin";
 
 const drawerWidth = 240;
 
@@ -121,32 +121,40 @@ export default function AppLayout() {
             alignItems="center"
             sx={{
               flexGrow: 1,
+              justifyContent: "space-between",
             }}
           >
-            {[
-              { label: "Tenants", path: "/tenants" },
-              { label: "Services", path: "/services" },
-              { label: "Activity", path: "/activity" },
-            ].map(({ label, path }, index: number) => [
-              index > 0 && <Typography pl={0} pr={0}></Typography>,
-              <Link to={path} key={label}>
-                <ListItemButton
-                  sx={{ mr: 1, p: 1 }}
-                  selected={
-                    (path === "/" && pathname === "/") ||
-                    (path != "/" && pathname.startsWith(path))
-                  }
-                  // onClick={isSmall && handleDrawerClose}
-                  // className={
-                  //   appContext.pathname == path ? 'ListItemSelected' : ''
-                  // }
-                >
-                  {/* {icon && <ListItemIcon>{icon}</ListItemIcon>} */}
-                  <ListItemText>{label}</ListItemText>
-                  <ExpandMoreIcon />
-                </ListItemButton>
-              </Link>,
-            ])}
+            <Stack direction="row" alignItems="center">
+              {" "}
+              {/* Wrap navigation items */}
+              {[
+                { label: "Tenants", path: "/tenants" },
+                { label: "Services", path: "/services" },
+                { label: "Activity", path: "/activity" },
+              ].map(({ label, path }, index: number) => [
+                index > 0 && <Typography pl={0} pr={0}></Typography>,
+                <Link to={path} key={label}>
+                  <ListItemButton
+                    sx={{ mr: 1, p: 1 }}
+                    selected={
+                      (path === "/" && pathname === "/") ||
+                      (path != "/" && pathname.startsWith(path))
+                    }
+                    // onClick={isSmall && handleDrawerClose}
+                    // className={
+                    //   appContext.pathname == path ? 'ListItemSelected' : ''
+                    // }
+                  >
+                    {/* {icon && <ListItemIcon>{icon}</ListItemIcon>} */}
+                    <ListItemText>{label}</ListItemText>
+                    <ExpandMoreIcon />
+                  </ListItemButton>
+                </Link>,
+              ])}
+            </Stack>
+            <Box sx={{ ml: "auto" }}>
+              <Signin />
+            </Box>
           </Stack>
         </Toolbar>
       </AppBar>
