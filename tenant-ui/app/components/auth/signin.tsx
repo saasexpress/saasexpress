@@ -57,7 +57,7 @@ let Signin = (props: SigninProps) => {
         <MenuItem disabled>
           {data.data.sub}
         </MenuItem>
-        <MenuItem component={Link} href="/auth/signin" onClick={handleClose}>
+        <MenuItem component={Link} href="/auth/signout" onClick={handleClose}>
           Logout
         </MenuItem>
       </Menu>
