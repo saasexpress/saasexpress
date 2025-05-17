@@ -24,7 +24,7 @@ nodes:
             "redirect-url": {
               "url": settings.AUTH_URL,
               "query": {
-                "prompt": "login",
+                "prompt": "login consent",
                 "scope": "openid offline_access profile email",
                 "client_id": settings.CLIENT_ID,
                 "response_type": "code",
