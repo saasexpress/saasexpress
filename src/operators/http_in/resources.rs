@@ -27,7 +27,9 @@ use axum::response::sse::Event as SseEvent;
 use axum_extra::extract::cookie::CookieJar;
 use saasexpress_core::graph::message::Message;
 
-use crate::operators::http_in::{cookies::set_cookies, sse::sse_start, websocket::ws_handler};
+use crate::operators::http_in::{
+    cookies::set_cookies, model::TempRedirectUrl, sse::sse_start, websocket::ws_handler,
+};
 use axum::{
     Json, Router,
     body::{Bytes, to_bytes},
@@ -405,7 +407,9 @@ impl Singleton {
                                     if let Some(url) = temp.get("http_in") {
                                         if let Some(url) = url.get("response") {
                                             if let Some(url) = url.get("redirect-url") {
-                                                Some(url.as_str().unwrap())
+                                                let redirect_url: TempRedirectUrl = url.into();
+
+                                                Some(redirect_url.to_string())
                                             } else {
                                                 None
                                             }
@@ -416,11 +420,12 @@ impl Singleton {
                                         None
                                     }
                                 };
+                                info!("Redirect URL: {:?}, {:?}", redirect_url, temp);
 
                                 if let Some(redirect_url) = redirect_url {
                                     headers.insert(
                                         "Location",
-                                        HeaderValue::from_str(redirect_url).unwrap(),
+                                        HeaderValue::from_str(&redirect_url).unwrap(),
                                     );
                                     (StatusCode::FOUND, headers).into_response()
                                 } else {

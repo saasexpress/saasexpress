@@ -7,7 +7,7 @@ use std::{
 
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
 use axum::extract::Query;
-use cel_interpreter::{Context, Program, Value, extractors::This};
+use cel_interpreter::{Context, Program, Value, extractors::This, objects::Map};
 use fastrace::{local::LocalSpan, trace};
 use opentelemetry::{KeyValue, trace::get_active_span};
 use saasexpress_core::{
@@ -111,8 +111,6 @@ impl Operator for MessageTranslator {
             Message::Standard { origin, .. } => {
                 let input = json!({
                     "resource": self.node_fqn,
-                    "http_method": "UNKNOWN",
-                    "query": {}
                 });
 
                 let message = json!({});
@@ -148,8 +146,6 @@ impl Operator for MessageTranslator {
             Message::JSON { message, origin } => {
                 let input = json!({
                     "resource": self.node_fqn,
-                    "http_method": "UNKNOWN",
-                    "query": {}
                 });
 
                 let cel_value = {
@@ -165,6 +161,7 @@ impl Operator for MessageTranslator {
                     let og = origin.unwrap();
                     debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
                     let og = og.temp_push(temp_group, cel_value);
+
                     Message::JSON {
                         message,
                         origin: Some(
@@ -207,12 +204,14 @@ impl Operator for MessageTranslator {
                 };
 
                 if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
                     let origin = OriginMessage::new(Some(respond_to))
                         .with_span(span)
                         .with_temp(temp);
 
-                    // put the temp data into the origin
-                    let origin = origin.temp_push(self.name(), cel_value);
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let origin = origin.temp_push(temp_group, cel_value);
 
                     Message::Standard {
                         message,

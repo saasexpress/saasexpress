@@ -1,8 +1,3 @@
-# auth-enforcer : use session token to get claim ticket, validate expiry, return 401 is expired
-# auth-session: use claim ticket to get session token, return info about user
-# auth-callback
-# auth-signin : returns the link to the login page
-
 name: oauth-callback
 nodes:
   - id: start
@@ -17,7 +12,7 @@ nodes:
 
   # Use query.session_state to look up the details of the original request (i.e./ redirect_uri)
 
-  # OAUTH_CALLBACK_TRANSLATE_URL = "https://c1sk9y.logto.app/oidc/token"
+  # OAUTH_CALLBACK_TRANSLATE_URL = "https://token"
   # OAUTH_CALLBACK_TRANSLATE_CLIENT_ID = "client_id"
   # OAUTH_CALLBACK_TRANSLATE_CLIENT_SECRET = "client_secret"
   - id: translate
@@ -25,7 +20,7 @@ nodes:
     config:
       mode: json
       in_temp: true
-      temp_group: APICall
+      temp_group: token
       template: |
         {
           "url": settings.URL,
@@ -49,27 +44,17 @@ nodes:
       method: POST
       url: temp.token.url
 
-  # {
-  #   "access_token": "",
-  #   "expires_in": 3600,
-  #   "id_token": "",
-  #   "scope": "openid",
-  #   "token_type": "Bearer"
-  #   "refresh_token": "" (if offline_access is requested)
-  # }
-
   # Do a callout to get the user info using the access token (or id token)
-  # OAUTH_CALLBACK_USERINFO_URL = "https://c1sk9y.logto.app/oidc/userinfo"
-
-  - id: userinfo_prep
+  # OAUTH_CALLBACK_USERINFO_URL = "https://userinfo"
+  - id: userinfo
     action: MessageTranslator
     config:
       mode: json
       in_temp: true
-      temp_group: APICall
+      temp_group: userinfo_call
       template: |
         {
-          "url": "https://c1sk9y.logto.app/oidc/me",
+          "url": settings.URL,
           "content_type": "application/json",
           "body": null,
           "path": "",
@@ -81,17 +66,12 @@ nodes:
   - id: j2b2
     action: JSONToBuffer
 
-  - id: userinfo
+  - id: userinfo_call
     action: APICall
     config:
       method: GET
       url: temp.token.url
 
-
-  # Do a callout to create a new Session (Claim ticket)
-
-  # Return a Set-Cookie header with the session ID
-  # Return a HTTP Redirect
 
   - id: claim_check_prep
     action: MessageTranslator
@@ -106,7 +86,8 @@ nodes:
   - id: claim_check
     action: ClaimCheck
 
-  - id: final
+  # OAUTH_CALLBACK_REDIRECT_URL = "http://localhost:2243/ui/"
+  - id: redirect
     action: MessageTranslator
     config:
       mode: json
@@ -115,7 +96,10 @@ nodes:
       template: |
         {
           "response": {
-            "redirect-url": "http://localhost:2243/ui/tenants",
+            "redirect-url": {
+              "url": settings.URL,
+              "query": {}
+            },
             "set-cookies": [
               {
                 "name": "s",
@@ -136,9 +120,9 @@ edges:
   - { from: b2j, to: translate }
   - { from: translate, to: j2b }
   - { from: j2b, to: token }
-  - { from: token, to: userinfo_prep }
-  - { from: userinfo_prep, to: j2b2 }
-  - { from: j2b2, to: userinfo }
-  - { from: userinfo, to: claim_check_prep }
+  - { from: token, to: userinfo }
+  - { from: userinfo, to: j2b2 }
+  - { from: j2b2, to: userinfo_call }
+  - { from: userinfo_call, to: claim_check_prep }
   - { from: claim_check_prep, to: claim_check }
-  - { from: claim_check, to: final }
+  - { from: claim_check, to: redirect }

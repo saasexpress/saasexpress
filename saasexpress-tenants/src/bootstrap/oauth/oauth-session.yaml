@@ -8,9 +8,6 @@ nodes:
       routes:
         - /auth/session
 
-  - id: b2j
-    action: BufferToJSON
-
   - id: get_claim
     action: MessageTranslator
     config:
@@ -25,7 +22,7 @@ nodes:
     config:
       getter: true
 
-  - id: b2j2
+  - id: b2j
     action: BufferToJSON
 
   - id: response
@@ -34,12 +31,12 @@ nodes:
       mode: json
       template: |
         {
-          "sub": data.data.sub
+          "sub": data.data.sub,
+          "email": data.data.email
         }
 
 edges:
-  - { from: start, to: b2j }
-  - { from: b2j, to: get_claim }
+  - { from: start, to: get_claim }
   - { from: get_claim, to: claim_check }
-  - { from: claim_check, to: b2j2 }
-  - { from: b2j2, to: response }
+  - { from: claim_check, to: b2j }
+  - { from: b2j, to: response }

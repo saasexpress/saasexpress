@@ -30,6 +30,7 @@ use super::settings::TempParams;
 
 #[derive(Clone, Debug)]
 pub(crate) struct APICall {
+    pub node_name: Option<String>,
     pub method: Option<String>,
     pub url: String,
     pub path: String,
@@ -52,6 +53,7 @@ impl From<serde_yaml::Value> for APICall {
         let content_type = value["content_type"].as_str().map(|s| s.to_string());
 
         APICall {
+            node_name: None,
             method,
             url,
             path,
@@ -102,6 +104,7 @@ impl AsyncHandleTrait for APICall {
         'life0: 'async_trait,
         Self: 'async_trait,
     {
+        let node_name = self.node_name.clone().unwrap();
         let name = self.name();
         let client = self.client.clone();
         let url = self.url.clone();
@@ -133,8 +136,8 @@ impl AsyncHandleTrait for APICall {
                             let temp = message.get_origin().unwrap().temp.clone();
                             let temp = temp.lock().unwrap();
 
-                            if temp.get(self.name()).is_some() {
-                                let temp = temp.get(name).unwrap();
+                            if temp.get(&node_name).is_some() {
+                                let temp = temp.get(&node_name).unwrap();
                                 let path = temp.get("path").unwrap().as_str().unwrap();
                                 let url = temp.get("url").unwrap().as_str().unwrap();
                                 let content_type =
@@ -576,6 +579,7 @@ impl AsyncHandleTrait for APICall {
                             }
                         }
                     }
+                    Message::Error { error, origin } => Message::Error { error, origin },
                     _ => {
                         error!("Unexpected message type {}", message);
                         return Message::Error {
@@ -618,6 +622,7 @@ impl Operator for APICall {
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        self.node_name = Some(node_meta.name.clone());
         self.settings = env_settings(graph.base_env_vars_settings(node_meta));
 
         let a = self.settings.iter().find(|x| x.key == "URL");
