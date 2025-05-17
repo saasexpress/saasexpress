@@ -1,17 +1,17 @@
 
 
-name: oauth-signin
+name: oauth-signout
 nodes:
   - id: start
     action: HTTPIn
     config:
       method: GET
       routes:
-        - /auth/signin
+        - /auth/signout
 
-  # OAUTH_SIGNIN_PREP_CLIENT_ID = "client_id"
-  # OAUTH_SIGNIN_PREP_AUTH_URL = "/oidc/auth"
-  # OAUTH_SIGNIN_PREP_EXTERNAL_URL = "http://localhost:2243/ui/"
+  # OAUTH_SIGNIN_PREP_END_URL = "/oidc/end"
+  # OAUTH_SIGNIN_PREP_END_CLIENT_ID = "client_id"
+  # OAUTH_SIGNIN_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
     action: MessageTranslator
     config:
@@ -22,13 +22,10 @@ nodes:
         {
           "response": {
             "redirect-url": {
-              "url": settings.AUTH_URL,
+              "url": settings.END_URL,
               "query": {
-                "prompt": "none",
-                "scope": "openid offline_access profile email",
                 "client_id": settings.CLIENT_ID,
-                "response_type": "code",
-                "redirect_uri": settings.EXTERNAL_URL + "/auth/callback"
+                "post_logout_redirect_uri": settings.EXTERNAL_URL + "/ui/",
               }
             },
             "set-cookies": []
