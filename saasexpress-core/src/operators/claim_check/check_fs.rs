@@ -1,6 +1,7 @@
 use std::fmt;
 
 use super::model::ClaimCheckReference;
+use tracing::warn;
 use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, ClaimCheckInvalidError>;
@@ -17,6 +18,7 @@ impl fmt::Display for ClaimCheckInvalidError {
 pub trait CheckStorage {
     fn put(&self, message: Vec<u8>) -> ClaimCheckReference;
     fn get(&self, claim_id: &str) -> Result<Vec<u8>>;
+    fn clear(&self, claim_id: &str);
 }
 
 pub struct CheckFsImpl;
@@ -41,6 +43,13 @@ impl CheckStorage for CheckFsImpl {
         match result {
             Ok(data) => Ok(data),
             Err(_) => Err(ClaimCheckInvalidError),
+        }
+    }
+
+    fn clear(&self, claim_id: &str) {
+        let file_path = format!("/tmp/claim_check_{}.bin", claim_id);
+        if std::fs::remove_file(&file_path).is_err() {
+            warn!("Claim already cleared or not found: {}", claim_id);
         }
     }
 }

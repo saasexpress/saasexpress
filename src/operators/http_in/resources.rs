@@ -332,7 +332,7 @@ impl Singleton {
 
                 let temp = Arc::new(Mutex::new(temp));
 
-                let later_temp = temp.clone();
+                let later_temp = Arc::clone(&temp);
 
                 let message = Message::ReqReply {
                     message: body_bytes.to_vec(),

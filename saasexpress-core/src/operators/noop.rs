@@ -108,7 +108,11 @@ impl Operator for NOOP {
                         respond_to
                             .send(Message::Standard {
                                 message: message.to_owned(),
-                                origin: Some(OriginMessage::new(None).with_span(span)),
+                                origin: Some(
+                                    OriginMessage::new(None)
+                                        .with_span(span)
+                                        .with_temp(origin_message.temp),
+                                ),
                             })
                             .expect("[Standard] Failed to send response");
                     }

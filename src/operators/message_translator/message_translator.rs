@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
+    ptr::null,
     sync::{Arc, Mutex},
     thread::sleep,
 };
@@ -108,7 +109,7 @@ impl Operator for MessageTranslator {
 
     fn handle(&self, _message: Message) -> Message {
         match _message {
-            Message::Standard { origin, .. } => {
+            Message::Standard { mut origin, .. } => {
                 let input = json!({
                     "resource": self.node_fqn,
                 });
@@ -128,6 +129,7 @@ impl Operator for MessageTranslator {
                     let og = origin.unwrap();
                     debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
                     let og = og.temp_push(temp_group, cel_value);
+
                     Message::JSON {
                         message,
                         origin: Some(
@@ -220,7 +222,11 @@ impl Operator for MessageTranslator {
                 } else {
                     Message::JSON {
                         message: cel_value,
-                        origin: Some(OriginMessage::new(Some(respond_to)).with_span(span)),
+                        origin: Some(
+                            OriginMessage::new(Some(respond_to))
+                                .with_span(span)
+                                .with_temp(temp),
+                        ),
                     }
                 }
             }

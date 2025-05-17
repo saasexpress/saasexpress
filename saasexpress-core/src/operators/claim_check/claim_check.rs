@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Graph, OperatorType};
 
@@ -12,20 +12,41 @@ use crate::graph::meta::NodeMeta;
 use super::check_fs::CheckFsImpl;
 use super::check_fs::CheckStorage;
 
+#[derive(Debug, Clone)]
+pub(crate) enum ClaimCheckAction {
+    Put,
+    Get,
+    Clear,
+}
+
+impl From<&str> for ClaimCheckAction {
+    fn from(value: &str) -> Self {
+        match value {
+            "Put" => ClaimCheckAction::Put,
+            "Get" => ClaimCheckAction::Get,
+            "Clear" => ClaimCheckAction::Clear,
+            _ => ClaimCheckAction::Put,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ClaimCheck {
     fqn: String,
     engine: String,
-    getter: bool,
+    action: ClaimCheckAction,
 }
 
 impl From<serde_yaml::Value> for ClaimCheck {
     fn from(_value: serde_yaml::Value) -> Self {
-        let getter = _value["getter"].as_bool().map(|s| s).unwrap_or(false);
+        let action = _value["action"]
+            .as_str()
+            .map(|s| ClaimCheckAction::from(s))
+            .unwrap_or(ClaimCheckAction::Put);
         ClaimCheck {
             fqn: "".to_string(),
             engine: "filesystem".to_string(),
-            getter,
+            action,
         }
     }
 }
@@ -40,6 +61,11 @@ impl ClaimCheck {
             message: serde_json::to_value(claim_check).unwrap(),
             origin,
         }
+    }
+
+    fn clear(&self, claim_id: &str) {
+        let cfs = CheckFsImpl {};
+        cfs.clear(claim_id);
     }
 
     fn get(&self, claim_id: &str, origin: Option<OriginMessage>) -> Message {
@@ -59,21 +85,23 @@ impl ClaimCheck {
 }
 impl Filter2Operator for ClaimCheck {
     fn handle(&self, _message: Message) -> Message {
-        info!("ClaimCheck: {} - {:?}", self.getter, _message);
+        info!("ClaimCheck: {:?} - {:?}", self.action, _message);
         match _message {
-            Message::Standard { message, origin } => {
-                if self.getter {
-                    return Message::Error {
-                        error: "Can not use a Standard message for Getters".to_string(),
-                        origin,
-                    };
-                } else {
-                    self.put(message, origin)
-                }
-            }
+            Message::Standard { message, origin } => match self.action {
+                ClaimCheckAction::Put => self.put(message, origin),
+                ClaimCheckAction::Get => Message::Error {
+                    error: "Can not use a Standard message for Getters".to_string(),
+                    origin,
+                },
+                ClaimCheckAction::Clear => Message::Error {
+                    error: "Can not use a Standard message for Getters".to_string(),
+                    origin,
+                },
+            },
             Message::JSON { message, origin } => match serde_json::to_vec(&message) {
-                Ok(m) => {
-                    if self.getter {
+                Ok(m) => match self.action {
+                    ClaimCheckAction::Put => self.put(m, origin),
+                    ClaimCheckAction::Get => {
                         let claim_id = message["claim_id"].as_str();
                         match claim_id {
                             Some(claim_id) => self.get(claim_id, origin),
@@ -85,10 +113,27 @@ impl Filter2Operator for ClaimCheck {
                                 origin,
                             },
                         }
-                    } else {
-                        self.put(m, origin)
                     }
-                }
+                    ClaimCheckAction::Clear => {
+                        let claim_id = message["claim_id"].as_str();
+                        match claim_id {
+                            Some(claim_id) => {
+                                self.clear(claim_id);
+                                Message::Standard {
+                                    message: vec![],
+                                    origin,
+                                }
+                            }
+                            None => Message::Error {
+                                error: format!(
+                                    "ClaimCheckInvalidError: [{}] No claim id provided",
+                                    self.fqn
+                                ),
+                                origin,
+                            },
+                        }
+                    }
+                },
                 Err(e) => {
                     error!("Error serializing JSON to Vec<u8>: {}", e);
                     return Message::Error {
@@ -113,7 +158,7 @@ impl Operator for ClaimCheck {
         OperatorType::Filter2 {
             operator: Arc::new(ClaimCheck {
                 engine: self.engine.clone(),
-                getter: self.getter,
+                action: self.action.clone(),
                 fqn: self.fqn.clone(),
             }),
         }

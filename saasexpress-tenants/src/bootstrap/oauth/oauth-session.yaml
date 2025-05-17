@@ -20,7 +20,7 @@ nodes:
   - id: claim_check
     action: ClaimCheck
     config:
-      getter: true
+      action: Get
 
   - id: b2j
     action: BufferToJSON

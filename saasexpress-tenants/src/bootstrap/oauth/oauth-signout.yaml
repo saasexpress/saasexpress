@@ -22,12 +22,12 @@ nodes:
   - id: claim_check
     action: ClaimCheck
     config:
-      getter: true
+      action: Clear
 
-
-  # OAUTH_SIGNIN_PREP_END_URL = "/oidc/end"
-  # OAUTH_SIGNIN_PREP_END_CLIENT_ID = "client_id"
-  # OAUTH_SIGNIN_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"
+  # OAUTH_SIGNOUT_PREP_END_URL = "/oidc/end"
+  # OAUTH_SIGNOUT_PREP_COOKIE_DOMAIN = "localhost"
+  # OAUTH_SIGNOUT_PREP_END_CLIENT_ID = "client_id"
+  # OAUTH_SIGNOUT_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
     action: MessageTranslator
     config:
@@ -44,12 +44,25 @@ nodes:
                 "post_logout_redirect_uri": settings.EXTERNAL_URL + "/ui/",
               }
             },
-            "set-cookies": []
+            "set-cookies": [
+              {
+                "name": "s",
+                "value": "deleted",
+                "path": "/",
+                "domain": settings.COOKIE_DOMAIN,
+                "http_only": true,
+                "same_site": "Strict",
+                "secure": true,
+                "expire_hours": 0
+              }
+            ]
           }
         }
 
   - id: b2j
     action: BufferToJSON
 edges:
-  - { from: start, to: prep }
+  - { from: start, to: get_claim }
+  - { from: get_claim, to: claim_check }
+  - { from: claim_check, to: prep }
   - { from: prep, to: b2j }
