@@ -9,6 +9,22 @@ nodes:
       routes:
         - /auth/signout
 
+  # Remove claim ticket
+  - id: get_claim
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "claim_id": temp.http_in.cookies.s
+        }
+
+  - id: claim_check
+    action: ClaimCheck
+    config:
+      getter: true
+
+
   # OAUTH_SIGNIN_PREP_END_URL = "/oidc/end"
   # OAUTH_SIGNIN_PREP_END_CLIENT_ID = "client_id"
   # OAUTH_SIGNIN_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"

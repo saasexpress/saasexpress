@@ -116,8 +116,8 @@ nodes:
                 "domain": settings.COOKIE_DOMAIN,
                 "http_only": true,
                 "same_site": "Strict",
-                "secure": false,
-                "expire_hours": 24*8
+                "secure": true,
+                "expire_hours": 12*1
               }
             ]
           }
