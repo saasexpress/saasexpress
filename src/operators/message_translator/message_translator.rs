@@ -108,6 +108,43 @@ impl Operator for MessageTranslator {
 
     fn handle(&self, _message: Message) -> Message {
         match _message {
+            Message::Standard { origin, .. } => {
+                let input = json!({
+                    "resource": self.node_fqn,
+                    "http_method": "UNKNOWN",
+                    "query": {}
+                });
+
+                let message = json!({});
+
+                let cel_value = {
+                    let temp = &origin.as_ref().unwrap().temp;
+
+                    let temp = temp.lock().unwrap();
+                    self.parse(&message, input, &temp)
+                };
+
+                if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
+                    let og = origin.unwrap();
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let og = og.temp_push(temp_group, cel_value);
+                    Message::JSON {
+                        message,
+                        origin: Some(
+                            OriginMessage::new(og.respond_to)
+                                .with_span(og.span)
+                                .with_temp(og.temp),
+                        ),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin,
+                    }
+                }
+            }
             Message::JSON { message, origin } => {
                 let input = json!({
                     "resource": self.node_fqn,
@@ -189,6 +226,7 @@ impl Operator for MessageTranslator {
                 }
             }
             Message::Exit { origin } => Message::Exit { origin },
+            Message::Error { error, origin } => return Message::Error { error, origin },
             _ => {
                 error!("Unexpected message type {}", _message);
                 Message::Error {

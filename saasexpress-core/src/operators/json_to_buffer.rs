@@ -34,6 +34,7 @@ impl Operator for JSONToBuffer {
     fn handle(&self, _message: Message) -> Message {
         let (json, origin) = match _message {
             Message::JSON { message, origin } => (message, origin),
+            Message::Error { error, origin } => return Message::Error { error, origin },
             _ => {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {

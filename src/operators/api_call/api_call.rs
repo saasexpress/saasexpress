@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use async_std::io::Empty;
 use async_std::task::Builder;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
@@ -25,6 +26,7 @@ use reqwest_websocket::Message as WsMessage;
 use reqwest_websocket::RequestBuilderExt;
 
 use super::http::HTTPBuilder;
+use super::settings::TempParams;
 
 #[derive(Clone, Debug)]
 pub(crate) struct APICall {
@@ -134,9 +136,24 @@ impl AsyncHandleTrait for APICall {
                             if temp.get(self.name()).is_some() {
                                 let temp = temp.get(name).unwrap();
                                 let path = temp.get("path").unwrap().as_str().unwrap();
-                                let body = temp.get("body").unwrap().as_null().unwrap();
-                                Some((path.to_string(), body))
+                                let url = temp.get("url").unwrap().as_str().unwrap();
+                                let content_type =
+                                    temp.get("content_type").unwrap().as_str().unwrap();
+                                let body = temp.get("body").unwrap();
+                                let headers = serde_json::from_value::<HashMap<String, String>>(
+                                    temp.get("headers").unwrap().clone(),
+                                )
+                                .unwrap();
+
+                                Some(TempParams {
+                                    body: body.clone(),
+                                    content_type: content_type.to_string(),
+                                    path: path.to_string(),
+                                    url: url.to_string(),
+                                    headers,
+                                })
                             } else {
+                                warn!("No temp params found for {}", name);
                                 None
                             }
                         }
@@ -169,7 +186,7 @@ impl AsyncHandleTrait for APICall {
 
                         let method = self.method.clone().unwrap_or(method);
                         let url =
-                            HTTPBuilder::derive_url(&self.url, path, &self.path, query.clone());
+                            HTTPBuilder::derive_url(&self.url, &path, &self.path, query.clone());
 
                         let builder = HTTPBuilder::new(method.as_str(), url.as_str())
                             .set_headers(&self.settings)
@@ -425,16 +442,34 @@ impl AsyncHandleTrait for APICall {
                                 origin: None,
                             }
                         } else {
+                            let temp_params = &temp_params;
+
+                            let empty = "".to_string();
+                            let empty_map = HashMap::new();
+                            let app_json = "application/json".to_string();
+
                             let path = temp_params
                                 .is_some()
-                                .then(|| temp_params.unwrap().0)
-                                .unwrap_or("".to_string());
+                                .then(|| &temp_params.as_ref().unwrap().path)
+                                .unwrap_or(&empty);
+                            let content_type = temp_params
+                                .is_some()
+                                .then(|| &temp_params.as_ref().unwrap().content_type)
+                                .unwrap_or(&app_json);
+                            let base_url = temp_params
+                                .is_some()
+                                .then(|| &temp_params.as_ref().unwrap().url)
+                                .unwrap_or(&self.url);
                             let url = HTTPBuilder::derive_url(
-                                &self.url,
+                                &base_url,
                                 path,
                                 &self.path,
                                 "".to_string(),
                             );
+                            let extra_headers = temp_params
+                                .is_some()
+                                .then(|| &temp_params.as_ref().unwrap().headers)
+                                .unwrap_or(&empty_map);
 
                             let method = self.method.clone().unwrap_or("GET".to_string());
 
@@ -479,10 +514,35 @@ impl AsyncHandleTrait for APICall {
                                 }
                                 Message::NoOp {}
                             } else {
-                                let builder = HTTPBuilder::new(method.as_str(), url.as_str())
-                                    .set_headers(&self.settings)
-                                    .set_body(message)
-                                    .payloads_json();
+                                let builder;
+
+                                if method == "POST"
+                                    && content_type == "application/x-www-form-urlencoded"
+                                {
+                                    let body = temp_params
+                                        .is_some()
+                                        .then(|| &temp_params.as_ref().unwrap().body)
+                                        .unwrap()
+                                        .as_object()
+                                        .unwrap();
+
+                                    let query_tuples = serde_html_form::to_string(body).unwrap();
+
+                                    builder = HTTPBuilder::new(method.as_str(), url.as_str())
+                                        .set_headers(&self.settings)
+                                        .set_body(query_tuples.to_string().as_bytes().to_vec())
+                                        .set_header(
+                                            "Content-Type",
+                                            "application/x-www-form-urlencoded",
+                                        );
+                                } else {
+                                    builder = HTTPBuilder::new(method.as_str(), url.as_str())
+                                        .set_headers(&self.settings)
+                                        .set_body(message)
+                                        .payloads_json();
+                                }
+
+                                let builder = builder.set_headers_with_map(extra_headers);
 
                                 let response = builder.send().await;
 
@@ -506,6 +566,7 @@ impl AsyncHandleTrait for APICall {
                                     }
                                     Err(e) => {
                                         warn!("Error making request: {}", e);
+
                                         return Message::Error {
                                             error: format!("Error making request: {}", e),
                                             origin,

@@ -1,0 +1,7 @@
+name: oauth-enforcer
+nodes:
+  - id: evaluate
+    action: Stub
+    config:
+      allow: true
+edges: []

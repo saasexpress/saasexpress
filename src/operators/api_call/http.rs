@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use hyper::Method;
 use saasexpress_core::settings::settings::Setting;
 use tracing::{debug, info};
@@ -54,6 +56,18 @@ impl HTTPBuilder {
         }
         self
     }
+
+    #[fastrace::trace(short_name = true)]
+    pub fn set_headers_with_map(mut self, headers: &HashMap<String, String>) -> Self {
+        for setting in headers.iter() {
+            self.builder = self.builder.header(
+                setting.0.clone().replace("_", "-").to_lowercase(),
+                setting.1.clone(),
+            );
+        }
+        self
+    }
+
     pub fn set_header(mut self, key: &str, value: &str) -> Self {
         self.builder = self
             .builder
@@ -75,10 +89,10 @@ impl HTTPBuilder {
         self.set_headers(&json_headers)
     }
 
-    pub fn derive_url(base_url: &str, path: String, default_path: &str, query: String) -> String {
+    pub fn derive_url(base_url: &str, path: &str, default_path: &str, query: String) -> String {
         let mut url_path = path;
         if !default_path.is_empty() {
-            url_path = default_path.to_string();
+            url_path = default_path;
         }
         format!("{}{}?{}", base_url, url_path, query)
     }

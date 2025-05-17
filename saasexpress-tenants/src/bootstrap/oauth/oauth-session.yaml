@@ -1,0 +1,45 @@
+
+name: oauth-session
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /auth/session
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: get_claim
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "claim_id": temp.http_in.cookies.s
+        }
+
+  - id: claim_check
+    action: ClaimCheck
+    config:
+      getter: true
+
+  - id: b2j2
+    action: BufferToJSON
+
+  - id: response
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "sub": data.data.sub
+        }
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: get_claim }
+  - { from: get_claim, to: claim_check }
+  - { from: claim_check, to: b2j2 }
+  - { from: b2j2, to: response }

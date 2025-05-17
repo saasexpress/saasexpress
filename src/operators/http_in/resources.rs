@@ -313,7 +313,7 @@ impl Singleton {
                 let cookies = cookie_jar
                     .iter()
                     .map(|cookie| (cookie.name(), cookie.value()))
-                    .collect::<Vec<_>>();
+                    .collect::<HashMap<&str, &str>>();
 
                 let temp_key = "http_in".to_string();
 
@@ -396,9 +396,36 @@ impl Singleton {
 
                                 LocalSpan::add_event(Event::new("Request OK".to_string()));
 
-                                let headers = set_cookies(later_temp);
+                                let mut headers = set_cookies(later_temp.clone());
 
-                                (headers, Json(json!(message))).into_response()
+                                let temp = later_temp.lock().unwrap();
+
+                                let redirect_url = {
+                                    // let temp = temp.lock().unwrap();
+                                    if let Some(url) = temp.get("http_in") {
+                                        if let Some(url) = url.get("response") {
+                                            if let Some(url) = url.get("redirect-url") {
+                                                Some(url.as_str().unwrap())
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                };
+
+                                if let Some(redirect_url) = redirect_url {
+                                    headers.insert(
+                                        "Location",
+                                        HeaderValue::from_str(redirect_url).unwrap(),
+                                    );
+                                    (StatusCode::FOUND, headers).into_response()
+                                } else {
+                                    (headers, Json(json!(message))).into_response()
+                                }
                             }
 
                             Message::Tuple {

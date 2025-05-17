@@ -34,6 +34,11 @@ impl OperatorWrapper {
     fn middleware(&self, _message: Message) -> Message {
         let mut message = _message;
 
+        // If there is an error, then skip forther processing
+        if let Message::Error { .. } = message {
+            return message;
+        }
+
         if message.get_span().is_some() {
             let nm = format!("middleware ({})", self.name);
 
@@ -152,8 +157,16 @@ impl Operator for OperatorWrapper {
     fn send(&self, _message: Message) {
         let message = self.handle(_message);
 
-        // this has to be after the handle() to avoid deadlock
-        self.handle.lock().unwrap().send(message);
+        if let Message::Error { error, origin } = message {
+            error!("Error in operator {}: {}", self.name, error);
+            self.handle
+                .lock()
+                .unwrap()
+                .send(Message::Error { error, origin });
+        } else {
+            // this has to be after the handle() to avoid deadlock
+            self.handle.lock().unwrap().send(message);
+        }
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
