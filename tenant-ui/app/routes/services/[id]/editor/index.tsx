@@ -27,9 +27,16 @@ import { Node } from "components/graph";
 import JsonData from "components/gold/json-data";
 import MonacoEditor from "components/gold/monaco-editor";
 import { parse, stringify } from "yaml";
+import { useSearchParams } from 'react-router-dom';
+import { useAppContext } from "context";
+import SubHeader from "../sub-header";
 
 const Entry = () => {
   const { id } = useParams();
+  const { search } = useAppContext();
+
+  const q_variant = search.get("variant") || "";
+
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -37,12 +44,12 @@ const Entry = () => {
 
   const container = useRef(null);
 
-  const [variant, setVariant] = useState("");
-
   const [showDetail, setShowDetail] = useState(false);
   const [list, setList] = useState(12);
 
   const [selectedNode, setSelected] = useState<Node>();
+
+  const [variant, setVariant] = useState(q_variant);
 
   if (!id) {
     return <></>;
@@ -58,12 +65,12 @@ const Entry = () => {
   const d = data?.data;
 
   useEffect(() => {
-    if (data?.data) {
+    if (data?.data && q_variant == "") {
       if (Object.keys(data?.data.variants).length == 0) {
         setVariant("V1");
         return;
       }
-      setVariant(Object.keys(data?.data.variants).pop() as string);
+      setVariant(Object.keys(data?.data.variants).sort().reverse().pop() as string);
     }
   }, [data]);
 
@@ -74,7 +81,7 @@ const Entry = () => {
   return (
     <Container maxWidth="lg">
       <Header name={d?.displayName} id={d?.id} />
-
+      {data?.data?.variants && <SubHeader serviceId={d?.id} variantId={variant} variants={data?.data.variants} />}
       <Grid2
         key={d?.id}
         container
@@ -90,7 +97,7 @@ const Entry = () => {
         )}
         <Grid2 flex={1}>
           <DetailHeader
-            title="Integration"
+            title={"Integration" + ` ${data?.data.variants[variant]?.dag.name}`}
             description="Editor for changing the integration flow"
             actions={isSmall && <Nav tab="editor" params={{ id: d?.id }} />}
           />

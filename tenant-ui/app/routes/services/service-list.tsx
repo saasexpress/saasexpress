@@ -17,6 +17,12 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import TableCell from "components/table-cell";
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import React from "react";
+
+
+import ChevronDownIcon from "@mui/icons-material/ExpandMore";
+import ChevronUpIcon from "@mui/icons-material/ExpandLess";
+import Code from "components/gold/code";
 
 // const StyledPaper = styled(Paper)(() => ({
 //   boxShadow: "none",
@@ -35,11 +41,19 @@ const headerFormat = new Intl.DateTimeFormat("en-CA", {
 });
 
 let ServiceItemRow = (s: any) => {
+  const [openId, setOpenId] = React.useState<string | null>();
   // const { changes, version, count } = renderChanges(s.service);
+
+  const handleDetailsDisclosure = React.useCallback(
+    (id: string) => () => {
+      setOpenId((state) => (state !== id ? id : null));
+    },
+    [setOpenId]
+  );
 
   let ts = <TimeAgo date={new Date(s.serviceAt)} />;
 
-  return (
+  return [
     <TableRow
       key={s.id}
       sx={{
@@ -48,14 +62,42 @@ let ServiceItemRow = (s: any) => {
       }}
     >
       <TableCell>
-        <Link to={{ pathname: `/services/${s.id}/editor` }}>{s.id}</Link>
+        <Link to={{ pathname: `/services/${s.id}/editor` }}>
+          {s.displayName}
+        </Link>
+        </TableCell>
+      <TableCell sx={{ textAlign: "right" }}>
+        <IconButton
+          onClick={handleDetailsDisclosure(s.id)}
+        >
+          {s.id == openId ? <ChevronUpIcon /> : <ChevronDownIcon />}
+        </IconButton>
       </TableCell>
-      <TableCell>{s.displayName}</TableCell>
-    </TableRow>
-  );
+    </TableRow>,
+    s.id == openId && (
+      <TableRow>
+        <TableCell colSpan={2}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Stack>
+              <div>Service ID: {s.id}</div>
+              <div>Service URL: {s.serviceUrl}</div>
+              <div>Variants:</div>
+              {Object.values(s.variants).map((v: any) => (
+                  <Link key={v.dag.name} to={{ pathname: `/services/${s.id}/editor`, search: `variant=${v.dag.name}` }}>
+                    {v.dag.name}
+                  </Link>
+              ))}
+            </Stack>
+          </Stack>
+        </TableCell>
+      </TableRow>
+    )
+    
+  ];
 };
 
 let Service = ({ data, handleChangePage, handleChangeRowsPerPage }: any) => {
+
   const { items, paging } = data;
 
   const query = useQueryClient();
@@ -92,11 +134,11 @@ let Service = ({ data, handleChangePage, handleChangeRowsPerPage }: any) => {
       </Stack>
 
       <TableContainer variant="outlined" component={Paper}>
-        <Table sx={{ minWidth: 650 }} aria-label="service list">
+        <Table  aria-label="service list">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
               <TableCell>Name</TableCell>
+              <TableCell></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>{items.map(ServiceItemRow)}</TableBody>

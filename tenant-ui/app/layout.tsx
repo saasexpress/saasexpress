@@ -12,6 +12,8 @@ import {
   styled,
   Toolbar as MuiToolbar,
   Typography,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { Link, Outlet } from "react-router";
 import InlineAlert from "lib/alerts/InlineAlert";
@@ -85,6 +87,9 @@ const DrawerHeader = styled("div")(({ theme }) => ({
 export default function AppLayout() {
   const [open, setOpen] = React.useState(false);
   const { pathname } = useAppContext();
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
+
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -124,6 +129,7 @@ export default function AppLayout() {
               justifyContent: "space-between",
             }}
           >
+            {!isSmall && (
             <Stack direction="row" alignItems="center">
               {" "}
               {/* Wrap navigation items */}
@@ -152,6 +158,7 @@ export default function AppLayout() {
                 </Link>,
               ])}
             </Stack>
+            )}
             <Box sx={{ ml: "auto" }}>
               <Signin />
             </Box>
