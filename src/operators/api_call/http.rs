@@ -94,6 +94,11 @@ impl HTTPBuilder {
         if !default_path.is_empty() {
             url_path = default_path;
         }
-        format!("{}{}?{}", base_url, url_path, query)
+        let query = if query.len() == 0 {
+            "".to_string()
+        } else {
+            format!("?{}", query)
+        };
+        format!("{}{}{}", base_url, url_path, query)
     }
 }

@@ -53,7 +53,7 @@ nodes:
                 "http_only": true,
                 "same_site": "Strict",
                 "secure": true,
-                "expire_hours": 0
+                "expire_hours": -8760
               }
             ]
           }

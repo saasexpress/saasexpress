@@ -7,7 +7,7 @@ use fastrace::Span;
 use fastrace::local::LocalSpan;
 use futures::channel::mpsc;
 use hyper::Method;
-use reqwest::Client;
+use reqwest::{Client, Response};
 use reqwest_eventsource::{Event, EventSource};
 use saasexpress_core::graph::message::{ControlCommand, Message, OriginMessage};
 use saasexpress_core::graph::meta::NodeMeta;
@@ -551,14 +551,14 @@ impl AsyncHandleTrait for APICall {
 
                                 match response {
                                     Ok(response) => {
+                                        let status = response.status();
                                         debug!("<-- {}", response.status());
-                                        if !response.status().is_success() {
-                                            warn!("Error: {}", response.status());
+                                        if !status.is_success() {
+                                            warn!("Error: {}", status);
+                                            log_error_info(response).await;
+
                                             return Message::Error {
-                                                error: format!(
-                                                    "API Call Error: {}",
-                                                    response.status()
-                                                ),
+                                                error: format!("API Call Error: {}", status),
                                                 origin,
                                             };
                                         } else {
@@ -681,4 +681,38 @@ fn is_json_response(response: &reqwest::Response) -> bool {
         }
     }
     false
+}
+
+async fn log_error_info(response: Response) {
+    let status = response.status();
+    let headers = response.headers().to_owned();
+
+    error!("Status: {}", status);
+    error!("Response Headers:");
+    for (key, value) in headers.iter() {
+        error!("[{}] {:?}", key, value);
+    }
+
+    let content_type = headers
+        .get("Content-Type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    error!("Content-Type: {}", content_type);
+
+    if content_type.contains("application/json") {
+        let body = response
+            .json()
+            .await
+            .unwrap_or_else(|_| json!({"error": "Failed to read json body"}));
+        error!(
+            "Response Body: {}",
+            serde_json::to_string_pretty(&body).unwrap()
+        );
+    } else {
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Failed to read body".to_string());
+        error!("Response Body: {}", body);
+    }
 }
