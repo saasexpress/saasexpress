@@ -17,9 +17,9 @@ nodes:
       mode: json
       template: |
         {
-          "action": input.http_method,
+          "temp": temp,
           "resource": input.resource,
-          "data": data,
+          "data": data
         }
 
   - id: j2b

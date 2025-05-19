@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use async_std::io::Empty;
 use async_std::task::Builder;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use hyper::Method;
 use reqwest::{Client, Response};
 use reqwest_eventsource::{Event, EventSource};
@@ -25,8 +25,15 @@ use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use reqwest_websocket::Message as WsMessage;
 use reqwest_websocket::RequestBuilderExt;
 
+use crate::operators::api_call::session::SocketSession;
+use crate::operators::api_call::socket_close;
+
 use super::http::HTTPBuilder;
+use super::session::{Closer, CloserAction};
 use super::settings::TempParams;
+//use crate::operators::api_call::socket_close::socket_close;
+use saasexpress_core::graph::message::{DebuggableSpan, Message as GraphMessage};
+
 
 #[derive(Clone, Debug)]
 pub(crate) struct APICall {
@@ -41,6 +48,36 @@ pub(crate) struct APICall {
     settings: Vec<Setting>,
     client: Client,
 }
+
+pub struct SessionRegistry {
+    sessions: HashMap<String, Arc<Mutex<dyn CloserAction + 'static>>>,
+}
+
+impl SessionRegistry {
+    fn new() -> Self {
+        SessionRegistry {
+            sessions: HashMap::new(),
+        }
+    }
+
+    fn add_session(&mut self, session_id: String, sender: Arc<Mutex<dyn CloserAction + 'static>>) {
+        self.sessions
+            .insert(session_id, sender);
+    }
+    pub fn has_session(&self, session_id: &str) -> bool {
+        self.sessions.get(session_id).is_some()
+    }
+
+    pub fn get_session(&self, session_id: &str) -> Arc<Mutex<dyn CloserAction + 'static>> {
+        Arc::clone(self.sessions.get(session_id).unwrap())
+    }
+
+    pub fn get_instance() -> &'static Mutex<SessionRegistry> {
+        INSTANCE.get_or_init(|| Mutex::new(SessionRegistry::new()))
+    }
+}
+
+static INSTANCE: OnceLock<Mutex<SessionRegistry>> = OnceLock::new();
 
 impl From<serde_yaml::Value> for APICall {
     fn from(value: serde_yaml::Value) -> Self {
@@ -174,6 +211,9 @@ impl AsyncHandleTrait for APICall {
                         message,
                         span,
                     } => {
+                        if ws {
+                            panic!("WebSocket not supported in ReqReply");
+                        }
                         let (method, path, query) = {
                             let temp = temp.lock().unwrap();
                             let http_in = temp.get("http_in");
@@ -210,31 +250,19 @@ impl AsyncHandleTrait for APICall {
                         // });
 
                         //response = client.get(&url).send().await;
+
+                        let origin = Some(
+                            OriginMessage::new(Some(respond_to))
+                                .with_span(span)
+                                .with_temp(temp),
+                        );
+
                         match response {
                             Ok(response) => {
                                 debug!("<-- (ReqReply) {}", response.status());
                                 if !response.status().is_success() {
                                     error!("Failed [{}] {}", method, url);
-                                    let r_status = response.status();
-                                    let r_text = response.text().await.unwrap();
-                                    error!("Failed ({}) {}", r_status, r_text);
-
-                                    //let json: Value = serde_json::from_str(&r_text).unwrap();
-
-                                    let result = json!({"status":"Error", "result": r_text});
-
-                                    // return Message::Standard {
-                                    //     message: serde_json::to_vec(&result).unwrap(),
-                                    //     origin: Some(OriginMessage::new(respond_to)),
-                                    // };
-                                    return Message::HTTP {
-                                        message: serde_json::to_vec(&result).unwrap(),
-                                        origin: Some(
-                                            OriginMessage::new(Some(respond_to)).with_span(span),
-                                        ),
-                                        headers: HashMap::new(),
-                                        status: r_status.as_u16(),
-                                    };
+                                    log_error_info(response).await.with_origin(origin)
                                 } else if is_json_response(&response) {
                                     // return Message::JSON {
                                     //     message: response.json().await.unwrap(),
@@ -257,11 +285,7 @@ impl AsyncHandleTrait for APICall {
                                         message: response.bytes().await.unwrap().to_vec(),
                                         headers,
                                         status,
-                                        origin: Some(
-                                            OriginMessage::new(Some(respond_to))
-                                                .with_span(span)
-                                                .with_temp(temp),
-                                        ),
+                                        origin,
                                     };
                                 } else {
                                     //while let Some(chunk) = res.chunk().await? {
@@ -284,20 +308,23 @@ impl AsyncHandleTrait for APICall {
                                         message: response.bytes().await.unwrap().to_vec(),
                                         headers,
                                         status,
-                                        origin: Some(
-                                            OriginMessage::new(Some(respond_to))
-                                                .with_span(span)
-                                                .with_temp(temp),
-                                        ),
+                                        origin,
                                     };
                                 }
                             }
                             Err(e) => {
-                                error!("Error making request {:?}", e);
-                                return Message::Standard {
-                                    message: b"Error".to_vec(),
-                                    origin: Some(OriginMessage::new(Some(respond_to))),
-                                };
+                                error!("[ReqReply] Error making request {:?}", e);
+
+                                Message::Error {
+                                    error: format!(
+                                        "Error making request (connect? {:?}, status? {:?}, request? {:?}, timeout? {:?})",
+                                        e.is_connect(),
+                                        e.is_status(),
+                                        e.is_request(),
+                                        e.is_timeout()
+                                    ),
+                                    origin,
+                                }
                             }
                         }
                     }
@@ -310,139 +337,136 @@ impl AsyncHandleTrait for APICall {
 
                         // Make a GET request
                         if ws {
-                            debug!("WebSocket request to {}", url);
+                            // see if there is a SocketSession already established
+                            // if so, forward message to it
+                            // otherwise, create a new SocketSession
 
-                            let method = self.method.clone().unwrap();
+                            let session = origin
+                                .as_ref()
+                                .and_then(|o| o.session.clone())
+                                .unwrap();
+                            debug!("WebSocket - request to = {}", session);
 
-                            tokio::spawn(async move {
-                                let mut url_path = "".to_string();
-                                if !default_path.is_empty() {
-                                    url_path = default_path;
-                                }
-                                let url = format!("{}{}?", url, url_path);
 
-                                debug!("--> [{}] {}", method, url);
+                            let a_session = {
+                                let socket_registry = SessionRegistry::get_instance();
+                                let socket_registry = socket_registry.lock().unwrap();
+                                socket_registry.has_session(&session)
+                            };
+                            if a_session {
+                                debug!("WebSocket - session already exists");
+                                
+                                let socket_registry = SessionRegistry::get_instance();
 
-                                let response = client
-                                    .request(Method::try_from(method.as_str()).unwrap(), url)
-                                    //.header("Content-Type", "application/json")
-                                    //.header("Accept", "application/json")
-                                    //.body(message)
-                                    .upgrade()
-                                    .send()
-                                    .await;
+                                let socket = socket_registry
+                                    .lock()
+                                    .unwrap()
+                                    .get_session(&session);
+                                let socket = socket.lock().unwrap();
 
-                                // let response = client.get(&url).upgrade().send().await;
-                                match response {
-                                    Ok(ws_response) => {
-                                        debug!("WebSocket UPGRADED");
+                                socket.send(Message::Standard { message, origin });
+                                // tokio::spawn(async move {
+                                //    socket_close(&session)
+                                // });
 
-                                        // Turns the response into a WebSocket stream.
-                                        let _websocket = ws_response.into_websocket().await;
-                                        let websocket = match _websocket {
-                                            Ok(ws) => ws,
-                                            Err(e) => {
-                                                warn!("Error making request: {}", e);
-                                                return Message::Standard {
-                                                    message: b"Error".to_vec(),
-                                                    origin,
-                                                };
-                                            }
-                                        };
+                                // let message = WsMessage::Text(String::from_utf8_lossy(&message));
 
-                                        let (mut tx, mut rx) = websocket.split();
+                                // sender.send(message).await.unwrap();
+                                Message::NoOp {}
 
-                                        tokio::spawn(future::join(
-                                            async move {
-                                                for i in 1..11 {
-                                                    debug!("Sending message {i}");
-                                                    tx.send(WsMessage::Text(format!(
-                                                        "Hello, World! #{i}"
-                                                    )))
-                                                    .await
-                                                    .unwrap();
-                                                }
-                                            },
-                                            async move {
-                                                loop {
-                                                    let result = rx.try_next().await;
-                                                    match result {
-                                                        Ok(Some(message)) => match message {
-                                                            WsMessage::Close { code, reason } => {
-                                                                debug!(
-                                                                    "Received close {code} {reason}"
-                                                                );
-                                                            }
-                                                            WsMessage::Text(text) => {
-                                                                debug!(
-                                                                    "Received text message: {text}"
-                                                                );
-                                                            }
-                                                            WsMessage::Binary(_) => {
-                                                                debug!("Received binary message");
-                                                            }
-                                                            _ => {
-                                                                debug!("Received other message");
-                                                            }
-                                                        },
-                                                        Ok(None) => {
-                                                            debug!("WebSocket closed");
-                                                            break;
-                                                        }
-                                                        Err(e) => {
-                                                            warn!("Error receiving message: {}", e);
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                        ));
+                            } else {
 
-                                        // let split = websocket.try_next();
+                                debug!("WebSocket request to {}", url);
 
-                                        // tokio::spawn(async move {
-                                        //     // The WebSocket implements `Sink<Message>`.
-                                        //     let result = websocket
-                                        //         .send(WsMessage::Text("Hello, World".into()))
-                                        //         .await;
+                                let method = self.method.clone().unwrap();
 
-                                        //     // need a way of sending messages to the websocket
-                                        //     // and receiving messages from the websocket
-                                        //     match result {
-                                        //         Ok(_) => {
-                                        //             debug!("[WS] sent message")
-                                        //         }
-                                        //         Err(e) => {
-                                        //             warn!("[WS] Error sending message: {}", e);
-                                        //         }
-                                        //     }
-                                        // });
-                                        // //The WebSocket is also a `TryStream` over `Message`s.
-                                        // while let Some(message) = split.await.unwrap() {
-                                        //     if let WsMessage::Text(text) = message {
-                                        //         println!("received: {text}")
-                                        //     }
-                                        // }
-
-                                        // need a handler similar to the http_in websocket
-                                        // but in reverse
-                                        return Message::Standard {
-                                            message: b"WebSocket".to_vec(),
-                                            origin,
-                                        };
+                                tokio::spawn(async move {
+                                    let mut url_path = "".to_string();
+                                    if !default_path.is_empty() {
+                                        url_path = default_path;
                                     }
-                                    Err(e) => {
-                                        error!("Error making request: {}", e);
-                                        return Message::Standard {
-                                            message: b"Error".to_vec(),
-                                            origin,
-                                        };
+                                    let url = format!("{}{}?", url, url_path);
+
+                                    debug!("--> [{}] {}", method, url);
+
+                                    let response = client
+                                        .request(Method::try_from(method.as_str()).unwrap(), url)
+                                        //.header("Content-Type", "application/json")
+                                        //.header("Accept", "application/json")
+                                        //.body(message)
+                                        .upgrade()
+                                        .send()
+                                        .await;
+
+                                    // let response = client.get(&url).upgrade().send().await;
+                                    match response {
+                                        Ok(ws_response) => {
+                                            debug!("WebSocket UPGRADED");
+
+                                            // Turns the response into a WebSocket stream.
+                                            let _websocket = ws_response.into_websocket().await;
+                                            let websocket = match _websocket {
+                                                Ok(ws) => ws,
+                                                Err(e) => {
+                                                    warn!("Error making request: {}", e);
+                                                    return Message::Standard {
+                                                        message: b"Error".to_vec(),
+                                                        origin,
+                                                    };
+                                                }
+                                            };
+
+                                            let graph_sender = origin
+                                                .as_ref()
+                                                .and_then(|o| o.mpsc_respond_to.clone())
+                                                .unwrap();
+
+                                            let session = origin.as_ref().and_then(|o| o.session.clone()).unwrap();
+
+
+                                            let span = origin
+                                            .unwrap().span.unwrap().0;
+
+                                            let (tx, rx) = tokio::sync::mpsc::channel::<GraphMessage>(5);
+
+                                            let ss = SocketSession::new(
+                                                websocket,
+                                                graph_sender,
+                                                session.clone(),
+                                                span,
+                                                rx
+                                            );
+
+
+                                            tokio::spawn(async move {
+                                                ss.process(message).await;
+                                            });
+
+                                            let socket_registry = SessionRegistry::get_instance();
+
+                                            socket_registry
+                                                .lock()
+                                                .unwrap()
+                                                .add_session(session, Arc::new(Mutex::new(Closer{tx})));
+
+                                            return Message::Standard {
+                                                message: b"WebSocket".to_vec(),
+                                                origin:None,
+                                            };
+                                        }
+                                        Err(e) => {
+                                            error!("[WS] Error making request: {:?}", e);
+                                            return Message::Standard {
+                                                message: b"Error".to_vec(),
+                                                origin,
+                                            };
+                                        }
                                     }
+                                });
+                                Message::Standard {
+                                    message: b"do nothing".to_vec(),
+                                    origin: None,
                                 }
-                            });
-                            Message::Standard {
-                                message: b"do nothing".to_vec(),
-                                origin: None,
                             }
                         } else {
                             let temp_params = &temp_params;
@@ -555,12 +579,7 @@ impl AsyncHandleTrait for APICall {
                                         debug!("<-- {}", response.status());
                                         if !status.is_success() {
                                             warn!("Error: {}", status);
-                                            log_error_info(response).await;
-
-                                            return Message::Error {
-                                                error: format!("API Call Error: {}", status),
-                                                origin,
-                                            };
+                                            log_error_info(response).await.with_origin(origin)
                                         } else {
                                             let message = response.json().await.unwrap();
                                             debug!("Message: {:?}", message);
@@ -580,6 +599,39 @@ impl AsyncHandleTrait for APICall {
                         }
                     }
                     Message::Error { error, origin } => Message::Error { error, origin },
+                    Message::Exit {origin} => {
+                        if !ws {
+                            warn!("Exit should only happen for WebSockets");
+                            return Message::Exit { origin };
+
+                        }
+
+                        let session = origin
+                            .as_ref()
+                            .and_then(|o| o.session.clone())
+                            .unwrap();
+
+                        debug!("Exit - close session = {}", session);
+
+                        // see if there is a SocketSession already established
+                        // if so, forward message to it
+                        // otherwise, create a new SocketSession
+                        let socket_registry = {
+                            let socket_registry = SessionRegistry::get_instance();
+                            let socket_registry = socket_registry.lock().unwrap();
+                            socket_registry
+                        };
+                        let session = socket_registry.get_session(&session);
+                        let session = session.lock().unwrap();
+                        session.send(GraphMessage::Exit { origin: None });
+
+
+
+                        let og = origin.unwrap();
+
+                        return Message::Exit { origin: Some(og) };
+
+                    }
                     _ => {
                         error!("Unexpected message type {}", message);
                         return Message::Error {
@@ -683,23 +735,28 @@ fn is_json_response(response: &reqwest::Response) -> bool {
     false
 }
 
-async fn log_error_info(response: Response) {
+async fn log_error_info(response: Response) -> Message {
     let status = response.status();
     let headers = response.headers().to_owned();
-
-    error!("Status: {}", status);
-    error!("Response Headers:");
-    for (key, value) in headers.iter() {
-        error!("[{}] {:?}", key, value);
-    }
 
     let content_type = headers
         .get("Content-Type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown");
+
     error!("Content-Type: {}", content_type);
 
-    if content_type.contains("application/json") {
+    error!("Status: {}", status);
+    error!("Response Headers:");
+    let headers = headers
+        .iter()
+        .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect::<HashMap<String, String>>();
+    for (key, value) in headers.iter() {
+        error!("[{}] {:?}", key, value);
+    }
+
+    let message = if content_type.contains("application/json") {
         let body = response
             .json()
             .await
@@ -708,11 +765,22 @@ async fn log_error_info(response: Response) {
             "Response Body: {}",
             serde_json::to_string_pretty(&body).unwrap()
         );
+        serde_json::to_string_pretty(&body)
+            .unwrap()
+            .as_bytes()
+            .to_vec()
     } else {
         let body = response
             .text()
             .await
             .unwrap_or_else(|_| "Failed to read body".to_string());
         error!("Response Body: {}", body);
+        body.as_bytes().to_vec()
+    };
+    Message::HTTP {
+        message,
+        origin: None,
+        headers,
+        status: status.into(),
     }
 }

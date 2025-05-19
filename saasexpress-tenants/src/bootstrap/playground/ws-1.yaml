@@ -14,7 +14,7 @@ nodes:
       ws: true
       path: /ws-dest
       method: GET
-      url: http://localhost:2500
+      url: http://localhost:2243
 
 edges:
   - { from: start, to: rp }

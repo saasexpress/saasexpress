@@ -30,7 +30,7 @@ nodes:
       mode: json
       template: |
         {
-          "do_token": data.data.data["do_token"]
+          "secrets": data.data.data
         }
 edges:
   - { from: start, to: rp }

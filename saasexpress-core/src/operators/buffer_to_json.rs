@@ -80,6 +80,9 @@ impl Filter2Operator for BufferToJSON {
                 return to_json(result, origin);
             }
             Message::Error { error, origin } => return Message::Error { error, origin },
+            Message::Exit { origin } => {
+                return Message::Exit { origin };
+            }
             _ => {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {

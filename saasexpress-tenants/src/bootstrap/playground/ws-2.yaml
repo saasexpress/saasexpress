@@ -14,7 +14,7 @@ nodes:
       ws: true
       method: GET
       path: /ws-tweak
-      url: http://localhost:2500
+      url: http://localhost:2243
 
 edges:
   - { from: start, to: rp }

@@ -1,19 +1,13 @@
-use axum::extract::ws::WebSocket;
-
-use axum::{
-    extract::{
-        State,
-        ws::{Message, Utf8Bytes, WebSocketUpgrade},
-    },
-    response::IntoResponse,
-};
+use async_nats::jetstream::message;
 use fastrace::Span;
+use futures::channel::oneshot::Receiver;
 //use futures::channel::mpsc::TryRecvError;
 use futures::stream::SplitStream;
+use reqwest_websocket::{CloseCode, Message, WebSocket};
 use std::result;
 use std::{io::Read, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::error::{SendError, TryRecvError};
 
 use axum_extra::{TypedHeader, headers};
 use tracing::{debug, error, info, warn};
@@ -31,9 +25,9 @@ use futures::{
     stream::{SplitSink, StreamExt},
 };
 
-use super::resources::MySharedState;
-
 use saasexpress_core::graph::message::{DebuggableSpan, Message as GraphMessage, OriginMessage};
+
+use std::fmt::Debug;
 
 /**
  *
@@ -42,39 +36,128 @@ use saasexpress_core::graph::message::{DebuggableSpan, Message as GraphMessage, 
  *
  */
 
+#[derive(Debug)]
+pub struct Closer {
+    pub tx: mpsc::Sender<GraphMessage>,
+}
+pub trait CloserAction: Send + Sync + Debug {
+    fn send(&self, message: GraphMessage);
+}
+
+impl CloserAction for Closer {
+    fn send(&self, message: GraphMessage) {
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = tx.send(message).await;
+            if result.is_err() {
+                error!("Error sending close message");
+            }
+        });
+    }
+}
+
 pub struct SocketSession {
-    socket: WebSocket,
-    state: State<Arc<MySharedState>>,
-    who: SocketAddr,
+    //socket: WebSocket,
+    graph_sender: mpsc::Sender<GraphMessage>,
+    who: String,
     span: fastrace::Span,
+    //pub close: oneshot::Sender<()>,
+    pub sender: SplitSink<WebSocket, Message>,
+    receiver: SplitStream<WebSocket>,
+    pub rx: tokio::sync::mpsc::Receiver<GraphMessage>,
 }
 
 impl SocketSession {
     pub fn new(
         socket: WebSocket,
-        state: State<Arc<MySharedState>>,
-        who: SocketAddr,
+        graph_sender: mpsc::Sender<GraphMessage>,
+        who: String,
         span: fastrace::Span,
+        rx: mpsc::Receiver<GraphMessage>,
     ) -> Self {
+        //let s = socket.by_ref();
+
+        let (sender, receiver) = socket.split();
+
         SocketSession {
-            socket,
-            state,
+            sender,
+            receiver,
+            graph_sender,
             who,
             span,
+            rx,
         }
     }
 
-    pub async fn process(self) {
-        let state = self.state.clone();
-        let who = self.who;
+    pub async fn send_close(&mut self) {
+        self.sender
+            .send(Message::Close {
+                code: CloseCode::Normal,
+                reason: "Bye!".to_string(),
+            })
+            .await
+            .unwrap();
+    }
+
+    pub async fn close(socket: WebSocket, rx: Receiver<()>) {
+        let _ = rx.await;
+        info!("Socket session closed");
+        let res = socket
+            .close(CloseCode::Normal, Some("Session closed"))
+            .await;
+        if res.is_err() {
+            error!("Error closing sender: {:?}", res);
+        }
+    }
+
+    pub async fn process(self, message: Vec<u8>) {
+        let graph_sender = self.graph_sender.clone();
+        //let state = self.state.clone();
+        let mut rx = self.rx;
+        let who = self.who.clone();
+        let sender = self.sender;
+        let receiver = self.receiver;
+
         let span = self.span;
         let inbound_span = Span::enter_with_parent("inbound_span", &span);
+        let first_span = Span::enter_with_parent("first_span", &span);
 
-        let (sender, receiver) = self.socket.split();
         // send message to the first operator of the flow
+        // let rx = self.rx;
+
+        // tokio::spawn(async move {
+        //     let _ = rx.await;
+        //     self.send_close().await;
+        //     // info!("Socket session closed");
+        //     // let res = sender.close().await;
+        //     // if res.is_err() {
+        //     //     error!("Error closing sender: {:?}", res);
+        //     // }
+        // });
 
         // anything received from upstream, forward to websocket client
-        let (_tx, mut _rx) = mpsc::channel(5);
+        let (_tx, mut _rx) = mpsc::channel::<GraphMessage>(5);
+
+        let exit_tx = _tx.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let message = rx.recv().await;
+                match message {
+                    Some(msg) => {
+                        //info!("Received message.. {:?}", msg);
+                        let result = exit_tx.send(msg).await;
+                        if result.is_err() {
+                            error!("Error sending exit message to graph");
+                        }
+                    }
+                    None => {
+                        info!("Channel closed");
+                        break;
+                    }
+                }
+            }
+        });
 
         // This task will receive messages back from graph and send them to the client
         let mut send_task = tokio::spawn(async move { upstream_to_client(_rx, sender).await });
@@ -87,9 +170,20 @@ impl SocketSession {
         //     0
         // });
 
+        // make sure the first message is sent to the graph
+        let _origin = OriginMessage::new(None)
+            .session(who.to_string())
+            .with_span(Some(DebuggableSpan(first_span)))
+            .mpsc_respond_to(_tx.clone());
+        let origin = Some(_origin);
+
+        _tx.send(GraphMessage::Standard { message, origin })
+            .await
+            .unwrap();
+
         // This task will receive messages from client and start the graph flow
         let mut recv_task = tokio::spawn(async move {
-            let state = self.state.clone();
+            let graph_sender = self.graph_sender.clone();
 
             //let (resp_tx1, resp_rx1) = oneshot::channel::<GraphMessage>();
 
@@ -106,14 +200,14 @@ impl SocketSession {
             //     origin,
             // });
 
-            client_to_upstream(receiver, state, who, _tx, &inbound_span).await
+            client_to_upstream(receiver, graph_sender, &who, _tx, &inbound_span).await
         });
 
         // If any one of the tasks exit, abort the other.
         tokio::select! {
             rv_a = (&mut send_task) => {
                 match rv_a {
-                    Ok(a) => debug!("{a} messages sent to {who}"),
+                    Ok(a) => debug!("{a} messages sent to who"),
                     Err(a) => debug!("Error sending messages {a:?}")
                 }
                 recv_task.abort();
@@ -129,16 +223,15 @@ impl SocketSession {
 
         let origin = Some(
             OriginMessage::new(None)
-                .session(who.to_string())
+                //.session(who)
                 .with_span(Some(DebuggableSpan(span))),
         );
 
         warn!("Sending exit message to graph");
-        state
-            .start
-            .lock()
-            .unwrap()
-            .send(GraphMessage::Exit { origin });
+        let result = graph_sender.send(GraphMessage::Exit { origin }).await;
+        if result.is_err() {
+            error!("Error sending exit message to graph",);
+        }
 
         ()
     }
@@ -177,11 +270,7 @@ async fn upstream_to_client(
                         let returned = String::from_utf8(message).unwrap();
                         info!("-> Back to client: {:?}", returned);
                         // send to the websocket
-                        if sender
-                            .send(Message::Text(Utf8Bytes::from(returned)))
-                            .await
-                            .is_err()
-                        {
+                        if sender.send(Message::Text(returned)).await.is_err() {
                             error!("Error sending message");
                             return n_msg;
                         }
@@ -190,14 +279,23 @@ async fn upstream_to_client(
                         let returned = serde_json::to_string(&message).unwrap();
                         info!("-> Back to client: {:?}", returned);
                         // send to the websocket
-                        if sender
-                            .send(Message::Text(Utf8Bytes::from(returned)))
-                            .await
-                            .is_err()
-                        {
+                        if sender.send(Message::Text(returned)).await.is_err() {
                             error!("Error sending message");
                             return n_msg;
                         }
+                    }
+                    GraphMessage::Exit { .. } => {
+                        info!("Exit message received");
+                        // close the websocket
+                        match sender.close().await {
+                            Ok(_) => {
+                                info!("Sender closed");
+                            }
+                            Err(e) => {
+                                error!("Error closing sender: {:?}", e);
+                            }
+                        }
+                        break;
                     }
                     _ => {
                         warn!("Unexpected message type {:?}", msg);
@@ -246,8 +344,8 @@ async fn upstream_to_client(
 
 async fn client_to_upstream(
     mut receiver: SplitStream<WebSocket>,
-    state: State<Arc<MySharedState>>,
-    who: SocketAddr,
+    graph_sender: mpsc::Sender<GraphMessage>,
+    who: &str,
     tx: mpsc::Sender<GraphMessage>,
     span: &fastrace::Span,
 ) -> usize {
@@ -275,11 +373,17 @@ async fn client_to_upstream(
                     .mpsc_respond_to(tx.clone());
                 let origin = Some(_origin);
 
-                state.start.lock().unwrap().send(GraphMessage::Standard {
-                    message: t.as_bytes().to_vec(),
-                    origin,
-                });
+                let result = graph_sender
+                    .send(GraphMessage::Standard {
+                        message: t.as_bytes().to_vec(),
+                        origin,
+                    })
+                    .await;
 
+                if result.is_err() {
+                    error!("Error sending message to graph");
+                    return cnt;
+                }
                 // let r = resp_rx1.await;
                 // if r.is_err() {
                 //     error!("Error receiving message");
@@ -289,8 +393,22 @@ async fn client_to_upstream(
                 //     _sender.send(msg).await.unwrap();
                 // }
             }
-            Message::Close { .. } => {
-                info!("Client closed connection");
+            Message::Close { code, reason } => {
+                info!("Client closed connection: {:?} {:?}", code, reason);
+                // send to the websocket
+                match graph_sender
+                    .send(GraphMessage::Exit {
+                        origin: Some(OriginMessage::new(None)),
+                    })
+                    .await
+                {
+                    Ok(_) => {
+                        info!("Sender closed");
+                    }
+                    Err(e) => {
+                        error!("Error closing sender: {:?}", e);
+                    }
+                }
                 break;
             }
             _ => {

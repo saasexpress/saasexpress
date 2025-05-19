@@ -8,6 +8,9 @@ nodes:
       routes:
         - /ws-shell
 
+  - id: b2j
+    action: BufferToJSON
+
   - id: translate
     action: MessageTranslator
     config:
@@ -23,5 +26,6 @@ nodes:
       #   - "-i"
 
 edges:
-  - { from: start, to: translate }
+  - { from: start, to: b2j }
+  - { from: b2j, to: translate }
   - { from: translate, to: shell }
