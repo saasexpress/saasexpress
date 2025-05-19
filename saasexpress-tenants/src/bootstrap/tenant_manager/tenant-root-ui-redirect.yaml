@@ -1,0 +1,34 @@
+#
+# - implement HTTPIn to match the route
+#
+name: tenant-ui-redirect
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /
+
+  - id: redirect
+    action: MessageTranslator
+    config:
+      mode: json
+      in_temp: true
+      temp_group: http_in
+      template: |
+        {
+          "response": {
+            "redirect-url": {
+              "url": "/ui/",
+              "query": {}
+            },
+            "set-cookies": []
+          }
+        }
+
+  - id: b2j
+    action: BufferToJSON
+edges:
+  - { from: start, to: redirect }
+  - { from: redirect, to: b2j }
