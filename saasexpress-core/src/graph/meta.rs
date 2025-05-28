@@ -34,4 +34,10 @@ impl NodeMeta {
 
         format!("{}.{}({}{})", self.graph, self.name, self.operator, engine)
     }
+
+    pub fn base_env_vars_settings(&self, node_meta: &NodeMeta) -> String {
+        format!("{}_{}_", node_meta.graph, node_meta.name)
+            .replace("-", "_")
+            .to_uppercase()
+    }
 }

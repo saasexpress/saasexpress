@@ -8,9 +8,11 @@ use tracing::{debug, error, warn};
 use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
 
-use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    Filter2Operator, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 use crate::timestamp::{NaiveDateTimeExt, now};
 
@@ -105,28 +107,32 @@ impl Operator for BufferToJSON {
         "BufferToJSON".to_string()
     }
 
+    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+        Arc::new(BufferToJSON {})
+    }
+
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
         None
     }
 
     fn handle(&self, _message: Message) -> Message {
-        panic!("BufferToJSON - Not implemented");
+        panic!("BufferToJSON - Handle Not implemented");
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        debug!("Not implemented");
+        debug!("Init Not implemented");
     }
 
     fn control(&mut self, _: Message) {
-        debug!("Not implemented");
+        debug!("Control Not implemented");
     }
 
     fn send(&self, _: Message) {
-        panic!("Not implemented");
+        panic!("Send Not implemented");
     }
 
     fn wait(&self) -> Message {
-        panic!("Not implemented");
+        panic!("Wait Not implemented");
     }
 
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
@@ -143,4 +149,26 @@ fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
         message: data,
         origin,
     };
+}
+
+impl OperatorRuntime for BufferToJSON {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn handle(&self, message: Message) -> Message {
+        Operator::handle(self, message)
+    }
+
+    fn send(&self, _message: Message) {
+        Operator::send(self, _message);
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        Operator::get(self)
+    }
 }

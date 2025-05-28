@@ -1,25 +1,23 @@
-use control_bus::ControlEvent;
+use crate::graph::graph_run::GraphRun;
 use graph::{
-    graph::{Graph, GraphBroadcastMessage, GraphStatus, OperatorState},
+    graph::{Graph, GraphStatus},
     registry::GraphRegistry,
 };
-use tokio::time::timeout;
-
-use my_reg::{broadcast_event, register};
+use my_reg::{ControlEvent, broadcast_event, register};
 use operators::factory::add_node_to_graph;
 use serde_yaml::Value;
 use tokio::sync::{
     broadcast::{Receiver, Sender},
     mpsc,
 };
+use tokio::time::timeout;
 use tracing::{debug, info};
 
-mod broker;
-pub mod control_bus;
 pub mod graph;
 pub mod my_reg;
 pub mod operators;
 mod ports;
+pub mod random;
 pub mod settings;
 pub mod timestamp;
 
@@ -50,6 +48,74 @@ pub fn build_graph(yaml: Value) -> Graph {
     graph
 }
 
+pub fn start_graphs_sync() {
+    let graph_registry = GraphRegistry::get_instance();
+    let graph_count = {
+        let graph_registry = graph_registry.lock().unwrap();
+        graph_registry.get_graphs().len()
+    };
+    let graphs = {
+        let graph_registry = graph_registry.lock().unwrap();
+        let graphs = graph_registry.get_graphs();
+        graphs
+    };
+    tokio::spawn(async move {
+        info!("Starting graphs");
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
+
+        register("startup", tx);
+
+        for graph in graphs.iter() {
+            let graph = {
+                let graph = graph.lock().unwrap();
+                let state = graph.state.clone();
+                (state, graph.name.clone(), graph.id.clone())
+            };
+            let graph_name = graph.1;
+            broadcast_event(ControlEvent {
+                graph_id: graph.2,
+
+                graph_name,
+                state: graph.0,
+                operator_names: vec![],
+            })
+            .await;
+        }
+
+        let my_duration = tokio::time::Duration::from_millis(1000);
+        let mut counter = 0;
+
+        loop {
+            let msg = timeout(my_duration, rx.recv()).await;
+            match msg {
+                Ok(msg) => match msg {
+                    Some(msg) => {
+                        if msg.state == GraphStatus::Running {
+                            counter += 1;
+                        }
+                        info!(
+                            "Received message: {:?} (Ready={}/{})",
+                            serde_json::to_string(&msg),
+                            counter,
+                            graph_count
+                        );
+                        if counter == graph_count {
+                            break;
+                        }
+                    }
+                    None => {
+                        panic!("No message received");
+                    }
+                },
+                Err(_) => {
+                    panic!("Timeout waiting for message");
+                }
+            }
+        }
+        info!("All systems a go!");
+    });
+}
+
 pub async fn start_graphs() {
     let graph_registry = GraphRegistry::get_instance();
 
@@ -66,10 +132,15 @@ pub async fn start_graphs() {
         let graph_registry = graph_registry.lock().unwrap();
         let graphs = graph_registry.get_graphs();
         for graph in graphs.iter() {
-            let graph_name = graph.lock().unwrap().name.clone();
+            let graph = {
+                let graph = graph.lock().unwrap();
+                let state = graph.state.clone();
+                (state, graph.name.clone(), graph.id.clone())
+            };
             broadcast_event(ControlEvent {
-                graph_name,
-                state: GraphStatus::Starting,
+                graph_name: graph.1,
+                graph_id: graph.2,
+                state: graph.0,
                 operator_names: vec![],
             })
             .await;
@@ -112,17 +183,12 @@ pub async fn start_graphs() {
 #[cfg(test)]
 mod saasexpress_core_tests {
     use std::panic;
-    use std::thread::sleep;
 
     use serde_json::json;
-    use tokio::sync::broadcast;
     use tracing::{Level, debug, info};
-    use tracing_subscriber::util::SubscriberInitExt;
 
-    use crate::control_bus::ControlEvent;
-    use crate::graph::graph::{GraphBroadcastMessage, GraphRun};
     use crate::graph::registry::GraphRegistry;
-    use crate::my_reg::{broadcast_event, example, register};
+    use crate::my_reg::broadcast_event;
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -172,6 +238,8 @@ mod saasexpress_core_tests {
 
     #[tokio::test]
     async fn buffertojson_works() {
+        initialize();
+
         const GRAPH: &str = r#"
         name: buffer_to_json
         nodes:
@@ -639,15 +707,22 @@ mod saasexpress_core_tests {
     async fn test_reg_example() {
         initialize();
 
-        let j = example().await;
+        let (tx, mut rx) = mpsc::channel::<ControlEvent>(100);
+
+        register("my_channel", tx);
 
         broadcast_event(ControlEvent {
+            graph_id: "ai_agent".to_string(),
             graph_name: "ai_agent".to_string(),
             state: GraphStatus::Running,
             operator_names: vec![],
         })
         .await;
 
-        j.await.ok();
+        let returned = rx.recv().await;
+        assert!(returned.is_some(), "Expected a message from the channel");
+        let msg = returned.unwrap();
+        assert_eq!(msg.graph_name, "ai_agent");
+        assert_eq!(msg.state, GraphStatus::Running);
     }
 }

@@ -5,15 +5,11 @@ use tokio::sync::{mpsc, oneshot::Receiver};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    broker::Broker,
-    control_bus::ControlEvent,
     graph::{
-        graph::{
-            AsyncHandleTrait, Graph, GraphStatus, Operator, OperatorRef, OperatorRole,
-            OperatorState, OperatorType,
-        },
+        graph::{AsyncHandleTrait, Graph, GraphStatus},
         message::{Message, OriginMessage},
         meta::NodeMeta,
+        operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType},
         registry::GraphRegistry,
     },
     my_reg::register,
@@ -99,7 +95,7 @@ impl Operator for AIAgent {
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
-        let settings = env_settings(graph.base_env_vars_settings(node_meta));
+        //let settings = env_settings(node_meta.base_env_vars_settings(node_meta));
 
         self.node_fqn = node_meta.fqn().into();
         self.graph_name = Some(graph.name.clone());

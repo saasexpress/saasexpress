@@ -10,6 +10,7 @@ nodes:
   - id: b2j
     action: BufferToJSON
 
+
   - id: translate
     action: MessageTranslator
     config:
@@ -17,7 +18,7 @@ nodes:
       template: |
         {
           "name": has(temp.http_in.query.name) ? temp.http_in.query.name : null,
-          "hello": "world",
+          "hello": "worldagain",
           "settings": settings,
           "temp": temp,
           "health": data

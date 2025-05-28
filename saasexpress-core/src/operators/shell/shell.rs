@@ -5,9 +5,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::graph::message::{Message, OriginMessage};
 
-use crate::graph::graph::{
-    AsyncHandleTrait, Graph, Operator, OperatorRef, OperatorRole, OperatorType, Origin,
-};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorType};
+
 use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
 

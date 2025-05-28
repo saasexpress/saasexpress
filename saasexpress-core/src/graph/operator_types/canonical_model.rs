@@ -2,9 +2,10 @@ use serde_json::{Error, Value};
 use tracing::error;
 
 use crate::graph::{
-    graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+    graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
+    operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType},
 };
 use core::panic;
 use std::{fmt::Debug, sync::Arc};

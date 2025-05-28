@@ -21,7 +21,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::error;
 
-use super::graph::{Operator, OperatorRef, OperatorRole};
+use super::operator::{Operator, OperatorRef, OperatorRefRead, OperatorRole};
 
 #[derive(Debug)]
 pub enum ControlCommand {

@@ -2,11 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use tracing::{error, info, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Filter2Operator, Graph, OperatorType};
-
+use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::{Message, OriginMessage};
+use crate::graph::operator::{Filter2Operator, Operator, OperatorRef, OperatorType};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 
 use super::check_fs::CheckFsImpl;

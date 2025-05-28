@@ -10,11 +10,11 @@ use serde_json::json;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 
 use fastrace::future::FutureExt;

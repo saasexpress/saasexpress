@@ -1,9 +1,9 @@
-use crate::graph::graph::OperatorType;
+use crate::graph::operator::OperatorType;
 use crate::graph::operator_types::ai_agent::AIAgentOperator;
 use crate::graph::operator_types::ai_tool::AIToolOperator;
 use crate::graph::{
-    graph::{OperatorRef, OperatorRole},
     message::{Message, OriginMessage},
+    operator::{OperatorRef, OperatorRole},
 };
 use futures::channel::oneshot;
 use futures::channel::oneshot::Canceled;

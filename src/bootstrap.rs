@@ -1,14 +1,20 @@
+use std::path::Path;
+
 use fastrace::trace;
-use saasexpress_core::graph::graph::Graph;
+use saasexpress_core::graph::graph::{Graph, GraphStatus};
+use saasexpress_core::graph::registry::GraphRegistry;
+use saasexpress_core::my_reg::{ControlEvent, broadcast_event, deregister};
+use saasexpress_core::{graph, start_graphs, start_graphs_sync};
 use serde_yaml::Value;
-use tracing::{Span, debug, info, instrument};
+use tokio::sync::mpsc;
+use tracing::{Span, debug, error, info, instrument};
 
 use crate::operators::factory::add_node_to_graph;
 use crate::operators::http_in;
 
 pub fn bootstrap() {
     info!("Starting HTTP service");
-    let singleton = http_in::resources::get_instance().lock().unwrap();
+    let mut singleton = http_in::resources::get_instance().lock().unwrap();
     singleton.start();
 }
 
@@ -66,4 +72,56 @@ pub fn build_graph(yaml: Value) -> Graph {
 
     graph.no_processor().init();
     graph
+}
+
+pub fn reload_graph(path: String) {
+    serde_yaml::from_reader::<_, Value>(std::fs::File::open(path).unwrap())
+        .map(|yaml| {
+            let graph = build_graph(yaml);
+            info!("Graph reloaded: {:?}", graph.name);
+            //watch_control_bus(self.name.clone());
+
+            //deregister(&graph.name.as_str());
+            remove_graph(graph.name.as_str());
+
+            let graph_id = graph.id.clone();
+            let graph_name = graph.name.clone();
+
+            tokio::spawn(async move {
+                broadcast_event(ControlEvent {
+                    graph_id: graph_id,
+                    graph_name: graph_name,
+                    state: GraphStatus::Replacing,
+                    operator_names: vec![],
+                })
+                .await;
+            });
+
+            graph.register();
+
+            start_graphs_sync();
+        })
+        .unwrap_or_else(|e| {
+            error!("Failed to reload graph: {}", e);
+        });
+}
+
+pub fn remove_graph(graph_name: &str) {
+    info!("Removing graph: {}", graph_name);
+
+    let graph_registry = GraphRegistry::get_instance();
+    let mut graph_registry = graph_registry.lock().unwrap_or_else(|err| {
+        error!("Failed to lock graph registry: {}", err);
+        panic!("Failed to lock graph registry: {}", err);
+    });
+    let graph = graph_registry.delete_graph(graph_name);
+    match graph {
+        Ok(graph) => {
+            info!("Graph removed: {}", graph_name);
+            let _graph = graph.lock().unwrap();
+        }
+        Err(err) => {
+            error!("Failed to remove graph: {}", err);
+        }
+    }
 }

@@ -6,9 +6,7 @@ use std::{
 
 use tracing::{error, info, warn};
 
-use crate::control_bus::{ControlEvent, get_control_bus};
-
-use super::graph::{Graph, GraphMod, GraphRun, OperatorState};
+use super::graph::{Graph, GraphMod};
 
 pub struct GraphRegistry {
     graphs: Vec<Arc<Mutex<Graph>>>,
@@ -29,6 +27,20 @@ impl GraphRegistry {
         returned_graph
     }
 
+    pub fn delete_graph(&mut self, graph_name: &str) -> Result<Arc<Mutex<Graph>>, String> {
+        if self.exists(&graph_name) {
+            let old_graph = self.graphs.remove(
+                self.graphs
+                    .iter()
+                    .position(|g| g.lock().unwrap().name == graph_name)
+                    .unwrap(),
+            );
+            Ok(old_graph)
+        } else {
+            Err(format!("Graph with name {} does not exist", graph_name))
+        }
+    }
+
     pub fn get_graphs(&self) -> Vec<Arc<Mutex<Graph>>> {
         self.graphs.clone()
     }
@@ -43,7 +55,7 @@ impl GraphRegistry {
         match graph {
             Some(graph) => Some(Arc::clone(graph)),
             None => {
-                warn!("Graph not found {}", name);
+                info!("Graph not found {} - might be fine", name);
                 None
             }
         }

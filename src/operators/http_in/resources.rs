@@ -7,15 +7,15 @@ use opentelemetry::{
 };
 use saasexpress_core::{
     graph::{
-        graph::Operator,
         message::{DebuggableSpan, OriginMessage},
+        operator::Operator,
     },
     timestamp::now,
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex, OnceLock},
     thread::sleep,
     time::Duration,
@@ -84,12 +84,14 @@ impl MySharedState {
 
 pub struct Singleton {
     router: Router,
+    handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Singleton {
     fn new() -> Self {
         Singleton {
             router: Router::new(),
+            handle: None,
         }
     }
 
@@ -420,7 +422,7 @@ impl Singleton {
                                         None
                                     }
                                 };
-                                info!("Redirect URL: {:?}, {:?}", redirect_url, temp);
+                                debug!("Redirect URL: {:?}, {:?}", redirect_url, temp);
 
                                 if let Some(redirect_url) = redirect_url {
                                     headers.insert(
@@ -610,6 +612,7 @@ impl Singleton {
                 }
             }
         }
+
         let main_router = self.router.clone();
         self.router = main_router
             .fallback(default_fallback)
@@ -617,25 +620,60 @@ impl Singleton {
     }
 
     //#[instrument(name = "http_server_start", skip_all)]
-    pub fn start(&self) {
+    pub fn start(&mut self) {
+        let port = 2243;
+        let ip = "0.0.0.0".to_string();
+        let socket_ip = ip
+            .split(".")
+            .into_iter()
+            .map(|x| x.parse::<u8>().expect("Invalid IP"))
+            .collect::<Vec<u8>>();
+
+        let addr = SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(
+                socket_ip[0],
+                socket_ip[1],
+                socket_ip[2],
+                socket_ip[3],
+            )),
+            port,
+        );
+
         let router = self.router.to_owned();
 
         let service = router.into_make_service_with_connect_info::<SocketAddr>();
-        tokio::spawn(async move {
-            let addr = SocketAddr::from(([0, 0, 0, 0], 2243));
-
-            info!("[HTTPIn.axum] Binding to address: {}", addr);
+        let handle = tokio::spawn(async move {
+            info!("[HTTPIn.axum] Starting Server: {}", addr);
             let listener = TcpListener::bind(addr).await.unwrap();
 
             let root = Span::root("server_up", SpanContext::random());
 
             root.with_property(|| ("server.address", "0.0.0.0"))
-                .with_property(|| ("server.port", "2243"))
+                .with_property(|| ("server.port", port.to_string()))
                 .add_event(Event::new("Server started".to_string()));
 
             let serve = axum::serve(listener, service);
             serve.await.expect("Failed to start server");
         });
+
+        self.handle = Some(handle);
+    }
+
+    pub async fn restart(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            info!("Stopping HTTP server...");
+            handle.abort();
+            handle.await.unwrap_err().is_cancelled();
+            self.start();
+        }
+    }
+
+    pub async fn stop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            info!("Stopping HTTP server...");
+            handle.abort();
+            handle.await.unwrap_err().is_cancelled();
+        }
     }
 }
 

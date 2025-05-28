@@ -11,7 +11,7 @@ nodes:
       mode: json
       template: |
         {
-          "status": "Hardcoded UP"
+          "status": "Hardcoded UP!!"
         }
 
   - id: j2b

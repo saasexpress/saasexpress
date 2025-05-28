@@ -8,13 +8,11 @@ use futures::channel::oneshot;
 use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
-use crate::graph::graph::{
-    AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorState, OperatorType,
-};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
 
 use crate::graph::message::{ControlCommand, Message, OriginMessage};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 use crate::graph::registry::GraphRegistry;
 
@@ -127,11 +125,10 @@ impl Operator for Settings {
     }
 
     fn finalize(&mut self) -> bool {
-        // let graph_registry = GraphRegistry::get_instance();
-        // let graph_registry = graph_registry.lock().unwrap();
-        // self.graphs = graph_registry.get_graphs();
-        // self.state = OperatorState::Ready;
-        // error!("Finalizing with {} graph(s)", self.graphs.len());
+        let graph_registry = GraphRegistry::get_instance();
+        let graph_registry = graph_registry.lock().unwrap();
+        self.graphs = graph_registry.get_graphs();
+        info!("Finalizing with {} graph(s)", self.graphs.len());
         self.state = OperatorState::Ready;
         true
     }

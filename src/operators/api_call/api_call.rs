@@ -17,7 +17,8 @@ use tokio::runtime::{Handle, Runtime};
 use tracing::{debug, warn};
 use tracing::{error, info};
 
-use saasexpress_core::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType};
+use saasexpress_core::graph::graph::{AsyncHandleTrait, Graph};
+use saasexpress_core::graph::operator::{Operator, OperatorType, OperatorRole};
 
 use fastrace::future::FutureExt;
 use futures::future;
@@ -193,7 +194,7 @@ impl AsyncHandleTrait for APICall {
                                     headers,
                                 })
                             } else {
-                                warn!("No temp params found for {}", name);
+                                debug!("No temp params found for {}", name);
                                 None
                             }
                         }
@@ -673,9 +674,9 @@ impl Operator for APICall {
         panic!("Should use async_handle");
     }
 
-    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
         self.node_name = Some(node_meta.name.clone());
-        self.settings = env_settings(graph.base_env_vars_settings(node_meta));
+        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta));
 
         let a = self.settings.iter().find(|x| x.key == "URL");
         if a.is_some() {

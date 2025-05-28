@@ -58,3 +58,4 @@ fastrace-opentelemetry = "0.10.0"
 serde_html_form = "0.2.7"
 reqwest-eventsource = "0.6.0"
 time = { version = "0.3", features = ["macros"] }
+notify = "7"

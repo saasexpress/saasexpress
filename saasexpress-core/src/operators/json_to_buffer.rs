@@ -2,12 +2,12 @@ use std::sync::{Arc, Mutex};
 
 use tracing::{debug, error};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
 
 use crate::graph::message::Message;
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
+use crate::graph::operator::{Operator, OperatorType};
 
 #[derive(Debug)]
 pub(crate) struct JSONToBuffer;

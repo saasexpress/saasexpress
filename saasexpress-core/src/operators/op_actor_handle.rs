@@ -9,11 +9,11 @@ use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error, info, info_span, instrument, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorRef, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
 
 use crate::graph::message::Message;
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 
 use super::op_actor::OpActor;
@@ -64,6 +64,14 @@ impl Operator for OperatorActorHandle {
         return self.name.clone();
     }
 
+    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+        Arc::new(OperatorActorHandle {
+            sender: self.sender.clone(),
+            name: self.name.clone(),
+            _nodes: self._nodes.clone(),
+        })
+    }
+
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
         None
     }
@@ -73,7 +81,7 @@ impl Operator for OperatorActorHandle {
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        warn!("Not implemented");
+        debug!("Not implemented");
     }
 
     fn control(&mut self, _message: Message) {
@@ -114,5 +122,27 @@ impl Operator for OperatorActorHandle {
     }
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         self._nodes.as_ref()
+    }
+}
+
+impl OperatorRuntime for OperatorActorHandle {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn handle(&self, message: Message) -> Message {
+        Operator::handle(self, message)
+    }
+
+    fn send(&self, _message: Message) {
+        Operator::send(self, _message);
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        Operator::get(self)
     }
 }

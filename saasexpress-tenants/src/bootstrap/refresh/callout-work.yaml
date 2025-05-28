@@ -1,0 +1,8 @@
+name: work
+nodes:
+  - id: start
+    action: Stub
+    config:
+      info: Some Information Gathered
+edges: []
+

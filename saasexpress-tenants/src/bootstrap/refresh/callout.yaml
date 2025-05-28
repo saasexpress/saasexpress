@@ -1,0 +1,15 @@
+name: client
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /api/refresh/callout 
+  - id: callout
+    action: Callout
+    config:
+      graph_name: work
+edges:
+  - from: start
+    to: callout

@@ -8,16 +8,12 @@ use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
-use crate::broker::Broker;
-use crate::control_bus::ControlEvent;
 use crate::graph;
-use crate::graph::graph::{
-    AsyncHandleTrait, Graph, GraphStatus, OperatorRef, OperatorRole, OperatorState, OperatorType,
-};
+use crate::graph::graph::{AsyncHandleTrait, Graph, GraphRunner, GraphStatus};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 use crate::graph::registry::GraphRegistry;
 use crate::my_reg::register;
@@ -30,7 +26,9 @@ pub(crate) struct Callout {
 
     state: OperatorState,
     graph_name: String,
-    graph: Option<Arc<Mutex<Graph>>>,
+    // graph: Option<Arc<Mutex<Graph>>>,
+    graph_runner: Option<Arc<GraphRunner>>,
+    //graph_runner: Option<Arc<GraphRunner>>,
     next: Vec<OperatorRole>,
 }
 
@@ -46,7 +44,8 @@ impl From<serde_yaml::Value> for Callout {
             self_graph_name: None,
             state: OperatorState::Pending,
             graph_name,
-            graph: None,
+            //graph: None,
+            graph_runner: None,
             next: Vec::new(),
         }
     }
@@ -54,15 +53,15 @@ impl From<serde_yaml::Value> for Callout {
 
 impl Operator for Callout {
     fn _type(&self) -> OperatorType {
-        if self.graph.is_none() {
+        if self.graph_runner.is_none() {
             warn!("Callout operator has no graph assigned yet");
             OperatorType::Endpoint
         } else {
-            let graph = self.graph.as_ref().unwrap();
+            let graph = self.graph_runner.as_ref().unwrap();
 
-            let mut graph = graph.lock().unwrap();
-            let op_node = graph.start_node();
-            op_node.lock().unwrap()._type()
+            //let mut graph = graph.lock().unwrap();
+            let op_node = graph.start_node().expect("Failed to start node");
+            op_node._type()
         }
     }
 
@@ -100,7 +99,12 @@ impl Operator for Callout {
             warn!("Graph not found {}", graph_name);
             false
         } else {
-            self.graph = graph;
+            let graph = graph.unwrap();
+            let graph = graph.lock().unwrap();
+
+            let runner = graph.runner.clone();
+
+            self.graph_runner = Some(Arc::new(runner));
             self.state = OperatorState::Ready;
             true
         }
@@ -149,17 +153,43 @@ impl Callout {
         let callout_span = Span::enter_with_parent("callout", parent_span);
         let callout_inner_span = Span::enter_with_parent("callout_inner", parent_span);
 
+        let graph_runner = self
+            .graph_runner
+            .as_ref()
+            .expect("Graph runner not initialized")
+            .clone();
+
         // let _origin = _message
         //     .get_origin()
         //     .expect("Failed to get origin from message");
 
-        let graph = self.graph.as_ref().expect("Graph not initialized").clone();
+        //let graph = self.graph.as_ref().expect("Graph not initialized").clone();
+
+        //let graph_runner = {
+        //let runner = self.graph_runner.as_ref().unwrap();
+        //Arc::clone(runner)
+        //};
+        // let graph_runner = Arc::clone(self.graph_runner);
+
+        //let graph_runner = graph_runner.expect("Graph runner not initialized");
 
         let next_node_mutex = self.next.get(0).unwrap();
 
         let next_node_mutex = &next_node_mutex.operator;
 
         let next_nd = Arc::clone(next_node_mutex);
+
+        if graph_runner.state != GraphStatus::Running {
+            warn!(
+                "Graph runner is {:?}, cannot callout to graph: {}",
+                graph_runner.state, graph_runner.name
+            );
+            next_nd.lock().unwrap().send(Message::Error {
+                error: format!("Graph {} is stopped", graph_runner.name),
+                origin: _message.take_origin(),
+            });
+            return;
+        }
 
         let (tx, rx) = oneshot::channel::<Message>();
 
@@ -182,11 +212,11 @@ impl Callout {
                         {
                             let _lspan = LocalSpan::enter_with_local_parent("start_graph");
 
-                            let _graph = graph.as_ref();
-                            let graph = _graph.lock().unwrap();
+                            //let _graph = graph.as_ref();
+                            //let graph = _graph.lock().unwrap();
 
-                            info!("Calling out to graph: {}", graph.name);
-                            graph.call(callout_message);
+                            info!("Calling out to graph: {}", graph_runner.name);
+                            graph_runner.call(callout_message);
                         }
 
                         let response = recv.await.unwrap();
@@ -221,11 +251,11 @@ impl Callout {
                         {
                             let _lspan = LocalSpan::enter_with_local_parent("start_graph");
 
-                            let _graph = graph.as_ref();
-                            let graph = _graph.lock().unwrap();
+                            //let _graph = graph.as_ref();
+                            //let graph = _graph.lock().unwrap();
 
-                            info!("Calling out to graph: {}", graph.name);
-                            graph.call(callout_message);
+                            info!("Calling out to graph: {}", graph_runner.name);
+                            graph_runner.call(callout_message);
                         }
 
                         let response = recv.await.unwrap();

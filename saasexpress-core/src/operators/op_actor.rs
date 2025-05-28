@@ -3,15 +3,16 @@ use std::{
     thread::sleep,
 };
 
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorType};
 use crate::graph::{
-    graph::{OperatorRef, OperatorRole, OperatorType},
+    graph::{AsyncHandleTrait, Graph},
     message::Message,
 };
+
 use fastrace::{Span, local::LocalSpan, prelude::SpanContext};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, info_span, instrument, span, warn};
 
-use crate::graph::graph::Operator;
 use fastrace::future::FutureExt;
 //use opentelemetry::trace::FutureExt;
 use tracing::Instrument;
@@ -22,6 +23,12 @@ pub(crate) struct OpActor {
     receiver: mpsc::Receiver<Message>,
     handle: Box<dyn Operator + 'static>,
     next: Vec<OperatorRole>,
+}
+
+impl Drop for OpActor {
+    fn drop(&mut self) {
+        error!("Dropping OpActor: {}", self.name);
+    }
 }
 
 impl OpActor {
@@ -41,7 +48,12 @@ impl OpActor {
         debug!("OperatorActor is running for {}", self.handle.name());
 
         loop {
-            let msg = self.receiver.recv().await.unwrap();
+            let msg = self.receiver.recv().await;
+            if msg.is_none() {
+                warn!("OperatorActor is stopping for {}", self.handle.name());
+                break;
+            }
+            let msg = msg.unwrap();
 
             match msg {
                 Message::Init {

@@ -2,7 +2,8 @@ use core::panic;
 use std::sync::Arc;
 
 use saasexpress_core::graph::{
-    graph::{Graph, Operator},
+    graph::Graph,
+    operator::{Operator, OperatorRole, OperatorType},
     operator_types::{
         ai_agent::{AIAgent, AIAgentOperator},
         ai_tool::AITool,

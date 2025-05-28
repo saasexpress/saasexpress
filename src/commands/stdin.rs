@@ -1,6 +1,6 @@
 use crate::bootstrap::build_graph;
 
-pub(crate) fn stdin() {
+pub(crate) fn stdin() -> String {
     let mut buffer = String::new();
     loop {
         let mut line = String::new();
@@ -18,5 +18,8 @@ pub(crate) fn stdin() {
         }
     }
     let yaml = serde_yaml::from_slice::<serde_yaml::Value>(buffer.as_bytes()).unwrap();
-    build_graph(yaml);
+    let graph = build_graph(yaml);
+    let graph_name = &graph.name.clone();
+    graph.register();
+    graph_name.to_string()
 }

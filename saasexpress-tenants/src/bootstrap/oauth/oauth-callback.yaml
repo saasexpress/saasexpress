@@ -10,6 +10,14 @@ nodes:
   - id: b2j
     action: BufferToJSON
 
+  # OAUTH_CALLBACK_DISCOVERY_URL = "https://discovery"
+  - id: discovery
+    action: APICall
+    config:
+      method: POST
+      url: temp.token.url
+
+
   # Could be an error
   # "query": {
   #   "error": "invalid_request",
@@ -125,7 +133,8 @@ nodes:
 
 edges:
   - { from: start, to: b2j }
-  - { from: b2j, to: translate }
+  - { from: b2j, to: discovery }
+  - { from: discovery, to: translate }
   - { from: translate, to: j2b }
   - { from: j2b, to: token }
   - { from: token, to: userinfo }

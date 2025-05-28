@@ -1,9 +1,10 @@
 use core::panic;
 use std::sync::Arc;
 
-use crate::graph::{
-    graph::{Graph, Operator},
-    operator_types::{ai_agent::AIAgent, ai_tool::AITool, canonical_model::CanonicalModel},
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
+use crate::graph::operator_types::{
+    ai_agent::AIAgent, ai_tool::AITool, canonical_model::CanonicalModel,
 };
 
 use super::{

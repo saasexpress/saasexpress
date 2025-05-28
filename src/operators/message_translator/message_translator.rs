@@ -13,8 +13,9 @@ use fastrace::{local::LocalSpan, trace};
 use opentelemetry::{KeyValue, trace::get_active_span};
 use saasexpress_core::{
     graph::{
-        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        graph::{AsyncHandleTrait, Graph},
         message::{Message, OriginMessage},
+        operator::{Operator, OperatorType},
     },
     settings::settings::{Setting, env_settings},
     timestamp::{NaiveDateTimeExt, now},
@@ -242,13 +243,13 @@ impl Operator for MessageTranslator {
         }
     }
 
-    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
         self.node_fqn = Some(node_meta.fqn());
         if self.temp_group.is_none() {
             self.temp_group = Some(node_meta.name.to_string());
         }
 
-        self.settings = env_settings(graph.base_env_vars_settings(node_meta))
+        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
     }
 
     fn control(&mut self, _message: Message) {

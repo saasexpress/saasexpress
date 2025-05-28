@@ -8,15 +8,14 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
-use crate::graph::graph::{
-    AsyncHandleTrait, Graph, OperatorRef, OperatorRole, OperatorType, Origin,
-};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{OperatorRef, OperatorRole, OperatorType};
 
 use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
+use crate::graph::operator::Operator;
 use fastrace::future::FutureExt;
 
 #[derive(Debug)]

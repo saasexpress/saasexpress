@@ -14,6 +14,7 @@ pub fn env_settings(base: String) -> Vec<Setting> {
     dotenv().ok();
 
     let mut settings = Vec::new();
+    info!("Looking for env vars with prefix: {}", base);
     for (key, value) in env::vars().filter(|(k, _)| k.starts_with(&base)) {
         let setting = Setting {
             key: key[base.len()..].to_string(),

@@ -1,6 +1,9 @@
+use saasexpress_core::graph::operator::{
+    Operator, OperatorRef, OperatorRole, OperatorState, OperatorType,
+};
 use saasexpress_core::{
     graph::{
-        graph::{AsyncHandleTrait, Graph, Operator, OperatorRef, OperatorRole, OperatorType},
+        graph::{AsyncHandleTrait, Graph},
         message::{ControlCommand, Message},
         meta::NodeMeta,
     },
@@ -125,8 +128,8 @@ impl Operator for HTTPIn {
     //     return _message;
     // }
 
-    fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
-        self.settings = env_settings(graph.base_env_vars_settings(node_meta))
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
     }
 
     fn control(&mut self, _message: Message) {

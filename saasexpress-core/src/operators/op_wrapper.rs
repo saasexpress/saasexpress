@@ -1,18 +1,25 @@
-use crate::graph::graph::{AsyncHandleTrait, Operator, OperatorRef, OperatorState};
-use crate::graph::graph::{Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::Message;
 use crate::graph::meta::NodeMeta;
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime, OperatorState,
+    OperatorType,
+};
 use fastrace::future::FutureExt;
 use fastrace::local::LocalSpan;
 use fastrace::prelude::SpanContext;
 use fastrace::{Event, Span, trace};
+use serde::de;
+use std::any::Any;
 use std::sync::{Arc, Mutex};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct OperatorWrapper {
     name: String,
-    handle: OperatorRef,
+    runtime: Arc<dyn OperatorRuntime>,
+    management: Arc<Mutex<dyn Operator + 'static>>,
+    #[deprecated(note = "This field is not used and should be removed in the future")]
     _nodes: Vec<OperatorRef>,
 }
 
@@ -24,9 +31,14 @@ impl OperatorWrapper {
     {
         let nm = operator.name();
 
+        // let management = graph.nodes.get(&nm).unwrap();
+
+        let runtime = operator.new_runtime();
+
         Self {
-            name: String::clone(&nm),
-            handle: Arc::new(Mutex::new(operator)),
+            name: format!("Wrapper({})", String::clone(&nm)),
+            runtime,
+            management: Arc::new(Mutex::new(operator)),
             _nodes: Vec::new(),
         }
     }
@@ -55,7 +67,7 @@ impl OperatorWrapper {
             warn!("No span found {} for message {}", self.name, message);
         }
 
-        let hdl = self.handle.lock().unwrap();
+        let hdl = self.runtime.as_ref();
 
         let start_time = std::time::Instant::now();
         debug!("Middleware {:?} {:?}", message, start_time);
@@ -85,7 +97,7 @@ impl OperatorWrapper {
     }
 
     async fn async_middleware(&self, _message: Message) -> Message {
-        let hdl = self.handle.lock().unwrap().get().unwrap();
+        let hdl = self.runtime.as_ref().get().expect("Missing async handle");
 
         let nm = format!("middleware ({})", self.name);
         let child_span = Span::enter_with_parent(nm, _message.get_span().unwrap());
@@ -108,23 +120,34 @@ impl OperatorWrapper {
 
         result
     }
+
+    fn replace_runtime(&mut self) {
+        self.runtime = self
+            .management
+            .lock()
+            .expect("Failed to get Operator")
+            .new_runtime();
+    }
 }
 
 impl Operator for OperatorWrapper {
     fn _type(&self) -> OperatorType {
-        self.handle.lock().unwrap()._type()
+        let hdl = self.runtime.as_ref();
+        hdl._type()
     }
     fn name(&self) -> String {
         return self.name.clone();
     }
     fn state(&self) -> OperatorState {
-        self.handle.lock().unwrap().state()
+        let hdl = self.runtime.as_ref();
+        hdl.state()
     }
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
-        self.handle.lock().unwrap().init(graph, node_meta);
+        panic!("init never gets called on OperatorWrapper");
+        // self.management.lock().unwrap().init(graph, node_meta);
     }
     fn finalize(&mut self) -> bool {
-        self.handle.lock().unwrap().finalize()
+        self.management.lock().unwrap().finalize()
     }
 
     fn control(&mut self, _message: Message) {
@@ -135,7 +158,7 @@ impl Operator for OperatorWrapper {
                 start,
                 end,
             } => {
-                let mut hdl = self.handle.lock().unwrap();
+                let mut hdl = self.management.lock().unwrap();
 
                 hdl.control(Message::Init {
                     id,
@@ -145,7 +168,10 @@ impl Operator for OperatorWrapper {
                 });
             }
             Message::Control { command, origin } => {
-                let mut hdl = self.handle.lock().unwrap();
+                // {
+                //     self.replace_runtime();
+                // }
+                let mut hdl = self.management.lock().unwrap();
                 hdl.control(Message::Control { command, origin });
             }
             _ => {
@@ -155,24 +181,22 @@ impl Operator for OperatorWrapper {
     }
 
     fn send(&self, _message: Message) {
-        let message = self.handle(_message);
+        let runtime = self.runtime.as_ref();
+        let message = runtime.handle(_message);
 
         if let Message::Error { error, origin } = message {
             error!("Error in operator {}: {}", self.name, error);
-            self.handle
-                .lock()
-                .unwrap()
-                .send(Message::Error { error, origin });
+            runtime.send(Message::Error { error, origin });
         } else {
             // this has to be after the handle() to avoid deadlock
-            self.handle.lock().unwrap().send(message);
+            runtime.send(message);
         }
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        let hdl = self.handle.lock().unwrap();
+        let async_handle = self.runtime.as_ref().get();
 
-        if hdl.get().is_some() {
+        if async_handle.is_some() {
             debug!("Async handle found {}", self.name);
             Some(Arc::new(self.to_owned()))
         } else {
@@ -209,6 +233,15 @@ impl Operator for OperatorWrapper {
 
     fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         self._nodes.as_ref()
+    }
+
+    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+        Arc::new(OperatorWrapper {
+            name: format!("Runtime({})", self.name.clone()),
+            runtime: self.runtime.clone(),
+            management: self.management.clone(),
+            _nodes: self._nodes.clone(),
+        })
     }
 }
 
@@ -271,5 +304,34 @@ impl AsyncHandleTrait for OperatorWrapper {
         Self: 'async_trait,
     {
         Box::pin(async move { Arc::new(Message::NoOp {}) })
+    }
+}
+
+impl OperatorRuntime for OperatorWrapper {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn handle(&self, message: Message) -> Message {
+        Operator::handle(self, message)
+    }
+
+    fn send(&self, _message: Message) {
+        Operator::send(self, _message);
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        Operator::get(self)
+    }
+}
+
+impl Drop for OperatorWrapper {
+    fn drop(&mut self) {
+        error!("Dropping OperatorWrapper: {}", self.name);
+        // Optionally, you can add cleanup logic here if needed
     }
 }

@@ -2,11 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use tracing::debug;
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
 
 use crate::graph::message::Message;
 
-use crate::graph::graph::Operator;
 use crate::graph::meta::NodeMeta;
 
 #[derive(Clone, Debug)]

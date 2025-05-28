@@ -1,26 +1,32 @@
-use std::borrow::Cow;
-use std::path::PathBuf;
-
 use bootstrap::build_graph;
 use commands::config::config;
 use commands::samples::samples;
 use commands::stdin::stdin;
 use commands::{args::parse_commands, get::get};
 use fastrace::prelude::*;
+use fs_watch::watch_fs;
 use futures::channel::oneshot;
+use operators::http_in;
 use otlp::{init_logs, init_tracer};
-use saasexpress_core::control_bus::ControlEvent;
-use saasexpress_core::graph::graph::{GraphBroadcastMessage, GraphStatus, OperatorState};
+use saasexpress_core::graph::graph::GraphStatus;
+use saasexpress_core::graph::graph_run::GraphRun;
+use saasexpress_core::graph::message::Message;
 use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_core::my_reg::broadcast_event;
 use saasexpress_core::{graph, start_graphs};
 use saasexpress_tenants::TenantsService;
+use serde_json::json;
+use std::borrow::Cow;
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::signal;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+
 mod bootstrap;
 mod commands;
+mod fs_watch;
 mod operators;
-
 mod otlp;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 100)]
@@ -48,64 +54,107 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         .await;
     }
 
+    // cat ./saasexpress-tenants/src/bootstrap/oauth/metadata-discovery.yaml | cargo run -- -i
     if matches.get_flag("stdin") {
-        stdin();
+        let graph_name = stdin();
+
+        start_graphs().await;
+
+        let graph_registry = GraphRegistry::get_instance();
+
+        let graph = graph_registry
+            .lock()
+            .unwrap()
+            .get_graph_by_name(graph_name.as_str());
+
+        let graph = graph.unwrap();
+
+        let mut graph = graph.lock().unwrap();
+
+        let result = graph.end_to_end_standard(vec![]).await;
+
+        match result {
+            Message::JSON { message, .. } => {
+                let returned = serde_json::to_string_pretty(&message).unwrap();
+                print!("{}", returned);
+                return Ok(());
+            }
+            _ => {
+                error!("Error: {:?}", result);
+            }
+        }
+        //bootstrap::bootstrap();
+    } else {
+        tokio::spawn(TenantsService::start());
+
+        // get config file
+
+        if let Some(config_path) = matches.get_one::<PathBuf>("config") {
+            config(config_path.to_str().unwrap().to_string());
+        }
+        // let config = matches.get_one::<String>("config").unwrap();
+        // println!("Config file: {:?}", config);
+        // if matches.get_flag("config") {
+        //     let config = matches.get_one::<String>("config").unwrap();
+        //     println!("Config file: {:?}", config);
+        // }
+        match matches.subcommand() {
+            Some(("get", sub_matches)) => {
+                get(sub_matches);
+            }
+            _ => {}
+        }
+
+        {
+            let start = Span::root("start_up", SpanContext::random());
+            let _guard = start.set_local_parent();
+
+            //let graph_registry = GraphRegistry::get_instance();
+
+            {
+                TenantsService::saasexpress_graphs()
+                    .iter()
+                    .for_each(|(_service_id, yaml)| build_graph(yaml.to_owned()).register());
+            }
+
+            start_graphs().await;
+
+            bootstrap::bootstrap();
+        }
+
+        match TenantsService::load_services() {
+            Ok(()) => {
+                info!("Services loaded");
+            }
+            Err(e) => {
+                error!("Error loading services: {:?}", e);
+            }
+        }
     }
     if matches.get_flag("samples") {
         samples();
     }
 
-    tokio::spawn(TenantsService::start());
+    //do_it();
 
-    // get config file
-
-    if let Some(config_path) = matches.get_one::<PathBuf>("config") {
-        config(config_path.to_str().unwrap().to_string());
-    }
-    // let config = matches.get_one::<String>("config").unwrap();
-    // println!("Config file: {:?}", config);
-    // if matches.get_flag("config") {
-    //     let config = matches.get_one::<String>("config").unwrap();
-    //     println!("Config file: {:?}", config);
+    // match signal::ctrl_c().await {
+    //     Ok(()) => Ok(()),
+    //     Err(err) => {
+    //         eprintln!("Unable to listen for shutdown signal: {}", err);
+    //         // we also shut down in case of error
+    //         Err(err.into())
+    //     }
     // }
-    match matches.subcommand() {
-        Some(("get", sub_matches)) => {
-            get(sub_matches);
+
+    // let mut singleton = http_in::resources::get_instance().lock().unwrap();
+    // singleton.restart().await;
+
+    tokio::spawn(async move {
+        let r = watch_fs("saasexpress-tenants/src/bootstrap".to_string());
+        if r.is_err() {
+            error!("Error watching file system: {:?}", r);
         }
-        _ => {}
-    }
-
-    {
-        let start = Span::root("start_up", SpanContext::random());
-        let _guard = start.set_local_parent();
-
-        let graph_registry = GraphRegistry::get_instance();
-
-        {
-            TenantsService::saasexpress_graphs()
-                .iter()
-                .for_each(|(_service_id, yaml)| build_graph(yaml.to_owned()).register());
-        }
-
-        start_graphs().await;
-
-        warn!("---------------- DONE SETUP");
-        warn!("---------------- DONE SETUP");
-        warn!("---------------- DONE SETUP");
-
-        bootstrap::bootstrap();
-    }
-
-    match TenantsService::load_services() {
-        Ok(()) => {
-            info!("Services loaded");
-        }
-        Err(e) => {
-            error!("Error loading services: {:?}", e);
-        }
-    }
-
-    do_it();
+    });
 
     loop {
         const ONE_HOUR: u64 = 3600;

@@ -9,6 +9,7 @@ nodes:
       routes:
         - /auth/signin
 
+
   # OAUTH_SIGNIN_PREP_CLIENT_ID = "client_id"
   # OAUTH_SIGNIN_PREP_AUTH_URL = "/oidc/auth"
   # OAUTH_SIGNIN_PREP_EXTERNAL_URL = "http://localhost:2243/ui/"

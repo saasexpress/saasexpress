@@ -5,9 +5,10 @@ use std::{
 
 use fake::faker::name::en::Name;
 use saasexpress_core::graph::{
-    graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+    graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
+    operator::{Operator, OperatorType},
 };
 use serde_json::json;
 use tracing::warn;
