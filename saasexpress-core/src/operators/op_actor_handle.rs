@@ -83,7 +83,7 @@ impl Operator for OperatorActorHandle {
 
         let (sender, receiver) = mpsc::channel(8);
 
-        let runtime = self.operator.new_runtime(graph_operator_context);
+        let runtime = self.operator.new_runtime(graph_operator_context.clone());
 
         let mut actor = OpActor::new(
             self.name.clone(),

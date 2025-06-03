@@ -102,7 +102,7 @@ impl Operator for OperatorWrapper {
 
         Arc::new(OperatorWrapperRuntime {
             name: format!("RuntimeWrapper({})", self.name.clone()),
-            upstream_runtime: mgmt.new_runtime(graph_operator_context),
+            upstream_runtime: mgmt.new_runtime(graph_operator_context.clone()),
         })
     }
 }

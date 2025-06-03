@@ -104,11 +104,7 @@ impl Operator for Callout {
             info!("[{}] Creating new operator runtime", self_graph_name);
             let runner = Arc::clone(&callout_graph.runner);
 
-            let next_nodes = {
-                //let self_graph = GraphRegistry::get_graph(&self_graph_name).unwrap();
-                //let self_graph = self_graph.lock().unwrap();
-                Graph::get_next_nodes(graph_operator_context.clone())
-            };
+            let next_nodes = graph_operator_context.get_next_nodes();
 
             info!(
                 "Next nodes for callout operator: {}, {:?}",

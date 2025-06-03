@@ -67,10 +67,6 @@ pub fn build_graph(yaml: Value) -> String {
 
     graph.replace_runtime();
 
-    info!(
-        "Graph BUILT: {} : Manager:{:?}, Runner:{:?}",
-        graph_name, graph.state, graph.runner.state
-    );
     graph_name
 }
 

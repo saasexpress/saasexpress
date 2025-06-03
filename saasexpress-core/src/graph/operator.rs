@@ -167,6 +167,7 @@ pub struct GraphOperatorContext {
     pub node_fqn: String,
     pub mut_nodes: HashMap<String, OperatorRef>,
     pub edges: HashMap<String, HashSet<(String, String)>>,
+    pub node_meta_map: HashMap<String, NodeMeta>,
 }
 
 impl GraphOperatorContext {

@@ -330,13 +330,16 @@ impl Graph {
     pub fn get_next_nodes(graph_operator_context: GraphOperatorContext) -> Vec<OperatorRole> {
         let mut childs: Vec<OperatorRole> = Vec::new();
 
+        let id = graph_operator_context.id.clone();
+
         let nodes = graph_operator_context.mut_nodes.clone();
 
         let children = graph_operator_context.get_next_edges();
+
         match children {
             Some(children) => {
                 for child in children {
-                    debug!("Adding child {} (role {})", child.1, child.0);
+                    debug!("[{}] Adding child {} (role {})", id, child.1, child.0);
                     let opsch = nodes.get(&child.1);
                     match opsch {
                         Some(opsc) => {
@@ -347,7 +350,21 @@ impl Graph {
                             }
                             let op = op.unwrap();
 
-                            let rt = op.new_runtime(graph_operator_context.clone());
+                            let node_fqn = graph_operator_context
+                                .node_meta_map
+                                .get(&child.1)
+                                .map(|meta| meta.fqn())
+                                .unwrap_or_else(|| "N/A".to_string());
+
+                            let child_graph_operator_context = GraphOperatorContext {
+                                mut_nodes: graph_operator_context.mut_nodes.clone(),
+                                edges: graph_operator_context.edges.clone(),
+                                node_meta_map: graph_operator_context.node_meta_map.clone(),
+                                node_fqn,
+                                id: child.1.clone(),
+                            };
+
+                            let rt = op.new_runtime(child_graph_operator_context);
 
                             childs.push(OperatorRole {
                                 role: child.0.clone(),
@@ -590,8 +607,9 @@ impl Graph {
     pub fn replace_runtime(&mut self) {
         info!("Replacing runtime for graph: {}", self.name);
 
-        let edges = self.edges.clone();
         let mut_nodes = self.mut_nodes.clone();
+        let edges = self.edges.clone();
+        let node_meta = self.node_meta_map.clone();
 
         let mut new_runner = GraphRunner {
             name: self.name.clone(),
@@ -609,12 +627,8 @@ impl Graph {
             reason: "Graph runner updated".to_string(),
         };
 
-        let node_meta = self.node_meta_map.clone();
-
-        //let self_name = self.name.clone();
-
         tokio::spawn(async move {
-            let new_runtimes = Graph::generate_new_runtimes(node_meta, mut_nodes, edges);
+            let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges, node_meta);
 
             let self_name = new_runner.name.clone();
 
@@ -648,6 +662,11 @@ impl Graph {
 
             // info!("New runner for graph {} replaced.", self.name);
 
+            info!(
+                "Graph BUILT: {} : Manager:{:?}, Runner:{:?}",
+                self_name, self_graph.state, self_graph.runner.state
+            );
+
             tokio::spawn(async move {
                 broadcast_event(event).await;
             });
@@ -656,9 +675,9 @@ impl Graph {
     }
 
     pub fn generate_new_runtimes(
-        node_meta: HashMap<String, NodeMeta>,
-        mut_nodes: HashMap<String, Arc<Mutex<dyn Operator + 'static>>>,
+        mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
+        node_meta: HashMap<String, NodeMeta>,
     ) -> HashMap<String, OperatorRuntimeType> {
         let mut nodes = HashMap::new();
 
@@ -674,6 +693,7 @@ impl Graph {
                 let graph_operator_context = GraphOperatorContext {
                     mut_nodes: mut_nodes.clone(),
                     edges: edges.clone(),
+                    node_meta_map: node_meta.clone(),
                     node_fqn,
                     id: id.clone(),
                 };
