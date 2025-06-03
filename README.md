@@ -40,3 +40,9 @@ Go to: http://localhost:2500/hello
 ```sh
 cargo watch -w src -x run
 ```
+
+## Tests
+
+```sh
+cargo test -- --test-threads=1
+```

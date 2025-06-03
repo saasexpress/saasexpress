@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{mpsc, oneshot};
@@ -6,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::graph::message::{Message, OriginMessage};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorType};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
 
 use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
@@ -53,6 +54,76 @@ impl Operator for Shell {
 
     fn name(&self) -> String {
         "Shell".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        info!(
+            "Initializing shell operator with command: {} {}",
+            self.command,
+            self.args.join(" ")
+        );
+    }
+
+    fn control(&mut self, _message: Message) {
+        match _message {
+            Message::Init { next, .. } => {
+                for n in next {
+                    self.add_next(n);
+                }
+            }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
+            _ => {
+                panic!("Unexpected message type for control");
+            }
+        }
+    }
+
+    // fn wait(&self) -> Message {
+    //     panic!("Wait not implemented for Shell operator");
+    // }
+
+    // fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
+    //     panic!("Get output channels not implemented for Shell operator");
+    // }
+}
+
+impl Shell {
+    fn next(&self, message: Message) {
+        let mut counter = 0;
+        for n in &self.next {
+            if counter == 0 {
+                n.operator.send(message);
+                break;
+            } else {
+                info!("Not implemented");
+            }
+            counter = counter + 1;
+        }
+    }
+
+    fn add_next(&mut self, operator: OperatorRole) {
+        self.next.push(operator);
+    }
+}
+
+impl OperatorRuntime for Shell {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -231,59 +302,8 @@ impl Operator for Shell {
         }
     }
 
-    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
-        info!(
-            "Initializing shell operator with command: {} {}",
-            self.command,
-            self.args.join(" ")
-        );
-    }
-
-    fn control(&mut self, _message: Message) {
-        match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
-            Message::Control { .. } => {
-                debug!("Control");
-            }
-
-            _ => {
-                panic!("Unexpected message type for control");
-            }
-        }
-    }
     fn send(&self, message: Message) {
         //panic!("Send not implemented for Shell operator");
         self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Wait not implemented for Shell operator");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Get output channels not implemented for Shell operator");
-    }
-}
-
-impl Shell {
-    fn next(&self, message: Message) {
-        let mut counter = 0;
-        for n in &self.next {
-            if counter == 0 {
-                n.operator.lock().unwrap().send(message);
-                break;
-            } else {
-                info!("Not implemented");
-            }
-            counter = counter + 1;
-        }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -8,7 +8,7 @@ use saasexpress_core::graph::{
     graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
-    operator::{Operator, OperatorType},
+    operator::{Operator, OperatorRef, OperatorRuntime, OperatorType},
 };
 use serde_json::json;
 use tracing::warn;
@@ -31,6 +31,32 @@ impl Operator for Faker {
 
     fn name(&self) -> String {
         "Faker".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        warn!("Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        warn!("Not implemented");
+    }
+}
+
+impl OperatorRuntime for Faker {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -58,23 +84,7 @@ impl Operator for Faker {
         }
     }
 
-    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        warn!("Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        warn!("Not implemented");
-    }
-
     fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
@@ -10,11 +11,15 @@ use tokio::task::spawn_blocking;
 use tracing::{debug, error, info, info_span, instrument, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorType,
+};
 
 use crate::graph::message::Message;
 
 use crate::graph::meta::NodeMeta;
+use crate::graph::registry::GraphRegistry;
+use crate::my_reg::{ControlEvent, register};
 
 use super::op_actor::OpActor;
 
@@ -23,34 +28,38 @@ use tracing::Instrument;
 
 #[derive(Debug)]
 pub(crate) struct OperatorActorHandle {
-    sender: mpsc::Sender<Message>,
+    //sender: mpsc::Sender<Message>,
+    graph_name: String,
+    id: String,
     name: String,
-    _nodes: Vec<OperatorRef>,
+    operator: Box<dyn Operator + 'static>,
+    //_nodes: Vec<OperatorRef>,
 }
 
 impl OperatorActorHandle {
     //#[instrument[name = "op-actor-handle", skip_all]]
     #[trace]
-    pub fn new<T>(operator: T) -> Self
+    pub fn new<T>(graph_name: String, id: String, operator: T) -> Self
     where
         T: Operator + 'static,
     {
         let nm = operator.name();
-        let name = operator.name().clone();
-        let (sender, receiver) = mpsc::channel(8);
+        //let name = operator.name().clone();
+        // let (sender, receiver) = mpsc::channel(8);
 
-        let mut actor = OpActor::new(name, receiver, operator);
+        // let mut actor = OpActor::new(name, receiver, operator);
 
-        let future = async move {
-            actor.run().await;
-        };
+        // let future = async move {
+        //     actor.run().await;
+        // };
 
-        tokio::spawn(future);
+        // tokio::spawn(future);
 
         Self {
+            id,
+            operator: Box::new(operator),
             name: String::clone(&nm),
-            sender,
-            _nodes: Vec::new(),
+            graph_name,
         }
     }
 }
@@ -64,20 +73,34 @@ impl Operator for OperatorActorHandle {
         return self.name.clone();
     }
 
-    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
-        Arc::new(OperatorActorHandle {
-            sender: self.sender.clone(),
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+
+        let (sender, receiver) = mpsc::channel(8);
+
+        let runtime = self.operator.new_runtime(mut_nodes.clone(), edges.clone());
+
+        let mut actor = OpActor::new(
+            self.name.clone(),
+            receiver,
+            Arc::clone(&runtime),
+            next_nodes,
+        );
+
+        let future = async move {
+            actor.run().await;
+        };
+
+        tokio::spawn(future);
+
+        Arc::new(OperatorActorHandleRuntime {
+            sender,
             name: self.name.clone(),
-            _nodes: self._nodes.clone(),
         })
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
-    fn handle(&self, _message: Message) -> Message {
-        return _message;
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
@@ -86,19 +109,49 @@ impl Operator for OperatorActorHandle {
 
     fn control(&mut self, _message: Message) {
         debug!("Control message received: {:?}", _message);
-        match _message {
-            Message::Init { .. } => match self.sender.try_send(_message) {
-                Ok(_) => debug!("Message sent to {}", self.name),
-                Err(e) => panic!("Failed to send: {}", e),
-            },
-            Message::Control { .. } => match self.sender.try_send(_message) {
-                Ok(_) => debug!("Message sent to {}", self.name),
-                Err(e) => panic!("Failed to send: {}", e),
-            },
-            _ => {
-                panic!("Unexpected message type for control");
-            }
-        }
+        self.operator.control(_message);
+        // match _message {
+        //     Message::Init2 { .. } => match self.sender.try_send(_message) {
+        //         Ok(_) => debug!("Message sent to {}", self.name),
+        //         Err(e) => panic!("Failed to send: {}", e),
+        //     },
+        //     Message::Init { .. } => match self.sender.try_send(_message) {
+        //         Ok(_) => debug!("Message sent to {}", self.name),
+        //         Err(e) => panic!("Failed to send: {}", e),
+        //     },
+        //     Message::Control { .. } => match self.sender.try_send(_message) {
+        //         Ok(_) => debug!("Message sent to {}", self.name),
+        //         Err(e) => panic!("Failed to send: {}", e),
+        //     },
+        //     _ => {
+        //         panic!("Unexpected message type for control");
+        //     }
+        // }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct OperatorActorHandleRuntime {
+    sender: mpsc::Sender<Message>,
+    name: String,
+    //next_nodes: Vec<OperatorRef>,
+}
+
+impl OperatorRuntime for OperatorActorHandleRuntime {
+    fn _type(&self) -> OperatorType {
+        OperatorType::Endpoint
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        return _message;
     }
 
     fn send(&self, _message: Message) {
@@ -116,33 +169,5 @@ impl Operator for OperatorActorHandle {
                 }
             },
         }
-    }
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        self._nodes.as_ref()
-    }
-}
-
-impl OperatorRuntime for OperatorActorHandle {
-    fn _type(&self) -> OperatorType {
-        Operator::_type(self)
-    }
-
-    fn name(&self) -> String {
-        Operator::name(self)
-    }
-
-    fn handle(&self, message: Message) -> Message {
-        Operator::handle(self, message)
-    }
-
-    fn send(&self, _message: Message) {
-        Operator::send(self, _message);
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        Operator::get(self)
     }
 }

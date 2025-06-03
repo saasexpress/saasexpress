@@ -9,7 +9,10 @@ use crate::{
         graph::{AsyncHandleTrait, Graph, GraphStatus},
         message::{Message, OriginMessage},
         meta::NodeMeta,
-        operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType},
+        operator::{
+            Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType,
+            OperatorState, OperatorType,
+        },
         registry::GraphRegistry,
     },
     my_reg::register,
@@ -17,7 +20,7 @@ use crate::{
 };
 use core::panic;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Debug,
     sync::{Arc, Mutex},
 };
@@ -31,7 +34,7 @@ pub trait AIAgentOperator: Sync + Send + Debug {
         origin: Option<OriginMessage>,
         user_prompt: String,
         next: Vec<OperatorRole>,
-        tools: HashMap<String, OperatorRef>,
+        tools: HashMap<String, OperatorRuntimeType>,
     );
 }
 
@@ -44,7 +47,7 @@ pub struct AIAgent {
     //tool_graph_names: Vec<String>,
     pub(crate) operator: Arc<dyn AIAgentOperator + Send + Sync + 'static>,
 
-    tools: HashMap<String, OperatorRef>,
+    tools: HashMap<String, OperatorRuntimeType>,
 
     next: Vec<OperatorRole>,
 }
@@ -86,12 +89,20 @@ impl Operator for AIAgent {
         self.name.clone()
     }
 
-    fn state(&self) -> OperatorState {
-        self.state.clone()
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(AIAgent {
+            node_fqn: self.node_fqn.clone(),
+            graph_name: self.graph_name.clone(),
+            name: self.name.clone(),
+            state: self.state.clone(),
+            operator: Arc::clone(&self.operator),
+            next: self.next.clone(),
+            tools: self.tools.clone(),
+        })
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
@@ -140,12 +151,7 @@ impl Operator for AIAgent {
 
     fn control(&mut self, message: Message) {
         match message {
-            Message::Init {
-                id,
-                next,
-                start,
-                end,
-            } => {
+            Message::Init { next, .. } => {
                 for n in next {
                     self.add_next(n);
                 }
@@ -159,119 +165,13 @@ impl Operator for AIAgent {
             }
         }
     }
-
-    fn handle(&self, in_message: Message) -> Message {
-        return in_message;
-        //let origin = in_message.take_origin();
-
-        // if existing conversation, retrieve it
-        // prepare the llm message which includes the tool schemas()
-        // send to operator (role = llm)
-        // wait for response
-        // determine the next function (role = tool) and call it
-        // pass conversation to operator (role = storage)
-        // return response
-
-        // match &in_message {
-        //     Message::JSON { message: json, .. } => match self.operator.process(json.clone()) {
-        //         Ok(_model) => in_message.with_origin(origin),
-        //         Err(e) => {
-        //             error!("Error processing message to AIAgent: {}", e);
-        //             return Message::Error {
-        //                 error: format!("Canonical Model Validation Error - {}", e).to_string(),
-        //                 origin,
-        //             };
-        //         }
-        //     },
-        //     _ => {
-        //         error!("Unexpected message type {}", in_message);
-        //         return Message::Error {
-        //             error: "Unexpected message type".to_string(),
-        //             origin,
-        //         };
-        //     }
-        // }
-        // in_message
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<std::sync::Arc<std::sync::Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn finalize(&mut self) -> bool {
-        for operator in self.next.iter() {
-            debug!(
-                "Finalizing AIAgent {:?} {:?}",
-                operator.role,
-                operator.operator.lock().unwrap()
-            );
-            if operator.role == "tool" {
-                let tool_operator = Arc::clone(&operator.operator);
-
-                let operator = operator.operator.lock().unwrap();
-                let op_type = operator._type();
-                info!("Operator type: {:?}", op_type);
-
-                if let OperatorType::AITool { tool } = op_type {
-                    debug!("Tool match {} {:?}", tool.name(), tool);
-                    self.tools.insert(tool.name(), tool_operator);
-                } else {
-                    error!("Invalid operator type {:?} {}", op_type, operator.name());
-                    return false;
-                }
-            } else if operator.role == "prompt" {
-                let operator = operator.operator.lock().unwrap();
-                let op_type = operator._type();
-                info!("PROMPT Operator type: {:?}", op_type);
-            } else if operator.role == "llm" {
-                let operator = operator.operator.lock().unwrap();
-                let op_type = operator._type();
-                info!("LLM Operator type: {:?}", op_type);
-            } else if operator.role == "default" {
-                // this is fine - where the final response gets passed onto
-            } else {
-                error!(
-                    "Unexpected operator role {:?} {:?}",
-                    operator.role, operator.operator
-                );
-            }
-        }
-        self.state = OperatorState::Ready;
-        true
-    }
-
-    fn send_ptr(&self, _message: Arc<Message>) {
-        let message = _message.to_owned();
-        self.next_ptr(self.handle_ptr(message));
-    }
-
-    fn handle_ptr(&self, message: Arc<Message>) -> Arc<Message> {
-        tracing::debug!("default handle (passthrough)... {}", self.name());
-        return message;
-    }
-
-    fn next_ptr(&self, message: Arc<Message>) {
-        // Sending message to next operator
-        for n in self.get_output_channels() {
-            n.lock().unwrap().send_ptr(message.to_owned());
-            //break;
-        }
-    }
 }
 
 impl AIAgent {
     async fn req_reply(&self, role: String, mut json: Value) {
         let mut is_match = true;
         for node in self.next.iter().filter(|o| o.role == role) {
-            let operator = node.operator.lock().unwrap();
+            let operator = &node.operator;
 
             let (tx, rx) = oneshot::channel();
             operator.send(Message::JSON {
@@ -317,17 +217,55 @@ impl AIAgent {
         self.next.push(operator);
     }
 
+    fn start(&mut self) -> bool {
+        for operator in self.next.iter() {
+            debug!(
+                "Finalizing AIAgent {:?} {:?}",
+                operator.role, operator.operator
+            );
+            if operator.role == "tool" {
+                let tool_operator = Arc::clone(&operator.operator);
+
+                let operator = &operator.operator;
+                let op_type = operator._type();
+                info!("Operator type: {:?}", op_type);
+
+                if let OperatorType::AITool { tool } = op_type {
+                    debug!("Tool match {} {:?}", tool.name(), tool);
+                    self.tools.insert(tool.name(), tool_operator);
+                } else {
+                    error!("Invalid operator type {:?} {}", op_type, operator.name());
+                    return false;
+                }
+            } else if operator.role == "prompt" {
+                let operator = &operator.operator;
+                let op_type = operator._type();
+                info!("PROMPT Operator type: {:?}", op_type);
+            } else if operator.role == "llm" {
+                let operator = &operator.operator;
+                let op_type = operator._type();
+                info!("LLM Operator type: {:?}", op_type);
+            } else if operator.role == "default" {
+                // this is fine - where the final response gets passed onto
+            } else {
+                error!(
+                    "Unexpected operator role {:?} {:?}",
+                    operator.role, operator.operator
+                );
+            }
+        }
+        self.state = OperatorState::Ready;
+        true
+    }
+
     #[fastrace::trace]
     fn start_agent(&self) {
         self.next.iter().for_each(|n| {
-            let node = Arc::clone(&n.operator);
-
-            // ReqReply tools to get the schema
-            let operator = node.lock().unwrap();
-
             let (tx, rx) = oneshot::channel();
 
             let origin = Some(OriginMessage::new(Some(tx)));
+
+            let operator = Arc::clone(&n.operator);
 
             info!("Starting tool {}", operator.name());
             operator.send(Message::Standard {
@@ -388,3 +326,55 @@ impl AIAgent {
 //         }
 //     });
 // }
+
+impl OperatorRuntime for AIAgent {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, in_message: Message) -> Message {
+        return in_message;
+        //let origin = in_message.take_origin();
+
+        // if existing conversation, retrieve it
+        // prepare the llm message which includes the tool schemas()
+        // send to operator (role = llm)
+        // wait for response
+        // determine the next function (role = tool) and call it
+        // pass conversation to operator (role = storage)
+        // return response
+
+        // match &in_message {
+        //     Message::JSON { message: json, .. } => match self.operator.process(json.clone()) {
+        //         Ok(_model) => in_message.with_origin(origin),
+        //         Err(e) => {
+        //             error!("Error processing message to AIAgent: {}", e);
+        //             return Message::Error {
+        //                 error: format!("Canonical Model Validation Error - {}", e).to_string(),
+        //                 origin,
+        //             };
+        //         }
+        //     },
+        //     _ => {
+        //         error!("Unexpected message type {}", in_message);
+        //         return Message::Error {
+        //             error: "Unexpected message type".to_string(),
+        //             origin,
+        //         };
+        //     }
+        // }
+        // in_message
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
+    }
+}

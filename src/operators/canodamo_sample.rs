@@ -1,5 +1,4 @@
-use clap::builder::NonEmptyStringValueParser;
-use saasexpress_core::graph::operator_types::canonical_model::CanonicalModelOperator;
+use saasexpress_core::graph::operator_types::canonical_model::CanonicalModelService;
 use serde::Deserialize;
 use serde_json::{Error, Value};
 use tracing::debug;
@@ -23,7 +22,7 @@ impl From<serde_yaml::Value> for CanonicalModelSample {
         CanonicalModelSample {}
     }
 }
-impl CanonicalModelOperator for CanonicalModelSample {
+impl CanonicalModelService for CanonicalModelSample {
     fn validate_json(&self, json: Value) -> Result<(), Error> {
         serde_json::from_value::<ThisModel>(json)
             .map(|o| {

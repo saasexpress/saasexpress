@@ -6,21 +6,21 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use super::graph::Graph;
+use super::graph::{Graph, GraphRunner};
 use super::message::{DebuggableSpan, Message, OriginMessage};
 
 pub trait GraphRun {
-    async fn end_to_end(&mut self, message: Vec<u8>) -> Message;
-    async fn end_to_end_json(&mut self, message: Value) -> Message;
-    async fn end_to_end_standard(&mut self, message: Vec<u8>) -> Message;
+    async fn end_to_end(&self, message: Vec<u8>) -> Message;
+    async fn end_to_end_json(&self, message: Value) -> Message;
+    async fn end_to_end_standard(&self, message: Vec<u8>) -> Message;
 
-    async fn end_to_end_2(&mut self, message: Vec<u8>) -> Message;
+    async fn end_to_end_2(&self, message: Vec<u8>) -> Message;
 
-    async fn process(&mut self, message: Message) -> Message;
+    //async fn process(&mut self, message: Message) -> Message;
 }
 
-impl GraphRun for Graph {
-    async fn end_to_end(&mut self, message: Vec<u8>) -> Message {
+impl GraphRun for GraphRunner {
+    async fn end_to_end(&self, message: Vec<u8>) -> Message {
         //let node = self.nodes.get(&self.start_node).unwrap().clone();
 
         //let node = node.lock().unwrap();
@@ -47,10 +47,10 @@ impl GraphRun for Graph {
         recv.await.unwrap()
     }
 
-    async fn end_to_end_json(&mut self, message: Value) -> Message {
-        let node = self.start_node();
+    async fn end_to_end_json(&self, message: Value) -> Message {
+        // let node = self.start_node();
 
-        let node = node.lock().unwrap();
+        // let node = node.lock().unwrap();
 
         let (respond_to, recv) = oneshot::channel();
 
@@ -60,7 +60,7 @@ impl GraphRun for Graph {
             .session("0".to_string())
             .with_span(Some(DebuggableSpan(root_span)));
 
-        node.send(Message::JSON {
+        self.call(Message::JSON {
             message,
             origin: Some(origin),
         });
@@ -77,11 +77,7 @@ impl GraphRun for Graph {
         }
     }
 
-    async fn end_to_end_standard(&mut self, message: Vec<u8>) -> Message {
-        let node = self.start_node();
-
-        let node = node.lock().unwrap();
-
+    async fn end_to_end_standard(&self, message: Vec<u8>) -> Message {
         let (respond_to, recv) = oneshot::channel();
 
         let root_span = fastrace::Span::root("end_to_end", SpanContext::random());
@@ -90,7 +86,7 @@ impl GraphRun for Graph {
             .session("0".to_string())
             .with_span(Some(DebuggableSpan(root_span)));
 
-        node.send(Message::Standard {
+        self.call(Message::Standard {
             message,
             origin: Some(origin),
         });
@@ -98,16 +94,12 @@ impl GraphRun for Graph {
         recv.await.unwrap()
     }
 
-    async fn end_to_end_2(&mut self, message: Vec<u8>) -> Message {
-        let node = self.start_node();
-
-        let node = node.lock().unwrap();
-
+    async fn end_to_end_2(&self, message: Vec<u8>) -> Message {
         let (_tx, _rx) = oneshot::channel();
 
         let (tx, mut rx) = mpsc::channel(10);
 
-        node.send(Message::Standard {
+        self.call(Message::Standard {
             message,
             origin: Some(
                 OriginMessage::new(Some(_tx))
@@ -146,20 +138,18 @@ impl GraphRun for Graph {
         }
     }
 
-    // Process request just like before
-    async fn process(&mut self, message: Message) -> Message {
-        let node = self.start_node();
+    // // Process request just like before
+    // async fn process(&mut self, message: Message) -> Message {
+    //     self.call(message);
 
-        node.lock().unwrap().send(message);
+    //     //let p = graph.processor.unwrap().lock().unwrap();
 
-        //let p = graph.processor.unwrap().lock().unwrap();
-
-        //let processor = graph.processor.as_mut().unwrap();
-        let graph = self;
-        let a = graph.processor.as_mut().unwrap();
-        let mut b = a.lock().unwrap();
-        let message = b.req_reply().await;
-        //return processor.req_reply().await;
-        message
-    }
+    //     //let processor = graph.processor.as_mut().unwrap();
+    //     let graph = self;
+    //     let a = graph.processor.as_mut().unwrap();
+    //     let mut b = a.lock().unwrap();
+    //     let message = b.req_reply().await;
+    //     //return processor.req_reply().await;
+    //     message
+    // }
 }

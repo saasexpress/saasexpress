@@ -9,12 +9,20 @@ use tracing::{debug, error, event, info};
 
 use crate::graph::graph::GraphStatus;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
+pub enum ControlEventType {
+    Notice,
+    OperatorUpdated,
+    GraphReplaced,
+}
+
+#[derive(Clone, Serialize, Debug)]
 pub struct ControlEvent {
     pub graph_id: String,
     pub graph_name: String,
     pub operator_names: Vec<String>,
-    pub state: GraphStatus,
+    pub event_type: ControlEventType,
+    pub reason: String,
 }
 
 // Define our Registry type
@@ -64,6 +72,7 @@ pub fn register<T: 'static + Send + Sync>(name: &str, sender: mpsc::Sender<T>) {
 
         //return;
     }
+    info!("[{}] REGISTERED", name);
     tokio::spawn(async move {});
 
     REGISTRY.register(name, sender);
@@ -79,6 +88,10 @@ pub fn deregister<T: 'static + Send + Sync>(name: &str) {
 
 pub fn get<T: 'static + Send + Sync>(name: &str) -> Option<mpsc::Sender<T>> {
     REGISTRY.get(name)
+}
+
+pub fn clear_registry() {
+    REGISTRY.channels.lock().unwrap().clear();
 }
 
 // pub async fn replay_events<T: 'static + Send + Sync>(name: &str) {

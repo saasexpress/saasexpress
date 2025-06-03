@@ -21,14 +21,18 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::error;
 
-use super::operator::{Operator, OperatorRef, OperatorRefRead, OperatorRole};
+use super::operator::{
+    Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime, OperatorRuntimeType,
+};
 
 #[derive(Debug)]
 pub enum ControlCommand {
     SetSettings {
         settings: HashMap<String, serde_json::Value>,
     },
-    Start,
+    Start {
+        runtime: OperatorRuntimeType,
+    },
     Stop,
 }
 
@@ -162,11 +166,16 @@ pub enum Message {
         command: ControlCommand,
         origin: Option<OriginMessage>,
     },
+    Init2 {
+        id: String,
+        next: Vec<OperatorRole>,
+    },
     Init {
         id: String,
         next: Vec<OperatorRole>,
-        end: OperatorRef,
-        start: OperatorRef,
+        end: Arc<dyn OperatorRuntime + 'static>, // does not appear to be used
+        start: Arc<dyn OperatorRuntime + 'static>, // used by http-in
+        op_runtime: OperatorRuntimeType,
     },
     Error {
         error: String,
@@ -333,6 +342,7 @@ impl Display for Message {
             Message::HTTP { message, .. } => write!(f, "HTTP message: {:?}", message),
             Message::ReqReply { message, .. } => write!(f, "ReqReply message: {:?}", message),
             Message::Init { .. } => write!(f, "Init message"),
+            Message::Init2 { .. } => write!(f, "Init2 message"),
             Message::Control { command, .. } => write!(f, "Control message {:?}", command),
             Message::Tuple {
                 message_1,

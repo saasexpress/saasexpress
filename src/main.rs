@@ -8,7 +8,7 @@ use fs_watch::watch_fs;
 use futures::channel::oneshot;
 use operators::http_in;
 use otlp::{init_logs, init_tracer};
-use saasexpress_core::graph::graph::GraphStatus;
+use saasexpress_core::graph::graph::{GraphStatus, IntoGraphRunner};
 use saasexpress_core::graph::graph_run::GraphRun;
 use saasexpress_core::graph::message::Message;
 use saasexpress_core::graph::registry::GraphRegistry;
@@ -60,16 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
         start_graphs().await;
 
-        let graph_registry = GraphRegistry::get_instance();
-
-        let graph = graph_registry
-            .lock()
-            .unwrap()
-            .get_graph_by_name(graph_name.as_str());
-
-        let graph = graph.unwrap();
-
-        let mut graph = graph.lock().unwrap();
+        let graph = graph_name.into_graph_runner();
 
         let result = graph.end_to_end_standard(vec![]).await;
 
@@ -114,9 +105,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             {
                 TenantsService::saasexpress_graphs()
                     .iter()
-                    .for_each(|(_service_id, yaml)| build_graph(yaml.to_owned()).register());
+                    .for_each(|(_service_id, yaml)| {
+                        build_graph(yaml.to_owned());
+                    });
             }
 
+            warn!("Starting graphs...");
             start_graphs().await;
 
             bootstrap::bootstrap();

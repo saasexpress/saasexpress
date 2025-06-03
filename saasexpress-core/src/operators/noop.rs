@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::oneshot;
@@ -32,18 +33,14 @@ impl Operator for NOOP {
         "NOOP".to_string()
     }
 
-    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
         Arc::new(NOOP {
             sender: self.sender.clone(),
         })
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
-    fn handle(&self, _message: Message) -> Message {
-        _message
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
@@ -52,6 +49,24 @@ impl Operator for NOOP {
 
     fn control(&mut self, _: Message) {
         debug!("NOOP - no control to do - Not implemented");
+    }
+}
+
+impl OperatorRuntime for NOOP {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        _message
     }
 
     fn send(&self, _message: Message) {
@@ -235,35 +250,5 @@ impl Operator for NOOP {
                 warn!("Message type not supported for respond_to {}", _message);
             }
         }
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
-}
-
-impl OperatorRuntime for NOOP {
-    fn _type(&self) -> OperatorType {
-        Operator::_type(self)
-    }
-
-    fn name(&self) -> String {
-        Operator::name(self)
-    }
-
-    fn handle(&self, message: Message) -> Message {
-        Operator::handle(self, message)
-    }
-
-    fn send(&self, _message: Message) {
-        Operator::send(self, _message);
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        Operator::get(self)
     }
 }

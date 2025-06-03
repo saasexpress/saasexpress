@@ -1,9 +1,10 @@
+use crate::graph::graph::GraphMod;
 use crate::graph::graph_run::GraphRun;
 use graph::{
     graph::{Graph, GraphStatus},
     registry::GraphRegistry,
 };
-use my_reg::{ControlEvent, broadcast_event, register};
+use my_reg::{ControlEvent, ControlEventType, broadcast_event, register};
 use operators::factory::add_node_to_graph;
 use serde_yaml::Value;
 use tokio::sync::{
@@ -11,7 +12,7 @@ use tokio::sync::{
     mpsc,
 };
 use tokio::time::timeout;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub mod graph;
 pub mod my_reg;
@@ -25,10 +26,10 @@ pub fn add(left: u64, right: u64) -> u64 {
     left + right
 }
 
-pub fn build_graph(yaml: Value) -> Graph {
+pub fn build_graph(yaml: Value) -> String {
     let graph_name = yaml["name"].as_str().unwrap().to_string();
 
-    let mut graph = Graph::new(graph_name);
+    let mut graph = Graph::new(graph_name.clone());
 
     for node in yaml["nodes"].as_sequence().unwrap() {
         add_node_to_graph(node, &mut graph);
@@ -43,77 +44,34 @@ pub fn build_graph(yaml: Value) -> Graph {
         }
     }
 
-    graph.no_processor().init();
+    graph.no_processor();
+    graph.register();
 
-    graph
-}
+    let graph = GraphRegistry::get_graph(graph_name.as_str());
+    if graph.is_none() {
+        error!("Graph not found: {}", graph_name);
+        panic!("Graph not found: {}", graph_name);
+    }
+    let graph = graph.unwrap();
 
-pub fn start_graphs_sync() {
-    let graph_registry = GraphRegistry::get_instance();
-    let graph_count = {
-        let graph_registry = graph_registry.lock().unwrap();
-        graph_registry.get_graphs().len()
-    };
-    let graphs = {
-        let graph_registry = graph_registry.lock().unwrap();
-        let graphs = graph_registry.get_graphs();
-        graphs
-    };
-    tokio::spawn(async move {
-        info!("Starting graphs");
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
+    let mut graph = graph.lock().unwrap();
 
-        register("startup", tx);
+    //    graph.runner = graph.replace_all_runtimes();
+    //graph.refresh_runtime_nodes();
 
-        for graph in graphs.iter() {
-            let graph = {
-                let graph = graph.lock().unwrap();
-                let state = graph.state.clone();
-                (state, graph.name.clone(), graph.id.clone())
-            };
-            let graph_name = graph.1;
-            broadcast_event(ControlEvent {
-                graph_id: graph.2,
+    //graph.watch();
 
-                graph_name,
-                state: graph.0,
-                operator_names: vec![],
-            })
-            .await;
-        }
+    graph.make_active_if_ready();
 
-        let my_duration = tokio::time::Duration::from_millis(1000);
-        let mut counter = 0;
+    //graph.init(graph.runner.nodes.clone());
 
-        loop {
-            let msg = timeout(my_duration, rx.recv()).await;
-            match msg {
-                Ok(msg) => match msg {
-                    Some(msg) => {
-                        if msg.state == GraphStatus::Running {
-                            counter += 1;
-                        }
-                        info!(
-                            "Received message: {:?} (Ready={}/{})",
-                            serde_json::to_string(&msg),
-                            counter,
-                            graph_count
-                        );
-                        if counter == graph_count {
-                            break;
-                        }
-                    }
-                    None => {
-                        panic!("No message received");
-                    }
-                },
-                Err(_) => {
-                    panic!("Timeout waiting for message");
-                }
-            }
-        }
-        info!("All systems a go!");
-    });
+    graph.replace_runtime();
+
+    info!(
+        "Graph BUILT: {} : Manager:{:?}, Runner:{:?}",
+        graph_name, graph.state, graph.runner.state
+    );
+    graph_name
 }
 
 pub async fn start_graphs() {
@@ -128,25 +86,6 @@ pub async fn start_graphs() {
 
     register("startup", tx);
 
-    {
-        let graph_registry = graph_registry.lock().unwrap();
-        let graphs = graph_registry.get_graphs();
-        for graph in graphs.iter() {
-            let graph = {
-                let graph = graph.lock().unwrap();
-                let state = graph.state.clone();
-                (state, graph.name.clone(), graph.id.clone())
-            };
-            broadcast_event(ControlEvent {
-                graph_name: graph.1,
-                graph_id: graph.2,
-                state: graph.0,
-                operator_names: vec![],
-            })
-            .await;
-        }
-    }
-
     let my_duration = tokio::time::Duration::from_millis(1000);
     let mut counter = 0;
 
@@ -155,11 +94,11 @@ pub async fn start_graphs() {
         match msg {
             Ok(msg) => match msg {
                 Some(msg) => {
-                    if msg.state == GraphStatus::Running {
+                    if msg.event_type == ControlEventType::GraphReplaced {
                         counter += 1;
                     }
                     info!(
-                        "Received message: {:?} (Ready={}/{})",
+                        "Received Event: {:?} (Active={}/{})",
                         serde_json::to_string(&msg),
                         counter,
                         graph_count
@@ -173,11 +112,57 @@ pub async fn start_graphs() {
                 }
             },
             Err(_) => {
-                panic!("Timeout waiting for message");
+                let pending_graphs = {
+                    let graph_names = {
+                        let graph_registry = graph_registry.lock().unwrap();
+                        graph_registry.graph_names()
+                    };
+                    info!("Evaluting pending graphs: {:?}", graph_names);
+                    graph_names
+                        .iter()
+                        .filter(|name| {
+                            let g = GraphRegistry::get_graph(name);
+                            if g.is_none() {
+                                error!("Graph not found: {}", name);
+                                return true;
+                            }
+                            let g = g.unwrap();
+                            let graph = g.try_lock();
+                            if graph.is_err() {
+                                error!("Graph is locked, skipping: {:?}", g);
+                                return true;
+                            }
+                            let graph = graph.unwrap();
+
+                            graph.runner.state == GraphStatus::Inactive
+                        })
+                        .map(|name| name.to_string())
+                        .collect::<Vec<String>>()
+                };
+
+                if pending_graphs.is_empty() {
+                    info!("All graphs are active.");
+                    break;
+                }
+                panic!("Timeout waiting for message: {}", pending_graphs.join(", "));
             }
         }
     }
     info!("All systems a go!");
+
+    post_graph_hook();
+    info!("Post graph hook executed.");
+}
+
+pub fn post_graph_hook() {
+    let graph_registry = GraphRegistry::get_instance();
+
+    let graph_registry = graph_registry.lock().unwrap();
+    for graph in graph_registry.get_graphs() {
+        let graph = graph.lock().unwrap();
+
+        graph.post_start_hook();
+    }
 }
 
 #[cfg(test)]
@@ -187,8 +172,9 @@ mod saasexpress_core_tests {
     use serde_json::json;
     use tracing::{Level, debug, info};
 
+    use crate::graph::graph::IntoGraphRunner;
     use crate::graph::registry::GraphRegistry;
-    use crate::my_reg::broadcast_event;
+    use crate::my_reg::{broadcast_event, clear_registry};
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -203,6 +189,8 @@ mod saasexpress_core_tests {
                 .with_max_level(Level::DEBUG)
                 .init();
         });
+        GraphRegistry::get_instance().lock().unwrap().clear();
+        clear_registry();
     }
 
     fn setup() {
@@ -246,11 +234,15 @@ mod saasexpress_core_tests {
           - id: start
             action: BufferToJSON
         "#;
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
-        assert_eq!(graph.name, "buffer_to_json");
+        start_graphs().await;
 
-        let response = graph.end_to_end("{}".as_bytes().to_vec()).await;
+        let runner = graph_name.into_graph_runner();
+
+        assert_eq!(runner.name, "buffer_to_json");
+
+        let response = runner.end_to_end("{}".as_bytes().to_vec()).await;
 
         debug!("Message: {:?}", response);
         let Message::JSON { message, .. } = response else {
@@ -272,7 +264,11 @@ mod saasexpress_core_tests {
           - id: start
             action: ClaimCheck
         "#;
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        start_graphs().await;
+
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "claim_check");
 
@@ -313,7 +309,11 @@ mod saasexpress_core_tests {
           - from: start
             to: shell
         "#;
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        start_graphs().await;
+
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "shell");
 
@@ -353,7 +353,11 @@ mod saasexpress_core_tests {
         "#;
 
         info!("Graph: {}", GRAPH);
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        start_graphs().await;
+
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "fan_out");
 
@@ -375,9 +379,9 @@ mod saasexpress_core_tests {
         initialize();
 
         const GRAPH: &str = r#"
-        name: callout
+        name: g_callout
         nodes:
-        - id: callout
+        - id: n_callout
           action: Callout
           config:
             graph_name: worker
@@ -395,25 +399,23 @@ mod saasexpress_core_tests {
         "#;
 
         info!("Graph: {}", GRAPH);
-
-        let graph_worker = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
-        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
-
-        graph_worker.register();
-        graph.register();
+        let _ = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
         start_graphs().await;
 
-        let graph_registry = GraphRegistry::get_instance();
-        let reg = graph_registry
-            .lock()
-            .unwrap()
-            .get_graph_by_name("callout")
-            .unwrap();
+        let graph = graph_name.into_graph_runner();
 
-        let mut graph = reg.lock().unwrap();
+        // let graph_registry = GraphRegistry::get_instance();
+        // let reg = graph_registry
+        //     .lock()
+        //     .unwrap()
+        //     .get_graph_by_name("g_callout")
+        //     .unwrap();
 
-        assert_eq!(graph.name, "callout");
+        // let mut graph = reg.lock().unwrap();
+
+        assert_eq!(graph.name, "g_callout");
 
         let response = graph.end_to_end_standard("hello".as_bytes().to_vec()).await;
 
@@ -435,7 +437,7 @@ mod saasexpress_core_tests {
         assert_eq!(message.to_vec(), "hello".as_bytes().to_vec());
 
         let Message::JSON { message, .. } = message_2.as_ref() else {
-            panic!("Expected Standard message");
+            panic!("Expected JSON message: {:?}", message_2);
         };
 
         let nm = message.get("name").unwrap();
@@ -458,22 +460,11 @@ mod saasexpress_core_tests {
 
         info!("Graph: {}", GRAPH);
 
-        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
-
-        graph.register();
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
         start_graphs().await;
 
-        let graph_registry = GraphRegistry::get_instance();
-
-        let reg = {
-            graph_registry
-                .lock()
-                .unwrap()
-                .get_graph_by_name("settings")
-                .unwrap()
-        };
-        let mut graph = { reg.lock().unwrap() };
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "settings");
 
@@ -504,7 +495,11 @@ mod saasexpress_core_tests {
 
         info!("Graph: {}", GRAPH);
 
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        start_graphs().await;
+
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "canonical_model");
 
@@ -526,7 +521,7 @@ mod saasexpress_core_tests {
         initialize();
 
         const GRAPH: &str = r#"
-        name: canonical_model
+        name: canonical_model_err
         nodes:
         - id: start
           action: CanonicalModelSample
@@ -535,9 +530,13 @@ mod saasexpress_core_tests {
 
         info!("Graph: {}", GRAPH);
 
-        let mut graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
-        assert_eq!(graph.name, "canonical_model");
+        start_graphs().await;
+
+        let graph = graph_name.into_graph_runner();
+
+        assert_eq!(graph.name, "canonical_model_err");
 
         let response = graph.end_to_end_json(json!({"first": "Joe"})).await;
 
@@ -574,22 +573,11 @@ mod saasexpress_core_tests {
         edges: []
         "#;
 
-        let graph_tool = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
 
-        let graph_registry = GraphRegistry::get_instance();
-        {
-            graph_registry.lock().unwrap().add_graph(graph_tool);
-        }
+        start_graphs().await;
 
-        let reg = {
-            graph_registry
-                .lock()
-                .unwrap()
-                .get_graph_by_name("ai_tool")
-                .unwrap()
-        };
-
-        let mut graph = { reg.lock().unwrap() };
+        let graph = graph_name.into_graph_runner();
 
         assert_eq!(graph.name, "ai_tool");
 
@@ -669,30 +657,20 @@ mod saasexpress_core_tests {
 
         info!("Graph: {}", GRAPH);
 
-        let graph = build_graph(serde_yaml::from_str(GRAPH).unwrap());
-        let graph_tool = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
-        graph.register();
-        graph_tool.register();
+        let _ = build_graph(serde_yaml::from_str(GRAPH_TOOL).unwrap());
 
         start_graphs().await;
 
-        let reg = {
-            let graph_registry = GraphRegistry::get_instance();
-            graph_registry
-                .lock()
-                .unwrap()
-                .get_graph_by_name("ai_agent")
-                .unwrap()
-        };
+        let graph = graph_name.into_graph_runner();
 
-        let mut graph = { reg.lock().unwrap() };
         let response = graph
             .end_to_end_json(json!({"prompt": "Do something"}))
             .await;
 
         let Message::JSON { message, .. } = response else {
-            panic!("Expected JSON message - {}", response);
+            panic!("Expected JSON message - {:?}", response);
         };
 
         assert_eq!(
@@ -714,7 +692,8 @@ mod saasexpress_core_tests {
         broadcast_event(ControlEvent {
             graph_id: "ai_agent".to_string(),
             graph_name: "ai_agent".to_string(),
-            state: GraphStatus::Running,
+            event_type: ControlEventType::Notice,
+            reason: "Test event".to_string(),
             operator_names: vec![],
         })
         .await;
@@ -723,6 +702,7 @@ mod saasexpress_core_tests {
         assert!(returned.is_some(), "Expected a message from the channel");
         let msg = returned.unwrap();
         assert_eq!(msg.graph_name, "ai_agent");
-        assert_eq!(msg.state, GraphStatus::Running);
+        assert_eq!(msg.event_type, ControlEventType::Notice);
+        assert_eq!(msg.reason, "Test event");
     }
 }

@@ -1,4 +1,4 @@
-use crate::graph::operator::OperatorType;
+use crate::graph::operator::{OperatorRuntime, OperatorRuntimeType, OperatorType};
 use crate::graph::operator_types::ai_agent::AIAgentOperator;
 use crate::graph::operator_types::ai_tool::AIToolOperator;
 use crate::graph::{
@@ -42,7 +42,7 @@ impl AIAgentOperator for AIAgentV1 {
         origin: Option<OriginMessage>,
         user_prompt: String,
         next: Vec<OperatorRole>,
-        tools: HashMap<String, OperatorRef>,
+        tools: HashMap<String, OperatorRuntimeType>,
     ) {
         info!("AIAgentV1 ChatGPT process");
 
@@ -212,8 +212,7 @@ impl AIAgentOperator for AIAgentV1 {
     }
 }
 
-async fn next_send(message: Message, next: OperatorRef) {
-    let next = next.lock().unwrap();
+async fn next_send(message: Message, next: Arc<dyn OperatorRuntime + 'static>) {
     next.send(message);
 }
 
@@ -221,12 +220,12 @@ async fn prepare_llm_request(
     system_prompt: String,
     mut history: Vec<Value>,
     user_prompt: String,
-    tools: HashMap<String, OperatorRef>,
+    tools: HashMap<String, OperatorRuntimeType>,
 ) -> Value {
     let tool_schemas = tools
         .iter()
         .map(|(_name, tool)| {
-            let tool = tool.lock().unwrap()._type();
+            let tool = tool._type();
             let tool = match tool {
                 OperatorType::AITool { tool } => tool,
                 _ => panic!("Invalid operator type"),
@@ -268,7 +267,7 @@ async fn prepare_llm_request(
     })
 }
 
-fn do_callout(message: Value, next: &OperatorRef) -> oneshot::Receiver<Message> {
+fn do_callout(message: Value, next: &OperatorRuntimeType) -> oneshot::Receiver<Message> {
     let (tx, rx) = oneshot::channel::<Message>();
 
     info!("Sending message to next operator: {:?}", message);
@@ -278,7 +277,6 @@ fn do_callout(message: Value, next: &OperatorRef) -> oneshot::Receiver<Message> 
         origin: Some(OriginMessage::new(Some(tx))),
     };
 
-    let next = next.lock().unwrap();
     next.send(message);
 
     rx
@@ -308,7 +306,7 @@ async fn callout(
 async fn callout_tool(
     name: &str,
     json: Value,
-    tools: HashMap<String, OperatorRef>,
+    tools: HashMap<String, OperatorRuntimeType>,
 ) -> Result<Message, Canceled> {
     let next = tools
         .iter()

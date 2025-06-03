@@ -1,6 +1,6 @@
 use core::panic;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, warn};
@@ -107,17 +107,21 @@ impl Operator for BufferToJSON {
         "BufferToJSON".to_string()
     }
 
-    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
         Arc::new(BufferToJSON {})
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
+    // fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+    //     None
+    // }
 
-    fn handle(&self, _message: Message) -> Message {
-        panic!("BufferToJSON - Handle Not implemented");
-    }
+    // fn handle(&self, _message: Message) -> Message {
+    //     panic!("BufferToJSON - Handle Not implemented");
+    // }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Init Not implemented");
@@ -127,17 +131,17 @@ impl Operator for BufferToJSON {
         debug!("Control Not implemented");
     }
 
-    fn send(&self, _: Message) {
-        panic!("Send Not implemented");
-    }
+    // fn send(&self, _: Message) {
+    //     panic!("Send Not implemented");
+    // }
 
-    fn wait(&self) -> Message {
-        panic!("Wait Not implemented");
-    }
+    // fn wait(&self) -> Message {
+    //     panic!("Wait Not implemented");
+    // }
 
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
+    // fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
+    //     panic!("Not implemented");
+    // }
 }
 
 fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
@@ -161,14 +165,14 @@ impl OperatorRuntime for BufferToJSON {
     }
 
     fn handle(&self, message: Message) -> Message {
-        Operator::handle(self, message)
+        panic!("BufferToJSON - Handle Not implemented");
     }
 
     fn send(&self, _message: Message) {
-        Operator::send(self, _message);
+        panic!("Send Not implemented");
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        Operator::get(self)
+        None
     }
 }

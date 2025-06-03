@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 
@@ -9,7 +9,9 @@ use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType,
+};
 
 use crate::graph::message::{ControlCommand, Message, OriginMessage};
 
@@ -18,17 +20,20 @@ use crate::graph::registry::GraphRegistry;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Settings {
-    graphs: Vec<Arc<Mutex<Graph>>>,
+    id: String,
+    graph_name: String,
+    // graphs: Vec<Arc<Mutex<Graph>>>,
     next: Vec<OperatorRole>,
-    state: OperatorState,
 }
 
 impl From<serde_yaml::Value> for Settings {
     fn from(_value: serde_yaml::Value) -> Self {
         Settings {
-            graphs: Vec::new(),
+            id: String::new(),
+            graph_name: String::new(),
+            // graphs: vec![Arc::new(Mutex::new(Graph::new()))],
+            //            graphs: Vec::new(),
             next: Vec::new(),
-            state: OperatorState::Pending,
         }
     }
 }
@@ -43,94 +48,33 @@ impl Operator for Settings {
         "Settings".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = {
+            // let graph = GraphRegistry::get_graph(&self.graph_name);
+            // if graph.is_none() {
+            //     error!("Graph not found - incomplete runtime : {}", self.graph_name);
+            //     Vec::new()
+            // } else {
+            // let graph = graph.unwrap();
+            // let graph = graph.lock().unwrap();
 
-    fn handle(&self, _message: Message) -> Message {
-        let root_span = Span::root(format!("settings"), SpanContext::random());
-
-        root_span.set_local_parent();
-
-        match _message {
-            Message::JSON { message, origin } => {
-                // Loop through the keys (graph -> operator -> settings)
-                // Send a Control message to the particular operator
-                info!("Handling! {:?}", self.graphs.len());
-
-                self.graphs.iter().for_each(|graph| match graph.try_lock() {
-                    Ok(graph) => {
-                        info!("Graph: {} {:?}", graph.name, graph.nodes.len());
-                        graph.nodes.iter().for_each(|operator| {
-                            info!("Operator: {}.{}", graph.name, operator.0);
-                            {
-                                let update_settings = message.get(graph.name.as_str());
-                                if update_settings.is_none() {
-                                    return;
-                                }
-
-                                let update_settings = update_settings.unwrap().get(operator.0);
-                                if update_settings.is_none() {
-                                    return;
-                                }
-                                let update_settings = update_settings.unwrap();
-
-                                let set_settings = update_settings
-                                    .as_object()
-                                    .unwrap()
-                                    .iter()
-                                    .map(|(k, v)| (k.to_string(), v.clone()))
-                                    .collect::<HashMap<String, serde_json::Value>>();
-
-                                match operator.1.try_lock() {
-                                    Ok(mut op) => {
-                                        info!("Operator: {} {:?}", op.name(), set_settings);
-                                        op.control(Message::Control {
-                                            command: ControlCommand::SetSettings {
-                                                settings: set_settings,
-                                            },
-                                            origin: None,
-                                        });
-                                    }
-                                    Err(_) => {
-                                        warn!("Failed to lock operator - skipping settings");
-                                    }
-                                }
-                            }
-                        });
-                    }
-                    Err(_) => {
-                        warn!("Failed to lock graph - skipping settings");
-                    }
-                });
-                // Send the message to the next operator
-                return Message::JSON { message, origin };
-            }
-            _ => {
-                error!("Unexpected message type {}", _message);
-                Message::Error {
-                    error: "Unexpected message type".to_string(),
-                    origin: None,
-                }
-            }
-        }
+            Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
+            // }
+        };
+        Arc::new(Settings {
+            graph_name: self.graph_name.clone(),
+            id: self.id.clone(),
+            next: next_nodes,
+        })
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        warn!("Not implemented");
-    }
-
-    fn state(&self) -> OperatorState {
-        self.state.clone()
-    }
-
-    fn finalize(&mut self) -> bool {
-        let graph_registry = GraphRegistry::get_instance();
-        let graph_registry = graph_registry.lock().unwrap();
-        self.graphs = graph_registry.get_graphs();
-        info!("Finalizing with {} graph(s)", self.graphs.len());
-        self.state = OperatorState::Ready;
-        true
+        self.id = node_meta.name.clone();
+        self.graph_name = node_meta.graph.clone();
     }
 
     fn control(&mut self, _message: Message) {
@@ -149,27 +93,71 @@ impl Operator for Settings {
             }
         }
     }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
 }
 
 impl Settings {
     fn next(&self, message: Message) {
         let next_node = self.next.get(0).unwrap();
-        next_node.operator.lock().unwrap().send(message);
+        next_node.operator.send(message);
     }
 
     fn add_next(&mut self, operator: OperatorRole) {
         self.next.push(operator);
+    }
+}
+
+impl OperatorRuntime for Settings {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        let root_span = Span::root(format!("settings"), SpanContext::random());
+
+        root_span.set_local_parent();
+
+        match _message {
+            Message::JSON { message, origin } => {
+                // Loop through the keys (graph -> operator -> settings)
+                // Send a Control message to the particular operator
+                let registry = GraphRegistry::get_instance();
+
+                let graph_names = registry.lock().unwrap().graph_names();
+
+                info!("Handling! {:?}", graph_names.len());
+
+                graph_names
+                    .iter()
+                    .for_each(|graph| match GraphRegistry::get_graph(graph) {
+                        Some(graph) => {
+                            graph.lock().unwrap().apply_settings(&message);
+                        }
+                        None => {
+                            warn!("Graph {} not found", graph);
+                        }
+                    });
+                // Send the message to the next operator
+                return Message::JSON { message, origin };
+            }
+            _ => {
+                error!("Unexpected message type {}", _message);
+                Message::Error {
+                    error: "Unexpected message type".to_string(),
+                    origin: None,
+                }
+            }
+        }
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
     }
 }

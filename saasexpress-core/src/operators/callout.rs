@@ -1,32 +1,36 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use chrono::Duration;
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use futures::channel::oneshot;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
 use crate::graph;
-use crate::graph::graph::{AsyncHandleTrait, Graph, GraphRunner, GraphStatus};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph, GraphMod, GraphRunner, GraphStatus};
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType,
+};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::meta::NodeMeta;
 use crate::graph::registry::GraphRegistry;
-use crate::my_reg::register;
+use crate::my_reg::{ControlEvent, broadcast_event, register};
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Callout {
+pub(super) struct Callout {
+    id: String,
     node_fqn: Option<String>,
     self_graph_name: Option<String>,
-
-    state: OperatorState,
     graph_name: String,
+    state: OperatorState, // only applicable to runtime
     // graph: Option<Arc<Mutex<Graph>>>,
+    //callout_graph: Option<Arc<Mutex<Graph>>>,
     graph_runner: Option<Arc<GraphRunner>>,
     //graph_runner: Option<Arc<GraphRunner>>,
     next: Vec<OperatorRole>,
@@ -40,12 +44,12 @@ impl From<serde_yaml::Value> for Callout {
             .unwrap_or("")
             .to_string();
         Callout {
+            id: "".to_string(),
             node_fqn: None,
             self_graph_name: None,
-            state: OperatorState::Pending,
             graph_name,
-            //graph: None,
             graph_runner: None,
+            state: OperatorState::Pending,
             next: Vec::new(),
         }
     }
@@ -60,69 +64,179 @@ impl Operator for Callout {
             let graph = self.graph_runner.as_ref().unwrap();
 
             //let mut graph = graph.lock().unwrap();
-            let op_node = graph.start_node().expect("Failed to start node");
+            let op_node = graph.start_node().expect("Failed to get start node");
             op_node._type()
         }
-    }
-
-    fn state(&self) -> OperatorState {
-        warn!("State! {:?}", self.state);
-        self.state.clone()
     }
 
     fn name(&self) -> String {
         "Callout".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        let self_graph_name = self.self_graph_name.clone().unwrap();
+        let callout_graph_name = self.graph_name.clone();
 
-    fn handle(&self, _message: Message) -> Message {
-        return _message;
+        let callout_graph = { GraphRegistry::get_graph(&callout_graph_name) };
+
+        if callout_graph.is_none() {
+            warn!(
+                "Graph not found {} - cloning current operator runtime",
+                callout_graph_name
+            );
+            Arc::new(self.clone())
+        } else {
+            let callout_graph = callout_graph.as_ref().unwrap();
+            let callout_graph = callout_graph.lock().unwrap();
+
+            if callout_graph.runner.state == GraphStatus::Inactive {
+                warn!(
+                    "Callout graph '{}' is inactive, cannot create new operator runtime",
+                    callout_graph_name
+                );
+                return Arc::new(self.clone());
+            }
+
+            info!("[{}] Creating new operator runtime", self_graph_name);
+            let runner = Arc::clone(&callout_graph.runner);
+
+            let next_nodes = {
+                //let self_graph = GraphRegistry::get_graph(&self_graph_name).unwrap();
+                //let self_graph = self_graph.lock().unwrap();
+                Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
+            };
+
+            info!(
+                "Next nodes for callout operator: {}, {:?}",
+                self.id, next_nodes
+            );
+
+            Arc::new(Callout {
+                id: self.id.clone(),
+                node_fqn: self.node_fqn.clone(),
+                self_graph_name: self.self_graph_name.clone(),
+                state: OperatorState::Ready,
+                graph_name: self.graph_name.clone(),
+                //callout_graph: None,
+                graph_runner: Some(runner),
+                next: next_nodes,
+            })
+        }
     }
 
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
+        self.id = node_meta.name.clone();
         self.node_fqn = Some(node_meta.fqn());
         self.self_graph_name = Some(graph.name.clone());
-    }
+        self.state = OperatorState::Pending;
 
-    fn finalize(&mut self) -> bool {
-        if self.state == OperatorState::Ready {
-            return true;
-        }
-        let graph_name = self.graph_name.clone();
+        let self_node_id = node_meta.name.clone();
+        let self_graph_name = graph.name.clone();
+        let fqn = node_meta.fqn().clone();
 
-        let graph = GraphRegistry::get_graph(&graph_name);
+        let callout_graph_name = self.graph_name.clone();
 
-        if graph.is_none() {
-            warn!("Graph not found {}", graph_name);
-            false
-        } else {
-            let graph = graph.unwrap();
-            let graph = graph.lock().unwrap();
+        // Watch for changes related to the callout graph
+        // If the graph is running, then trigger this operator graph to replace its runtimes
+        let (sender, mut receiver) = mpsc::channel::<ControlEvent>(10);
 
-            let runner = graph.runner.clone();
+        // listen for events related to the graph: self_graph_name
+        register(fqn.as_str(), sender);
 
-            self.graph_runner = Some(Arc::new(runner));
-            self.state = OperatorState::Ready;
-            true
-        }
+        //let boxed_self = Arc::new(Mutex::new(self));
+
+        tokio::spawn(async move {
+            loop {
+                let control_event = receiver.recv().await;
+                match control_event {
+                    None => {
+                        info!("Control channel closed for {}", fqn);
+                        break;
+                    }
+                    Some(message) => {
+                        info!("Received control event: {:?}", message);
+                        if message.graph_name == callout_graph_name {
+                            // Replace the graph runtimes
+                            Graph::runtime_expired(self_graph_name.clone(), self_node_id.clone());
+                            // broadcast_event(ControlEvent {
+                            //     graph_id: message.graph_id,
+                            //     graph_name: message.graph_name,
+                            //     state: GraphStatus::Active,
+                            //     operator_names: vec![self_node_id.clone()],
+                            // })
+                            // .await;
+                        }
+                    }
+                }
+            }
+        });
     }
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
+            // Message::Init2 { id, next, .. } => {
+            //     info!("Init2 callout operator: {}", id);
+            //     self.next = next;
 
-                let node_fqn = self.node_fqn.clone().unwrap();
+            //     let callout_graph_name = self.graph_name.clone();
 
-                // let self_graph_name = self.self_graph_name.clone().unwrap();
-                // error!("Callout init {}", node_fqn);
-                // watch_control_bus(self_graph_name, node_fqn);
-            }
+            //     let callout_graph = GraphRegistry::get_graph(&callout_graph_name);
+
+            //     if callout_graph.is_none() {
+            //         warn!(
+            //             "Callout graph {} not found, cannot initialize callout operator",
+            //             self.id
+            //         );
+            //     } else {
+            //         self.callout_graph = callout_graph;
+
+            //         info!(
+            //             "Callout graph {} found, initializing callout operator",
+            //             self.id
+            //         );
+            //     }
+
+            //     // let event = ControlEvent {
+            //     //     graph_id: id,
+            //     //     graph_name: self.graph_name.clone(),
+            //     //     state: GraphStatus::Active,
+            //     //     operator_names: vec![self.id.clone()],
+            //     // };
+            //     // tokio::spawn(async move {
+            //     //     broadcast_event(event).await;
+            //     // });
+            // }
+            // Message::Init { next, .. } => {
+            //     info!("Replacing next nodes for callout operator");
+            //     self.next = next;
+
+            //     let node_fqn = self.node_fqn.clone().unwrap();
+
+            //     let callout_graph_name = self.graph_name.clone();
+
+            //     let callout_graph = GraphRegistry::get_graph(&callout_graph_name);
+
+            //     if callout_graph.is_none() {
+            //         warn!(
+            //             "Callout graph {} not found, cannot initialize callout operator",
+            //             self.id
+            //         );
+            //     } else {
+            //         self.callout_graph = callout_graph;
+
+            //         info!(
+            //             "Callout graph {} found, initializing callout operator",
+            //             self.id
+            //         );
+            //     }
+            //     // let self_graph_name = self.self_graph_name.clone().unwrap();
+            //     // error!("Callout init {}", node_fqn);
+            //     // watch_control_bus(self_graph_name, node_fqn);
+            // }
             Message::Control { .. } => {
                 debug!("Control");
             }
@@ -132,18 +246,6 @@ impl Operator for Callout {
             }
         }
     }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
 }
 
 impl Callout {
@@ -152,12 +254,6 @@ impl Callout {
         let parent_span = _message.get_span().expect("Failed to get span");
         let callout_span = Span::enter_with_parent("callout", parent_span);
         let callout_inner_span = Span::enter_with_parent("callout_inner", parent_span);
-
-        let graph_runner = self
-            .graph_runner
-            .as_ref()
-            .expect("Graph runner not initialized")
-            .clone();
 
         // let _origin = _message
         //     .get_origin()
@@ -173,19 +269,24 @@ impl Callout {
 
         //let graph_runner = graph_runner.expect("Graph runner not initialized");
 
+        info!("Next nodes: {}", self.next.len());
         let next_node_mutex = self.next.get(0).unwrap();
-
         let next_node_mutex = &next_node_mutex.operator;
-
         let next_nd = Arc::clone(next_node_mutex);
 
-        if graph_runner.state != GraphStatus::Running {
+        let graph_runner = self
+            .graph_runner
+            .as_ref()
+            .expect("Graph runner not initialized")
+            .clone();
+
+        if graph_runner.state == GraphStatus::Inactive {
             warn!(
                 "Graph runner is {:?}, cannot callout to graph: {}",
                 graph_runner.state, graph_runner.name
             );
-            next_nd.lock().unwrap().send(Message::Error {
-                error: format!("Graph {} is stopped", graph_runner.name),
+            next_nd.send(Message::Error {
+                error: format!("Graph {} is inactive", graph_runner.name),
                 origin: _message.take_origin(),
             });
             return;
@@ -283,12 +384,8 @@ impl Callout {
             let response = rx.await.expect("Failed to receive response");
 
             let next_node = next_nd.clone();
-            next_node.lock().unwrap().send(response);
+            next_node.send(response);
         });
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }
 
@@ -316,3 +413,29 @@ impl Callout {
 //         }
 //     });
 // }
+
+impl OperatorRuntime for Callout {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn state(&self) -> OperatorState {
+        self.state.clone()
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        return _message;
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
+    }
+}

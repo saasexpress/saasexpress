@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::{Error, Value};
 
-use crate::graph::operator_types::canonical_model::CanonicalModelOperator;
+use crate::graph::operator_types::canonical_model::CanonicalModelService;
 
 #[derive(Deserialize, Debug)]
 struct ThisModel {
@@ -16,7 +16,7 @@ impl From<serde_yaml::Value> for CanonicalModelSample {
         CanonicalModelSample {}
     }
 }
-impl CanonicalModelOperator for CanonicalModelSample {
+impl CanonicalModelService for CanonicalModelSample {
     fn validate_json(&self, json: Value) -> Result<(), Error> {
         serde_json::from_value::<ThisModel>(json)
             .map(|_o| ())

@@ -134,11 +134,7 @@ impl SocketSession {
         );
 
         warn!("Sending exit message to graph");
-        state
-            .start
-            .lock()
-            .unwrap()
-            .send(GraphMessage::Exit { origin });
+        state.start.send(GraphMessage::Exit { origin });
 
         ()
     }
@@ -275,7 +271,7 @@ async fn client_to_upstream(
                     .mpsc_respond_to(tx.clone());
                 let origin = Some(_origin);
 
-                state.start.lock().unwrap().send(GraphMessage::Standard {
+                state.start.send(GraphMessage::Standard {
                     message: t.as_bytes().to_vec(),
                     origin,
                 });

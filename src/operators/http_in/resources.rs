@@ -8,7 +8,7 @@ use opentelemetry::{
 use saasexpress_core::{
     graph::{
         message::{DebuggableSpan, OriginMessage},
-        operator::Operator,
+        operator::{Operator, OperatorRuntimeType},
     },
     timestamp::now,
 };
@@ -70,7 +70,7 @@ use saasexpress_core::timestamp::NaiveDateTimeExt;
 #[derive(Debug)]
 pub struct MySharedState {
     sse: bool,
-    pub start: Arc<Mutex<dyn Operator + 'static>>,
+    pub start: OperatorRuntimeType,
     pub counter: Arc<Mutex<u32>>,
 }
 
@@ -101,10 +101,8 @@ impl Singleton {
         method: String,
         ws: bool,
         sse: bool,
-        _start: Arc<Mutex<dyn Operator + 'static>>,
+        start: OperatorRuntimeType,
     ) {
-        let start = _start;
-
         for _path in paths.iter() {
             let path = _path.clone();
             debug!("Configuring path : {}", path);
@@ -343,7 +341,7 @@ impl Singleton {
                     span: Some(DebuggableSpan(root_span)),
                 };
 
-                state.start.lock().unwrap().send(message);
+                state.start.send(message);
 
                 let msg = recv.await;
 

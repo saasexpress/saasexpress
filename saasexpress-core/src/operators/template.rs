@@ -1,9 +1,12 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tracing::{error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType,
+};
 
 use crate::graph::message::Message;
 
@@ -25,6 +28,32 @@ impl Operator for Template {
 
     fn name(&self) -> String {
         "Template".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        warn!("Init Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        warn!("Control Not implemented");
+    }
+}
+
+impl OperatorRuntime for Template {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -49,23 +78,7 @@ impl Operator for Template {
         }
     }
 
-    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        warn!("Init Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        warn!("Control Not implemented");
-    }
-
     fn send(&self, _: Message) {
         panic!("Send Not implemented");
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Wait Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::iter;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -11,7 +12,10 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType};
+use crate::graph::operator::{
+    Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime, OperatorRuntimeType,
+    OperatorState, OperatorType,
+};
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
@@ -56,42 +60,47 @@ impl Operator for Timer {
         "Timer".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
-    fn handle(&self, mut _message: Message) -> Message {
-        // Only handle the message if we want to start a timer
-        if self.on_start == false && self.interval_ms.is_some() {
-            let sender = self.next.get(0).unwrap().clone().operator;
-
-            let mpsc_respond_to = _message
-                .get_origin()
-                .unwrap()
-                .mpsc_respond_to
-                .clone()
-                .unwrap();
-
-            let interval = self.interval_ms.unwrap();
-            let iterations = self.iterations;
-
-            let name = self.name();
-
-            tokio::spawn(async move {
-                interval_trigger(name, sender, _message, interval, iterations).await;
-            });
-
-            return Message::JSON {
-                message: json!({"timer": "started"}),
-                origin: Some(OriginMessage::new(None).mpsc_respond_to(mpsc_respond_to)),
-            };
-        }
-        panic!("Timer does not handle any messages");
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
     }
 
     fn init(&mut self, _: &mut Graph, _node_meta: &NodeMeta) {}
 
-    fn finalize(&mut self) -> bool {
+    fn control(&mut self, _message: Message) {
+        match _message {
+            Message::Init { next, .. } => {
+                for n in next {
+                    self.add_next(n);
+                }
+            }
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
+            _ => {
+                panic!("Unexpected message type for control");
+            }
+        }
+    }
+}
+
+impl Timer {
+    fn next(&self, message: Message) {
+        for n in &self.next {
+            n.operator.send(message);
+            break;
+        }
+    }
+
+    fn add_next(&mut self, operator: OperatorRole) {
+        self.next.push(operator);
+    }
+
+    fn start(&mut self) -> bool {
         if self.on_start {
             let root_span = Span::root("timer", SpanContext::random());
 
@@ -124,7 +133,7 @@ impl Operator for Timer {
         } else if self.interval_ms.is_none() {
             let sender = self.next.get(0).unwrap().clone().operator;
 
-            let name = self.name();
+            let name = Operator::name(self);
 
             tokio::spawn(async move {
                 loop {
@@ -146,7 +155,7 @@ impl Operator for Timer {
 
                     info!("Timer sending message: {:?}", message);
 
-                    sender.lock().unwrap().send(message);
+                    sender.send(message);
 
                     rx.in_span(recv_span).await.unwrap();
                 }
@@ -154,54 +163,11 @@ impl Operator for Timer {
         }
         true
     }
-
-    fn control(&mut self, _message: Message) {
-        match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
-            Message::Control { .. } => {
-                debug!("Control");
-            }
-
-            _ => {
-                panic!("Unexpected message type for control");
-            }
-        }
-    }
-
-    fn send(&self, message: Message) {
-        self.next(message)
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
-}
-
-impl Timer {
-    fn next(&self, message: Message) {
-        for n in &self.next {
-            let operator = n.operator.lock().unwrap();
-            operator.send(message);
-            break;
-        }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
-    }
 }
 
 async fn interval_trigger(
     name: String,
-    sender: OperatorRef,
+    sender: OperatorRuntimeType,
     mut message: Message,
     interval: Duration,
     iterations: u16,
@@ -228,7 +194,7 @@ async fn interval_trigger(
         };
 
         // Send message to the next operator
-        sender.lock().unwrap().send(message);
+        sender.send(message);
 
         // wait for cycle to finish
         let response = rx.in_span(recv_span).await.unwrap();
@@ -244,5 +210,52 @@ async fn interval_trigger(
             info!("Timer finished after {} iterations", counter);
             break;
         }
+    }
+}
+
+impl OperatorRuntime for Timer {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, mut _message: Message) -> Message {
+        // Only handle the message if we want to start a timer
+        if self.on_start == false && self.interval_ms.is_some() {
+            let sender = self.next.get(0).unwrap().clone().operator;
+
+            let mpsc_respond_to = _message
+                .get_origin()
+                .unwrap()
+                .mpsc_respond_to
+                .clone()
+                .unwrap();
+
+            let interval = self.interval_ms.unwrap();
+            let iterations = self.iterations;
+
+            let name = OperatorRuntime::name(self);
+
+            tokio::spawn(async move {
+                interval_trigger(name, sender, _message, interval, iterations).await;
+            });
+
+            return Message::JSON {
+                message: json!({"timer": "started"}),
+                origin: Some(OriginMessage::new(None).mpsc_respond_to(mpsc_respond_to)),
+            };
+        }
+        panic!("Timer does not handle any messages");
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message)
     }
 }

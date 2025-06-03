@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
     ptr::null,
     sync::{Arc, Mutex},
@@ -15,7 +15,7 @@ use saasexpress_core::{
     graph::{
         graph::{AsyncHandleTrait, Graph},
         message::{Message, OriginMessage},
-        operator::{Operator, OperatorType},
+        operator::{Operator, OperatorRef, OperatorRuntime, OperatorType},
     },
     settings::settings::{Setting, env_settings},
     timestamp::{NaiveDateTimeExt, now},
@@ -42,7 +42,7 @@ impl Display for MessageTranslatorEngine {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum MessageTranslatorMode {
     Expression,
     JSON,
@@ -102,6 +102,189 @@ impl Operator for MessageTranslator {
 
     fn name(&self) -> String {
         "MessageTranslator".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(MessageTranslator {
+            node_fqn: self.node_fqn.clone(),
+            template: self.template.clone(),
+            engine: MessageTranslator::compile(
+                "cel-interpreter".to_string().as_str(),
+                &self.template,
+            ),
+            mode: self.mode.clone(),
+            in_temp: self.in_temp,
+            temp_group: self.temp_group.clone(),
+            settings: self.settings.clone(),
+        })
+    }
+
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.node_fqn = Some(node_meta.fqn());
+        if self.temp_group.is_none() {
+            self.temp_group = Some(node_meta.name.to_string());
+        }
+
+        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
+    }
+
+    fn control(&mut self, _message: Message) {
+        match _message {
+            Message::Init { .. } => {}
+            Message::Control { command, .. } => {
+                let mut current_settings = self.settings.to_owned();
+                match command {
+                    ControlCommand::SetSettings { settings } => {
+                        settings.iter().for_each(|(k, v)| {
+                            current_settings.push(Setting {
+                                key: k.replace("-", "_").to_uppercase().to_string(),
+                                value: v.as_str().unwrap_or("").to_string(),
+                            });
+                        });
+                    }
+                    _ => {
+                        panic!("Invalid control command {:?}", command);
+                    }
+                }
+                self.settings = current_settings;
+            }
+
+            _ => {
+                panic!("Unexpected message type for control");
+            }
+        }
+    }
+}
+
+impl MessageTranslator {
+    // #[trace(short_name = true, properties = {
+    //     "template":"{template:?}"
+    // })]
+    // fn compile(template: &str) -> Program {
+    //     Program::compile(template).unwrap()
+    // }
+
+    fn compile(engine: &str, template: &str) -> MessageTranslatorEngine {
+        match engine {
+            "cel-interpreter" => MessageTranslatorEngine::CelInterpreter {
+                program: Program::compile(template).expect("Failed to compile CEL template"),
+            },
+            _ => panic!("Unknown engine: {}", engine),
+        }
+    }
+
+    #[trace(short_name = true)]
+    fn parse(&self, data: &JsonValue, input: JsonValue, temp: &JsonValue) -> JsonValue {
+        let program = {
+            let _guard = LocalSpan::enter_with_local_parent("program");
+            match &self.engine {
+                MessageTranslatorEngine::CelInterpreter { program } => program,
+            }
+        };
+
+        let cel_data = {
+            let _guard = LocalSpan::enter_with_local_parent("data_serde");
+            cel_interpreter::to_value(data).unwrap()
+        };
+
+        // Add any variables or functions that the program will need
+        let context = {
+            let mut context = Context::default();
+            let _guard = LocalSpan::enter_with_local_parent("context");
+
+            context = add_functions(context);
+
+            debug!("Templ {}", self.template);
+            debug!("Data {}", serde_json::to_string_pretty(data).unwrap());
+            debug!("Input {}", serde_json::to_string_pretty(&input).unwrap());
+            debug!("Temp {}", serde_json::to_string_pretty(&temp).unwrap());
+
+            context
+                .add_variable("data", cel_data)
+                .expect("Variable data problem");
+
+            debug!("Settings {:?}", self.settings.to_hash_map());
+            context
+                .add_variable("settings", self.settings.to_hash_map())
+                .expect("Variable data problem");
+
+            context
+                .add_variable("input", input)
+                .expect("Variable input problem");
+
+            context
+                .add_variable("temp", temp)
+                .expect("Variable temp problem");
+
+            //sleep(std::time::Duration::from_millis(100));
+            context
+        };
+
+        {
+            let _guard = LocalSpan::enter_with_local_parent("execute");
+
+            // Run the program
+            let _value = program.execute(&context);
+            match _value {
+                Ok(value) => {
+                    if self.mode == MessageTranslatorMode::JSON {
+                        let val = cel_value_to_json(&value);
+                        debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
+                        return val;
+                    } else {
+                        if let Value::String(value) = &value {
+                            return JsonValue::String(value.to_string());
+                        } else {
+                            error!("Parsing issue - expecting expression not json");
+                            return JsonValue::String("".to_string());
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error: {}", e);
+                    return JsonValue::String("".to_string());
+                }
+            }
+        }
+    }
+}
+
+fn is_empty(This(s): This<Arc<String>>) -> bool {
+    error!("is_empty {} {}", s, s.is_empty());
+    s.is_empty()
+}
+
+fn use_one(a: Arc<String>, b: Arc<String>) -> String {
+    error!("use_one {} {}", a, b);
+    if !a.is_empty() {
+        return a.to_string();
+    }
+    if !b.is_empty() {
+        return b.to_string();
+    }
+    return "".to_string();
+}
+
+fn add_functions(mut context: Context) -> Context {
+    context.add_function("add", |a: i64, b: i64| a + b);
+
+    context.add_function("use_one", |a: Arc<String>, b: Arc<String>| use_one(a, b));
+    context.add_function("is_empty", is_empty);
+    context.add_function("now", || now().to_rfc3339());
+    context
+}
+
+impl OperatorRuntime for MessageTranslator {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -243,159 +426,7 @@ impl Operator for MessageTranslator {
         }
     }
 
-    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
-        self.node_fqn = Some(node_meta.fqn());
-        if self.temp_group.is_none() {
-            self.temp_group = Some(node_meta.name.to_string());
-        }
-
-        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
-    }
-
-    fn control(&mut self, _message: Message) {
-        match _message {
-            Message::Init { .. } => {}
-            Message::Control { command, .. } => {
-                let mut current_settings = self.settings.to_owned();
-                match command {
-                    ControlCommand::SetSettings { settings } => {
-                        settings.iter().for_each(|(k, v)| {
-                            current_settings.push(Setting {
-                                key: k.replace("-", "_").to_uppercase().to_string(),
-                                value: v.as_str().unwrap_or("").to_string(),
-                            });
-                        });
-                    }
-                    _ => {
-                        panic!("Invalid control command {:?}", command);
-                    }
-                }
-                self.settings = current_settings;
-            }
-
-            _ => {
-                panic!("Unexpected message type for control");
-            }
-        }
-    }
-
     fn send(&self, _: Message) {
         panic!("Not implemented");
     }
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
-}
-
-impl MessageTranslator {
-    // #[trace(short_name = true, properties = {
-    //     "template":"{template:?}"
-    // })]
-    // fn compile(template: &str) -> Program {
-    //     Program::compile(template).unwrap()
-    // }
-
-    #[trace(short_name = true)]
-    fn parse(&self, data: &JsonValue, input: JsonValue, temp: &JsonValue) -> JsonValue {
-        let program = {
-            let _guard = LocalSpan::enter_with_local_parent("program");
-            match &self.engine {
-                MessageTranslatorEngine::CelInterpreter { program } => program,
-            }
-        };
-
-        let cel_data = {
-            let _guard = LocalSpan::enter_with_local_parent("data_serde");
-            cel_interpreter::to_value(data).unwrap()
-        };
-
-        // Add any variables or functions that the program will need
-        let context = {
-            let mut context = Context::default();
-            let _guard = LocalSpan::enter_with_local_parent("context");
-
-            context = add_functions(context);
-
-            debug!("Templ {}", self.template);
-            debug!("Data {}", serde_json::to_string_pretty(data).unwrap());
-            debug!("Input {}", serde_json::to_string_pretty(&input).unwrap());
-            debug!("Temp {}", serde_json::to_string_pretty(&temp).unwrap());
-
-            context
-                .add_variable("data", cel_data)
-                .expect("Variable data problem");
-
-            debug!("Settings {:?}", self.settings.to_hash_map());
-            context
-                .add_variable("settings", self.settings.to_hash_map())
-                .expect("Variable data problem");
-
-            context
-                .add_variable("input", input)
-                .expect("Variable input problem");
-
-            context
-                .add_variable("temp", temp)
-                .expect("Variable temp problem");
-
-            //sleep(std::time::Duration::from_millis(100));
-            context
-        };
-
-        {
-            let _guard = LocalSpan::enter_with_local_parent("execute");
-
-            // Run the program
-            let _value = program.execute(&context);
-            match _value {
-                Ok(value) => {
-                    if self.mode == MessageTranslatorMode::JSON {
-                        let val = cel_value_to_json(&value);
-                        debug!("Out {}", serde_json::to_string_pretty(&val).unwrap());
-                        return val;
-                    } else {
-                        if let Value::String(value) = &value {
-                            return JsonValue::String(value.to_string());
-                        } else {
-                            error!("Parsing issue - expecting expression not json");
-                            return JsonValue::String("".to_string());
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error: {}", e);
-                    return JsonValue::String("".to_string());
-                }
-            }
-        }
-    }
-}
-
-fn is_empty(This(s): This<Arc<String>>) -> bool {
-    error!("is_empty {} {}", s, s.is_empty());
-    s.is_empty()
-}
-
-fn use_one(a: Arc<String>, b: Arc<String>) -> String {
-    error!("use_one {} {}", a, b);
-    if !a.is_empty() {
-        return a.to_string();
-    }
-    if !b.is_empty() {
-        return b.to_string();
-    }
-    return "".to_string();
-}
-
-fn add_functions(mut context: Context) -> Context {
-    context.add_function("add", |a: i64, b: i64| a + b);
-
-    context.add_function("use_one", |a: Arc<String>, b: Arc<String>| use_one(a, b));
-    context.add_function("is_empty", is_empty);
-    context.add_function("now", || now().to_rfc3339());
-    context
 }

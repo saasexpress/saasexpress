@@ -5,10 +5,14 @@ use crate::graph::{
     graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
-    operator::{Operator, OperatorRef, OperatorRole, OperatorState, OperatorType},
+    operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType},
 };
 use core::panic;
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    sync::Arc,
+};
 
 pub trait AIToolOperator: Sync + Send + Debug {
     fn name(&self) -> String;
@@ -59,8 +63,17 @@ impl Operator for AITool {
         self.name.clone()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(AITool {
+            name: self.name.clone(),
+            node_fqn: self.node_fqn.clone(),
+            operator: Operator::_type(self),
+            next: self.next.clone(),
+        })
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
@@ -69,12 +82,7 @@ impl Operator for AITool {
 
     fn control(&mut self, message: Message) {
         match message {
-            Message::Init {
-                id,
-                next,
-                start,
-                end,
-            } => {
+            Message::Init { next, .. } => {
                 for n in next {
                     self.add_next(n);
                 }
@@ -83,6 +91,33 @@ impl Operator for AITool {
                 error!("Unexpected message type {}", message);
             }
         }
+    }
+}
+
+impl AITool {
+    fn next(&self, role: String, _message: Message) {
+        for node in self.next.iter().filter(|o| o.role == role) {
+            node.operator.send(_message);
+            break;
+        }
+    }
+
+    fn add_next(&mut self, operator: OperatorRole) {
+        self.next.push(operator);
+    }
+}
+
+impl OperatorRuntime for AITool {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
     }
 
     fn handle(&self, in_message: Message) -> Message {
@@ -97,55 +132,7 @@ impl Operator for AITool {
         tool.invoke(in_message)
     }
 
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<std::sync::Arc<std::sync::Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
-
     fn send(&self, message: Message) {
         self.next(OperatorRole::default(), message);
-    }
-
-    fn state(&self) -> OperatorState {
-        OperatorState::Ready
-    }
-
-    fn finalize(&mut self) -> bool {
-        tracing::debug!("Default finalize operator {} - no action", self.name());
-        true
-    }
-
-    fn send_ptr(&self, _message: Arc<Message>) {
-        let message = _message.to_owned();
-        self.next_ptr(self.handle_ptr(message));
-    }
-
-    fn handle_ptr(&self, message: Arc<Message>) -> Arc<Message> {
-        tracing::debug!("default handle (passthrough)... {}", self.name());
-        return message;
-    }
-
-    fn next_ptr(&self, message: Arc<Message>) {
-        // Sending message to next operator
-        for n in self.get_output_channels() {
-            n.lock().unwrap().send_ptr(message.to_owned());
-            //break;
-        }
-    }
-}
-
-impl AITool {
-    fn next(&self, role: String, _message: Message) {
-        for node in self.next.iter().filter(|o| o.role == role) {
-            node.operator.lock().unwrap().send(_message);
-            break;
-        }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }

@@ -18,8 +18,8 @@ pub(crate) fn stdin() -> String {
         }
     }
     let yaml = serde_yaml::from_slice::<serde_yaml::Value>(buffer.as_bytes()).unwrap();
-    let graph = build_graph(yaml);
-    let graph_name = &graph.name.clone();
-    graph.register();
-    graph_name.to_string()
+    let graph_name = build_graph(yaml);
+    //let graph_name = &graph.name.clone();
+    //graph.register();
+    graph_name
 }

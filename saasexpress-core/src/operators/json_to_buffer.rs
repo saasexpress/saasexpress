@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tracing::{debug, error};
@@ -7,9 +8,9 @@ use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::Message;
 
 use crate::graph::meta::NodeMeta;
-use crate::graph::operator::{Operator, OperatorType};
+use crate::graph::operator::{Operator, OperatorRef, OperatorRuntime, OperatorType};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct JSONToBuffer;
 
 impl From<serde_yaml::Value> for JSONToBuffer {
@@ -25,6 +26,32 @@ impl Operator for JSONToBuffer {
 
     fn name(&self) -> String {
         "JSONToBuffer".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        debug!("Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        debug!("Not implemented");
+    }
+}
+
+impl OperatorRuntime for JSONToBuffer {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -51,21 +78,7 @@ impl Operator for JSONToBuffer {
         }
     }
 
-    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        debug!("Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        debug!("Not implemented");
-    }
-
     fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }
 }

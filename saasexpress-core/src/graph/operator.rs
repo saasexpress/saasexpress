@@ -1,43 +1,22 @@
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use fastrace::prelude::SpanContext;
-use futures::channel::oneshot;
-use serde::Serialize;
-use serde_json::{Value, json};
-use tokio::sync::broadcast::{Receiver, Sender};
-use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
-
-use crate::graph::operator_types::canonical_model::CanonicalModel;
-
-use crate::my_reg::{broadcast_event, register};
-use crate::operators::op_wrapper::OperatorWrapper;
-use crate::ports::ports::Ports;
-use crate::random::generate_random_id;
-
-use super::super::operators::op_actor_handle::OperatorActorHandle;
+use tracing::debug;
 
 use super::graph::{AsyncHandleTrait, Graph};
-use super::message::{self, DebuggableSpan, Message, OriginMessage};
+use super::message::Message;
 use super::meta::NodeMeta;
 use super::operator_types::ai_tool::AIToolOperator;
-use super::operator_types::canonical_model::CanonicalModelOperator;
-use super::processors::basic::BasicProcessor;
-use super::processors::port::Port;
-use super::registry::GraphRegistry;
-use async_trait::async_trait;
 
 pub type OperatorRef = Arc<Mutex<(dyn Operator + 'static)>>;
-
 pub type OperatorRefRead = Arc<dyn Operator + 'static>;
+pub type OperatorRuntimeType = Arc<dyn OperatorRuntime + 'static>;
 
 #[derive(Debug, Clone)]
 pub struct OperatorRole {
     pub role: String,
-    pub operator: OperatorRef,
+    pub operator: OperatorRuntimeType,
 }
 
 impl OperatorRole {
@@ -108,13 +87,18 @@ impl PartialEq for OperatorType {
 pub trait Operator: Send + Sync + Debug {
     fn _type(&self) -> OperatorType;
     fn name(&self) -> String;
-    fn state(&self) -> OperatorState {
-        OperatorState::Ready
-    }
+    // fn state(&self) -> OperatorState {
+    //     OperatorState::Ready
+    // }
 
-    fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
-        panic!("No runtime defined for operator {}", self.name());
-    }
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime>;
+    // fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
+    //     panic!("No runtime defined for operator {}", self.name());
+    // }
 
     //fn meta(&self) -> NodeMeta;
 
@@ -123,46 +107,46 @@ pub trait Operator: Send + Sync + Debug {
         debug!("Default init operator {} - no action", self.name());
     }
 
-    fn finalize(&mut self) -> bool {
-        debug!("Default finalize operator {} - no action", self.name());
-        true
-    }
+    // fn finalize(&mut self) -> bool {
+    //     debug!("Default finalize operator {} - no action", self.name());
+    //     true
+    // }
 
     /// commands and events for controlling the operator
     fn control(&mut self, message: Message);
 
-    /// performs the work of the operator
-    fn handle(&self, message: Message) -> Message;
+    // /// performs the work of the operator
+    // fn handle(&self, message: Message) -> Message;
 
-    /// Sends a message to this operator for handling
-    ///
-    /// Examples:
-    /// OperatorType::Endpoint (HTTPIn) : self.next(self.handle(message));
-    /// OperatorType::Endpoint (FanOut) : self.next(message); (handle Not implemented)
-    /// ActorHandle : Send to actor to handle message; (handle Not implemented)
-    /// OperatorType::Filter (ActorHandle) : Send to actor to handle message and actor sends to next operators
-    ///
-    fn send(&self, message: Message);
+    // /// Sends a message to this operator for handling
+    // ///
+    // /// Examples:
+    // /// OperatorType::Endpoint (HTTPIn) : self.next(self.handle(message));
+    // /// OperatorType::Endpoint (FanOut) : self.next(message); (handle Not implemented)
+    // /// ActorHandle : Send to actor to handle message; (handle Not implemented)
+    // /// OperatorType::Filter (ActorHandle) : Send to actor to handle message and actor sends to next operators
+    // ///
+    // fn send(&self, message: Message);
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
-    fn wait(&self) -> Message;
+    // fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
+    // fn wait(&self) -> Message;
 
-    fn send_ptr(&self, _message: Arc<Message>) {
-        let message = _message.to_owned();
-        self.next_ptr(self.handle_ptr(message));
-    }
-    fn handle_ptr(&self, message: Arc<Message>) -> Arc<Message> {
-        debug!("default handle (passthrough)... {}", self.name());
-        return message;
-    }
-    fn next_ptr(&self, message: Arc<Message>) {
-        // Sending message to next operator
-        for n in self.get_output_channels() {
-            n.lock().unwrap().send_ptr(message.to_owned());
-            //break;
-        }
-    }
-    fn get_output_channels(&self) -> &Vec<OperatorRef>;
+    // fn send_ptr(&self, _message: Arc<Message>) {
+    //     let message = _message.to_owned();
+    //     self.next_ptr(self.handle_ptr(message));
+    // }
+    // fn handle_ptr(&self, message: Arc<Message>) -> Arc<Message> {
+    //     debug!("default handle (passthrough)... {}", self.name());
+    //     return message;
+    // }
+    // fn next_ptr(&self, message: Arc<Message>) {
+    //     // Sending message to next operator
+    //     for n in self.get_output_channels() {
+    //         n.lock().unwrap().send_ptr(message.to_owned());
+    //         //break;
+    //     }
+    // }
+    // fn get_output_channels(&self) -> &Vec<OperatorRef>;
 }
 
 pub trait OperatorRuntime: Send + Sync + Debug {

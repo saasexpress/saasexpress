@@ -20,7 +20,7 @@ pub(super) fn sse_start(
     message = message.with_origin(Some(updated_origin));
 
     // Send to the next node in the graph
-    state.start.lock().unwrap().send(message);
+    state.start.send(message);
 
     tokio::spawn(async move {
         loop {

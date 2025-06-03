@@ -1,10 +1,13 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tracing::{error, info, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::{Message, OriginMessage};
-use crate::graph::operator::{Filter2Operator, Operator, OperatorRef, OperatorType};
+use crate::graph::operator::{
+    Filter2Operator, Operator, OperatorRef, OperatorRuntime, OperatorType,
+};
 
 use crate::graph::meta::NodeMeta;
 
@@ -167,12 +170,12 @@ impl Operator for ClaimCheck {
         "ClaimCheck".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
-    fn handle(&self, _message: Message) -> Message {
-        panic!("[ClaimCheck] not implemented");
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
@@ -182,16 +185,26 @@ impl Operator for ClaimCheck {
     fn control(&mut self, _: Message) {
         warn!("Control Not implemented");
     }
+}
+
+impl OperatorRuntime for ClaimCheck {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        panic!("[ClaimCheck] not implemented");
+    }
 
     fn send(&self, _: Message) {
         panic!("Send Not implemented");
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Wait Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
     }
 }

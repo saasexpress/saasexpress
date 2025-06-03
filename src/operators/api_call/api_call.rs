@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use async_std::io::Empty;
@@ -18,7 +18,7 @@ use tracing::{debug, warn};
 use tracing::{error, info};
 
 use saasexpress_core::graph::graph::{AsyncHandleTrait, Graph};
-use saasexpress_core::graph::operator::{Operator, OperatorType, OperatorRole};
+use saasexpress_core::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
 
 use fastrace::future::FutureExt;
 use futures::future;
@@ -143,7 +143,7 @@ impl AsyncHandleTrait for APICall {
         Self: 'async_trait,
     {
         let node_name = self.node_name.clone().unwrap();
-        let name = self.name();
+        let name = Operator::name(self);
         let client = self.client.clone();
         let url = self.url.clone();
         let forward = self.forward;
@@ -666,12 +666,11 @@ impl Operator for APICall {
         "APICall".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        Some(Arc::new(self.to_owned()))
-    }
-
-    fn handle(&self, _message: Message) -> Message {
-        panic!("Should use async_handle");
+    fn new_runtime(&self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
     }
 
     fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
@@ -700,6 +699,7 @@ impl Operator for APICall {
                             });
                         });
                     }
+                    ControlCommand::Start {..} => {}
                     _ => {
                         panic!("Invalid control command {:?}", command);
                     }
@@ -711,18 +711,6 @@ impl Operator for APICall {
                 panic!("Unexpected message type for control");
             }
         }
-    }
-
-    fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
     }
 }
 
@@ -783,5 +771,28 @@ async fn log_error_info(response: Response) -> Message {
         origin: None,
         headers,
         status: status.into(),
+    }
+}
+
+
+impl OperatorRuntime for APICall {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        Some(Arc::new(self.to_owned()))
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        panic!("Should use async_handle");
+    }
+
+    fn send(&self, _: Message) {
+        panic!("Not implemented");
     }
 }

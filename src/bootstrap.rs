@@ -4,7 +4,7 @@ use fastrace::trace;
 use saasexpress_core::graph::graph::{Graph, GraphStatus};
 use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_core::my_reg::{ControlEvent, broadcast_event, deregister};
-use saasexpress_core::{graph, start_graphs, start_graphs_sync};
+use saasexpress_core::{graph, start_graphs};
 use serde_yaml::Value;
 use tokio::sync::mpsc;
 use tracing::{Span, debug, error, info, instrument};
@@ -19,14 +19,14 @@ pub fn bootstrap() {
 }
 
 #[trace]
-pub fn build_graph(yaml: Value) -> Graph {
+pub fn build_graph(yaml: Value) -> String {
     let graph_name = yaml["name"].as_str().unwrap().to_string();
 
     // Record graph name in the current span
     //Span::current().record("graph_name", &graph_name);
 
     debug!(graph_name = %graph_name, "Building graph");
-    let mut graph = Graph::new(graph_name);
+    let mut graph = Graph::new(graph_name.clone());
 
     // Create a span for node processing
     // let nodes_span = tracing::info_span!(
@@ -70,14 +70,37 @@ pub fn build_graph(yaml: Value) -> Graph {
     // let init_span = tracing::info_span!("graph_initialization");
     // let _init_guard = init_span.enter();
 
-    graph.no_processor().init();
-    graph
+    graph.no_processor();
+    graph.register();
+
+    let graph = GraphRegistry::get_graph(graph_name.as_str()).unwrap();
+
+    let mut graph = graph.lock().unwrap();
+
+    //    graph.runner = graph.replace_all_runtimes();
+    //graph.refresh_runtime_nodes();
+
+    //graph.watch();
+
+    graph.make_active_if_ready();
+
+    //graph.init(graph.runner.nodes.clone());
+
+    graph.replace_runtime();
+
+    info!(
+        "Graph BUILT: {} : Manager:{:?}, Runner:{:?}",
+        graph_name, graph.state, graph.runner.state
+    );
+    graph_name
 }
 
 pub fn reload_graph(path: String) {
     serde_yaml::from_reader::<_, Value>(std::fs::File::open(path).unwrap())
         .map(|yaml| {
-            let graph = build_graph(yaml);
+            let graph_name = build_graph(yaml);
+            let graph = GraphRegistry::get_graph(graph_name.as_str()).unwrap();
+            let mut graph = graph.lock().unwrap();
             info!("Graph reloaded: {:?}", graph.name);
             //watch_control_bus(self.name.clone());
 
@@ -87,19 +110,19 @@ pub fn reload_graph(path: String) {
             let graph_id = graph.id.clone();
             let graph_name = graph.name.clone();
 
+            // tokio::spawn(async move {
+            //     broadcast_event(ControlEvent {
+            //         graph_id: graph_id,
+            //         graph_name: graph_name,
+            //         state: GraphStatus::Inactive,
+            //         operator_names: vec![],
+            //     })
+            //     .await;
+            // });
+
             tokio::spawn(async move {
-                broadcast_event(ControlEvent {
-                    graph_id: graph_id,
-                    graph_name: graph_name,
-                    state: GraphStatus::Replacing,
-                    operator_names: vec![],
-                })
-                .await;
+                start_graphs().await;
             });
-
-            graph.register();
-
-            start_graphs_sync();
         })
         .unwrap_or_else(|e| {
             error!("Failed to reload graph: {}", e);

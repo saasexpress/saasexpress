@@ -10,11 +10,11 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::graph::message::ControlCommand;
 use crate::graph::operator::{OperatorRole, OperatorState, OperatorType};
 use crate::graph::operator_types::canonical_model::CanonicalModel;
 
-use crate::graph::watcher::watch_control_bus;
-use crate::my_reg::{ControlEvent, broadcast_event, register};
+use crate::my_reg::{ControlEvent, ControlEventType, broadcast_event, register};
 use crate::operators::op_wrapper::OperatorWrapper;
 use crate::ports::ports::Ports;
 use crate::random::generate_random_id;
@@ -24,12 +24,13 @@ use super::super::operators::op_actor_handle::OperatorActorHandle;
 use super::hooks::GraphHook;
 use super::message::{self, DebuggableSpan, Message, OriginMessage};
 use super::meta::NodeMeta;
-use super::operator::{Operator, OperatorRuntime};
+use super::operator::{Operator, OperatorRef, OperatorRuntime, OperatorRuntimeType};
 use super::operator_types::ai_tool::AIToolOperator;
-use super::operator_types::canonical_model::CanonicalModelOperator;
+use super::operator_types::canonical_model::CanonicalModelService;
 use super::processors::basic::BasicProcessor;
 use super::processors::port::Port;
 use super::registry::GraphRegistry;
+use super::watcher::watch_control_bus;
 use async_trait::async_trait;
 use std::ops::Deref;
 
@@ -43,27 +44,45 @@ pub trait GraphMod {
 pub struct GraphRunner {
     pub name: String,
     pub state: GraphStatus,
-    graph: Option<Arc<Mutex<Graph>>>,
+    //graph: Option<Arc<Mutex<Graph>>>,
     start_node: String,
-    nodes: HashMap<String, Arc<dyn OperatorRuntime + 'static>>,
+    pub nodes: HashMap<String, Arc<dyn OperatorRuntime + 'static>>,
     hooks: Vec<Arc<dyn GraphHook + 'static>>,
+}
+
+pub trait IntoGraphRunner {
+    fn into_graph_runner(self) -> Arc<GraphRunner>;
+}
+
+impl IntoGraphRunner for String {
+    fn into_graph_runner(self) -> Arc<GraphRunner> {
+        let graph_name = self;
+        let graph = GraphRegistry::get_graph(&graph_name);
+        if graph.is_none() {
+            error!("Graph {} not found in registry", graph_name);
+            panic!("Graph not found {}", graph_name);
+        }
+        let graph = graph.unwrap();
+        let graph = graph.lock().unwrap();
+        Arc::clone(&graph.runner)
+    }
 }
 
 impl GraphRunner {
     pub fn new(name: String) -> Self {
         GraphRunner {
             name,
-            graph: None,
-            state: GraphStatus::Starting,
+            //graph: None,
+            state: GraphStatus::Inactive,
             start_node: "".to_string(),
             nodes: HashMap::new(),
             hooks: Vec::new(),
         }
     }
 
-    pub fn set_graph(&mut self, graph: Arc<Mutex<Graph>>) {
-        self.graph = Some(graph);
-    }
+    // pub fn set_graph(&mut self, graph: Arc<Mutex<Graph>>) {
+    //     self.graph = Some(graph);
+    // }
 
     pub fn start_node(&self) -> Option<&Arc<dyn OperatorRuntime + 'static>> {
         self.nodes.get(&self.start_node)
@@ -88,9 +107,9 @@ impl GraphRunner {
 impl Drop for GraphRunner {
     fn drop(&mut self) {
         error!("Dropping GraphRunner for graph {}", self.name);
-        if let Some(graph) = &self.graph {
-            let mut graph = graph.lock().unwrap();
-        }
+        // if let Some(graph) = &self.graph {
+        //     let mut graph = graph.lock().unwrap();
+        // }
     }
 }
 
@@ -100,11 +119,11 @@ pub struct Graph {
     pub name: String,
     pub state: GraphStatus,
     start_node: String,
-
     /// Collection of nodes in the Graph, indexed by their unique ID
-    pub nodes: HashMap<String, Arc<Mutex<dyn Operator + 'static>>>,
+    pub mut_nodes: HashMap<String, Arc<Mutex<dyn Operator + 'static>>>,
 
-    pub runner: GraphRunner,
+    pub runner: Arc<GraphRunner>,
+
     pub node_meta_map: HashMap<String, NodeMeta>,
 
     /// Mapping of node IDs to their outgoing edges (children)
@@ -128,16 +147,8 @@ pub trait AsyncHandleTrait: Sync + Send + Debug {
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub enum GraphStatus {
-    // The graph is starting
-    Starting,
-    /// The graph is running
-    Running,
-    /// The graph has an error
-    Error,
-    /// The graph is paused
-    Paused,
-    /// The graph is being replaced
-    Replacing,
+    Active,
+    Inactive,
 }
 
 // #[derive(Debug)]
@@ -151,13 +162,14 @@ impl GraphMod for Graph {
     where
         O: Operator + 'static,
     {
-        let op = OperatorWrapper::new(operator);
+        let op = OperatorWrapper::new(self.name.clone(), id.to_string(), operator);
 
         // Get the current runtime and register it with the graph runner
-        let runtime = op.new_runtime();
-        self.runner.nodes.insert(id.to_string(), runtime);
+        // let runtime = op.new_runtime();
+        // self.runner.nodes.insert(id.to_string(), runtime);
 
-        self.nodes.insert(id.to_string(), Arc::new(Mutex::new(op)));
+        self.mut_nodes
+            .insert(id.to_string(), Arc::new(Mutex::new(op)));
 
         self
     }
@@ -171,11 +183,11 @@ impl Graph {
         Graph {
             id: generate_random_id(5).to_uppercase(),
             name: name.clone(),
-            state: GraphStatus::Starting,
+            state: GraphStatus::Inactive,
             start_node: String::new(),
             //_nodes: HashMap::new(),
-            nodes: HashMap::new(),
-            runner: GraphRunner::new(name),
+            mut_nodes: HashMap::new(),
+            runner: Arc::new(GraphRunner::new(name)),
             node_meta_map: HashMap::new(),
             edges: HashMap::new(),
             processor: None,
@@ -195,9 +207,9 @@ impl Graph {
     where
         O: Operator + 'static,
     {
-        if self.nodes.len() == 0 {
+        if self.mut_nodes.len() == 0 {
             self.start_node = id.to_string();
-            self.runner.start_node = id.to_string();
+            //self.runner.start_node = id.to_string();
         }
 
         let node_meta = NodeMeta::new(self.name.as_str(), id, operator.name());
@@ -212,19 +224,22 @@ impl Graph {
 
         let node_meta = NodeMeta::new(self.name.as_str(), id, operator.name());
 
+        let op_id = id.to_string();
+        let graph_name = self.name.clone();
+
         match typ {
             OperatorType::Filter2 { .. } => {
-                let mut op = OperatorActorHandle::new(operator);
+                let mut op = OperatorActorHandle::new(graph_name, op_id, operator);
                 op.init(self, &node_meta);
                 self.add_new_node(id, op);
             }
             OperatorType::Filter => {
-                let mut op = OperatorActorHandle::new(operator);
+                let mut op = OperatorActorHandle::new(graph_name, op_id, operator);
                 op.init(self, &node_meta);
                 self.add_new_node(id, op);
             }
             OperatorType::CanonicalModel {} => {
-                let mut op = OperatorActorHandle::new(operator);
+                let mut op = OperatorActorHandle::new(graph_name, op_id, operator);
                 op.init(self, &node_meta);
                 self.add_new_node(id, op);
             }
@@ -258,8 +273,8 @@ impl Graph {
     }
 
     pub fn init_ports(&mut self) {
-        let mut nodes = self.nodes.clone();
-        for (id, operator) in self.nodes.iter() {
+        let mut nodes = self.mut_nodes.clone();
+        for (id, operator) in self.mut_nodes.iter() {
             if id == "_end" {
                 continue;
             }
@@ -274,180 +289,226 @@ impl Graph {
         }
     }
 
-    pub fn register(self) {
-        let registry = GraphRegistry::get_instance();
-        let mut registry = registry.lock().unwrap();
-        registry.add_graph(self);
-    }
-
-    pub fn start_node(&self) -> &Arc<Mutex<dyn Operator + 'static>> {
-        self.nodes.get(&self.start_node).unwrap()
-    }
-
-    pub fn init(&mut self) -> &mut Self {
-        self.init_ports();
-
-        debug!("INIT with start node {}", &self.start_node);
-        let start = self.nodes.get(&self.start_node).unwrap();
-        let end = self.nodes.get("_end").unwrap();
-
-        //let end_ro = self.runner.nodes.get("_end").unwrap();
-
-        //let processor = self.processor.unwrap();
-
-        // Initialize the graph
-        for (id, operator) in self.nodes.iter() {
-            if id == "_end" {
-                continue;
-            }
-
-            let mut childs: Vec<OperatorRole> = Vec::new();
-
-            let children = self.edges.get(id);
-            match children {
-                Some(children) => {
-                    for child in children {
-                        debug!("Adding child {} (role {})", child.1, child.0);
-                        let opsch = self.nodes.get(&child.1);
-                        match opsch {
-                            Some(opsc) => childs.push(OperatorRole {
-                                role: child.0.clone(),
-                                operator: Arc::clone(opsc),
-                            }),
-                            None => {
-                                panic!(
-                                    "Child {} not found in graph: {} (role {})",
-                                    child.1, child.0, self.name
-                                );
-                            }
-                        }
-                    }
-                }
-                None => {}
-            }
-
-            // if there are no edges/children for the node, then have it go to "_end"
-            // if it exists
-            if children
-                .unwrap_or(&HashSet::new())
-                .iter()
-                .filter(|x| x.0 == OperatorRole::default())
-                .count()
-                == 0
-            {
-                let opsch = self.nodes.get("_end");
-                match opsch {
-                    Some(opsc) => childs.push(OperatorRole {
-                        role: OperatorRole::default(),
-                        operator: Arc::clone(opsc),
-                    }),
-                    None => {}
-                }
-            }
-
-            // tell the operator to initialize itself
-            operator.lock().unwrap().control(Message::Init {
-                next: childs,
-                id: id.to_string(),
-                end: Arc::clone(end),
-                start: Arc::clone(start),
-                //processor: Arc::new(Mutex::new(processor)),
-            });
-        }
-
-        for (id, op) in self.nodes.iter() {
-            debug!("Inventory: [{:?}] {}", op.lock().unwrap().state(), id);
-        }
-        for (id, _) in self.ports.ports.iter() {
-            debug!("Ports: {}", id);
-        }
-
-        watch_control_bus(self.id.clone(), self.name.clone());
-
-        self
-    }
-
-    pub fn finalize(&mut self) -> bool {
+    pub fn make_active_if_ready(&mut self) {
         let mut pending = 0;
-        for (id, op) in self.nodes.iter() {
-            debug!("Inventory: [{:?}] {}", op.lock().unwrap().state(), id);
-            if op.lock().unwrap().state() == OperatorState::Pending {
+        for (id, runner) in self.runner.nodes.iter() {
+            if runner.state() == OperatorState::Pending {
+                debug!("Operator {} is pending", id);
                 pending += 1;
             }
         }
+        let current_state = self.state.clone();
 
-        let graph_id = self.id.clone();
-        let graph_name = self.name.clone();
+        match pending {
+            0 => {
+                info!("Graph {} is now active", self.name);
+                self.state = GraphStatus::Active;
+            }
+            _ => {
+                warn!("Graph {} is not ready ({} pending)", self.name, pending);
+                self.state = GraphStatus::Inactive;
+            }
+        };
 
-        if pending > 0 {
-            info!(
-                "[{}] {} STARTING (pending {})",
-                graph_id, graph_name, pending
-            );
-            tokio::spawn(async move {
-                broadcast_event(ControlEvent {
-                    graph_id,
-                    graph_name,
-                    state: GraphStatus::Starting,
-                    operator_names: vec![],
-                })
-                .await;
-            });
-        } else {
-            info!("[{}] {} READY", graph_id, graph_name);
-            tokio::spawn(async move {
-                broadcast_event(ControlEvent {
-                    graph_id,
-                    graph_name: graph_name.clone(),
-                    state: GraphStatus::Running,
-                    operator_names: vec![],
-                })
-                .await;
-            });
+        if current_state != self.state {
+            info!("Graph {} TRANSITIONED TO {:?}", self.name, self.state);
+        }
+    }
+
+    pub fn register(self) {
+        let registry = GraphRegistry::get_instance();
+        let mut registry = registry.lock().unwrap();
+        info!("[{}] REGISTER GRAPH", self.name);
+        registry.add_graph(self);
+    }
+
+    // pub fn start_node(&self) -> &Arc<dyn OperatorRuntime + 'static> {
+    //     self.runner.nodes.get(&self.start_node).unwrap()
+    // }
+
+    pub fn get_next_nodes(
+        id: &str,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Vec<OperatorRole> {
+        let mut childs: Vec<OperatorRole> = Vec::new();
+
+        let nodes = mut_nodes.clone();
+
+        let children = edges.get(id);
+        match children {
+            Some(children) => {
+                for child in children {
+                    debug!("Adding child {} (role {})", child.1, child.0);
+                    let opsch = nodes.get(&child.1);
+                    match opsch {
+                        Some(opsc) => {
+                            let op = opsc.try_lock();
+                            if op.is_err() {
+                                warn!("Failed to lock operator {} - skipping", child.1);
+                                continue;
+                            }
+                            let op = op.unwrap();
+                            let rt = op.new_runtime(mut_nodes.clone(), edges.clone());
+
+                            childs.push(OperatorRole {
+                                role: child.0.clone(),
+                                operator: rt,
+                            });
+                        }
+                        None => {
+                            panic!(
+                                "Child {} not found in graph: {} (role {})",
+                                child.1, child.0, id
+                            );
+                        }
+                    }
+                }
+            }
+            None => {}
         }
 
-        // let result = b_tx.send(format!("Graph {} has {} pending.", self.name, pending));
-        // match result {
-        //     Ok(_) => debug!("Graph {} has {} pending.", self.name, pending),
-        //     Err(_) => debug!("Failed to send message"),
-        // }
+        // if there are no edges/children for the node, then have it go to "_end"
+        // if it exists
+        if children
+            .unwrap_or(&HashSet::new())
+            .iter()
+            .filter(|x| x.0 == OperatorRole::default())
+            .count()
+            == 0
+        {
+            let opsch = nodes.get("_end");
+            match opsch {
+                Some(opsc) => childs.push(OperatorRole {
+                    role: OperatorRole::default(),
+                    operator: opsc
+                        .lock()
+                        .unwrap()
+                        .new_runtime(mut_nodes.clone(), edges.clone()),
+                }),
+                None => {}
+            };
+        }
 
-        // if pending > 0 {
-        //     tokio::spawn(async move {
-        //         let result = b_rx.recv().await;
-        //     });
-        // }
-        // //self.monitor = Some(monitor);
-        // let mut waiting = Vec::new();
-
-        // self.nodes.iter().for_each(|(_id, op)| {
-        //     let mut op = op.lock().unwrap();
-        //     op.finalize();
-        //     if op.state() != OperatorState::Ready {
-        //         waiting.push(op);
-        //     }
-        // });
-
-        // waiting.iter_mut().for_each(|op| {
-        //     debug!("Waiting for operator {} to be ready", op.name());
-        //     op.finalize();
-        //     if op.state() != OperatorState::Ready {
-        //         panic!("Operator {} is still not ready", op.name());
-        //     }
-        // });
-        // info!("All operators are ready");
-        pending == 0
+        childs
     }
 
-    pub fn poke(&mut self) {
-        info!("Poke ENTER");
-        self.nodes.iter().for_each(|(_id, op)| {
-            let mut op = op.lock().unwrap();
-            op.finalize();
-        });
-        self.finalize();
-        info!("Poke EXIT");
+    pub fn watch(&self) -> &Self {
+        watch_control_bus(self.id.clone(), self.name.clone());
+        self
     }
+
+    pub fn post_start_hook(&self) {
+        let start = self.mut_nodes.get(&self.start_node);
+
+        if start.is_none() {
+            error!("No start node found in graph {}", self.name);
+            return;
+        }
+        let start = start.unwrap();
+        start.lock().unwrap().control(Message::Control {
+            command: ControlCommand::Start {
+                runtime: Arc::clone(&self.runner.start_node().unwrap()),
+            },
+            origin: None,
+        })
+    }
+    // pub fn init(&self, nodes: HashMap<String, Arc<dyn OperatorRuntime>>) -> &Self {
+    //     //self.init_ports();
+
+    //     // let nodes = &self.runner.nodes;
+
+    //     debug!("INIT with start node {}", &self.runner.start_node);
+    //     let start = nodes.get(&self.runner.start_node).unwrap();
+    //     let end = nodes.get("_end").unwrap();
+
+    //     //let end_ro = self.runner.nodes.get("_end").unwrap();
+
+    //     //let processor = self.processor.unwrap();
+
+    //     // Initialize the graph
+    //     for (id, operator) in nodes.iter() {
+    //         if id == "_end" {
+    //             continue;
+    //         }
+
+    //         let childs = self.get_next_nodes(&nodes, id);
+
+    //         // send a control message to the Operator
+    //         let mut_op = self.mut_nodes.get(id).unwrap();
+
+    //         // tell the operator to initialize itself
+    //         mut_op.lock().unwrap().control(Message::Init {
+    //             next: childs,
+    //             id: id.to_string(),
+    //             end: Arc::clone(end),
+    //             start: Arc::clone(start),
+    //             op_runtime: Arc::clone(operator),
+    //         });
+    //     }
+
+    //     for (id, op) in self.mut_nodes.iter() {
+    //         debug!("Inventory: [{:?}] {}", op.lock().unwrap().state(), id);
+    //     }
+    //     for (id, _) in self.ports.ports.iter() {
+    //         debug!("Ports: {}", id);
+    //     }
+
+    //     //watch_control_bus(self.id.clone(), self.name.clone());
+
+    //     self
+    // }
+
+    // pub fn deprecate_finalize(&mut self) -> bool {
+    //     let mut pending = 0;
+    //     for (id, op) in self.mut_nodes.iter() {
+    //         debug!("Inventory: [{:?}] {}", op.lock().unwrap().state(), id);
+    //         if op.lock().unwrap().state() == OperatorState::Pending {
+    //             pending += 1;
+    //         }
+    //     }
+
+    //     let graph_id = self.id.clone();
+    //     let graph_name = self.name.clone();
+
+    //     if pending > 0 {
+    //         info!(
+    //             "[{}] {} STARTING (pending {})",
+    //             graph_id, graph_name, pending
+    //         );
+    //         tokio::spawn(async move {
+    //             broadcast_event(ControlEvent {
+    //                 graph_id,
+    //                 graph_name,
+    //                 state: GraphStatus::Inactive,
+    //                 operator_names: vec![],
+    //             })
+    //             .await;
+    //         });
+    //     } else {
+    //         info!("[{}] {} READY", graph_id, graph_name);
+    //         tokio::spawn(async move {
+    //             broadcast_event(ControlEvent {
+    //                 graph_id,
+    //                 graph_name: graph_name.clone(),
+    //                 state: GraphStatus::Active,
+    //                 operator_names: vec![],
+    //             })
+    //             .await;
+    //         });
+    //     }
+    //     pending == 0
+    // }
+
+    // pub fn poke(&mut self) {
+    //     info!("Poke ENTER");
+    //     self.mut_nodes.iter().for_each(|(_id, op)| {
+    //         let mut op = op.lock().unwrap();
+    //         op.finalize();
+    //     });
+    //     self.finalize();
+    //     info!("Poke EXIT");
+    // }
 
     // pub async fn event(&mut self, status: GraphStatus) {
     //     let result = self
@@ -478,6 +539,250 @@ impl Graph {
     //         node.send(message.clone());
     //     }
     // }
+
+    /**
+     * Operator has new information, so recreate the
+     */
+    pub fn runtime_expired(self_graph_name: String, node_id: String) {
+        info!("[{}] Operator expired - {}", self_graph_name, node_id);
+
+        let self_graph = GraphRegistry::get_graph(&self_graph_name);
+        if self_graph.is_none() {
+            error!("Graph {} not found in registry", self_graph_name);
+            panic!("Graph not found {}", self_graph_name);
+        }
+        let self_graph = self_graph.unwrap();
+        let mut self_graph = self_graph.lock().unwrap();
+
+        self_graph.replace_runtime();
+
+        self_graph.make_active_if_ready();
+        //self_graph.init(self_graph.runner.nodes.clone());
+    }
+
+    // pub fn replace_all_runtimes(&self) -> Arc<GraphRunner> {
+    //     info!("Replacing all runtimes for graph {}", self.name);
+    //     // Setup the first iteration of the graph runner
+
+    //     let mut nodes = HashMap::new();
+    //     // This is NOT GOING TO WORK
+    //     // -- get_next_nodes() is using the old nodes
+    //     // and we are building a new set of nodes
+    //     for (id, operator) in self.mut_nodes.iter() {
+    //         let op = operator.lock().unwrap();
+
+    //         let runtime = op.new_runtime();
+    //         nodes.insert(id.clone(), runtime);
+    //     }
+
+    //     info!("Getting graph {} from registry", self.name);
+    //     let graph = GraphRegistry::get_graph(&self.name);
+
+    //     info!("Setting running graph for {}", self.name);
+    //     Arc::new(GraphRunner {
+    //         name: self.name.clone(),
+    //         state: self.state.clone(),
+    //         start_node: self.start_node.clone(),
+    //         graph,
+    //         nodes,
+    //         hooks: self.runner.hooks.clone(),
+    //     })
+    // }
+
+    pub fn replace_runtime(&mut self) {
+        info!("Replacing runtime for graph: {}", self.name);
+
+        let edges = self.edges.clone();
+        let mut_nodes = self.mut_nodes.clone();
+
+        let mut new_runner = GraphRunner {
+            name: self.name.clone(),
+            state: GraphStatus::Inactive,
+            start_node: self.start_node.clone(),
+            nodes: HashMap::new(),
+            hooks: self.runner.hooks.clone(),
+        };
+
+        let event = ControlEvent {
+            graph_id: self.id.clone(),
+            graph_name: self.name.clone(),
+            operator_names: Vec::new(),
+            event_type: ControlEventType::GraphReplaced,
+            reason: "Graph runner updated".to_string(),
+        };
+
+        //let self_name = self.name.clone();
+
+        tokio::spawn(async move {
+            let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges);
+
+            let self_name = new_runner.name.clone();
+
+            let pending_count = new_runtimes
+                .values()
+                .filter(|op| op.state() == OperatorState::Pending)
+                .count();
+
+            new_runner.replace_nodes(new_runtimes);
+
+            let self_graph = GraphRegistry::get_graph(&self_name);
+            if self_graph.is_none() {
+                error!("Graph {} not found in registry", self_name);
+                return;
+            }
+            let self_graph = self_graph.unwrap();
+            let mut self_graph = self_graph.lock().unwrap();
+
+            // self.runner = Arc::new(new_runner);
+
+            info!("[Graph={}] Pending count: {}", self_name, pending_count);
+            self_graph.state = if pending_count > 0 {
+                GraphStatus::Inactive
+            } else {
+                GraphStatus::Active
+            };
+
+            new_runner.state = self_graph.state.clone();
+
+            self_graph.runner = Arc::new(new_runner);
+
+            // info!("New runner for graph {} replaced.", self.name);
+
+            tokio::spawn(async move {
+                broadcast_event(event).await;
+            });
+            // broadcast_event(event).await;
+        });
+    }
+
+    pub fn generate_new_runtimes(
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> HashMap<String, OperatorRuntimeType> {
+        let mut nodes = HashMap::new();
+
+        for (id, operator) in mut_nodes.iter() {
+            let runtime = {
+                let op = operator.lock().unwrap();
+
+                let runtime = op.new_runtime(mut_nodes.clone(), edges.clone());
+                runtime
+            };
+            nodes.insert(id.clone(), runtime);
+        }
+
+        nodes
+    }
+
+    // pub fn refresh_runtime_node(&mut self, id: String) {
+    //     let mut nodes = self.runner.nodes.clone();
+
+    //     let operator = self.mut_nodes.get(&id).unwrap();
+
+    //     let mut op = operator.lock().unwrap();
+
+    //     op.control(Message::Init2 {
+    //         id: id.clone(),
+    //         next: self.get_next_nodes(&nodes, &id),
+    //     });
+
+    //     let runtime = op.new_runtime();
+    //     nodes.insert(id.clone(), runtime);
+
+    //     info!("Setting running graph for {}", self.name);
+    //     self.runner = Arc::new(GraphRunner {
+    //         name: self.name.clone(),
+    //         state: self.state.clone(),
+    //         start_node: self.start_node.clone(),
+    //         nodes,
+    //         hooks: self.runner.hooks.clone(),
+    //     });
+
+    //     let event = ControlEvent {
+    //         graph_id: self.id.clone(),
+    //         graph_name: self.name.clone(),
+    //         operator_names: self.mut_nodes.keys().cloned().collect::<Vec<String>>(),
+    //         event_type: ControlEventType::Notice,
+    //         reason: "Graph runner updated".to_string(),
+    //     };
+
+    //     tokio::spawn(async move {
+    //         broadcast_event(event).await;
+    //     });
+    // }
+
+    // fn new_runtime(&self, id: String) -> Arc<GraphRunner> {
+    //     info!("Replacing all runtimes for graph {}", self.name);
+    //     // Setup the first iteration of the graph runner
+
+    //     let mut nodes = self.runner.nodes.clone();
+
+    //     // This is NOT GOING TO WORK
+    //     // -- get_next_nodes() is using the old nodes
+    //     // and we are building a new set of nodes
+    //     let operator = self.mut_nodes.get(&id).unwrap();
+    //     {
+    //         let op = operator.lock().unwrap();
+    //         let runtime = op.new_runtime();
+    //         nodes.remove(&id);
+    //         nodes.insert(id.clone(), runtime);
+    //     }
+
+    //     info!("Getting graph {} from registry", self.name);
+    //     let graph = GraphRegistry::get_graph(&self.name);
+
+    //     info!("Setting running graph for {}", self.name);
+    //     Arc::new(GraphRunner {
+    //         name: self.name.clone(),
+    //         state: self.state.clone(),
+    //         start_node: self.start_node.clone(),
+    //         graph,
+    //         nodes,
+    //         hooks: self.runner.hooks.clone(),
+    //     })
+    // }
+
+    pub fn apply_settings(&self, settings: &Value) {
+        let graph_name = self.name.clone();
+        let graph_name = graph_name.as_str();
+
+        let update_settings = settings.get(graph_name);
+        if update_settings.is_none() {
+            return;
+        }
+
+        self.mut_nodes.iter().for_each(|operator| {
+            info!("[{}] Operator: {}", graph_name, operator.0);
+
+            let update_settings = update_settings.unwrap().get(operator.0);
+            if update_settings.is_none() {
+                return;
+            }
+            let update_settings = update_settings.unwrap();
+
+            let set_settings = update_settings
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect::<HashMap<String, serde_json::Value>>();
+
+            match operator.1.try_lock() {
+                Ok(mut op) => {
+                    info!("Operator: {} {:?}", op.name(), set_settings);
+                    op.control(Message::Control {
+                        command: ControlCommand::SetSettings {
+                            settings: set_settings,
+                        },
+                        origin: None,
+                    });
+                }
+                Err(_) => {
+                    warn!("Failed to lock operator - skipping settings");
+                }
+            }
+        });
+    }
 
     pub fn call(&self, message: Message) {
         //let node = self.nodes.get(&self.start_node).unwrap().clone();

@@ -1,5 +1,6 @@
 use saasexpress_core::graph::operator::{
-    Operator, OperatorRef, OperatorRole, OperatorState, OperatorType,
+    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorState,
+    OperatorType,
 };
 use saasexpress_core::{
     graph::{
@@ -14,6 +15,7 @@ use tracing::{debug, info};
 
 use super::resources::get_instance;
 use core::panic;
+use std::collections::{HashMap, HashSet};
 use std::{
     fmt::{Display, Formatter},
     sync::{Arc, Mutex},
@@ -34,12 +36,13 @@ impl Display for Engine {
 
 #[derive(Debug)]
 pub(crate) struct HTTPIn {
+    id: String,
     engine: Engine,
     ws: bool,
     sse: bool,
     routes: Vec<String>,
     method: String,
-    next: Vec<OperatorRole>,
+    next_nodes: Vec<OperatorRole>,
     settings: Vec<Setting>,
 }
 
@@ -64,12 +67,13 @@ impl From<Value> for HTTPIn {
         let sse = value["sse"].as_bool().unwrap_or(false);
 
         HTTPIn {
+            id: "".to_string(),
             engine,
             ws,
             sse,
             routes,
             method,
-            next: Vec::new(),
+            next_nodes: Vec::new(),
             settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
@@ -96,12 +100,13 @@ impl From<serde_yaml::Value> for HTTPIn {
         let sse = value["sse"].as_bool().unwrap_or(false);
 
         HTTPIn {
+            id: "".to_string(),
             engine,
             ws,
             sse,
             routes,
             method,
-            next: Vec::new(),
+            next_nodes: Vec::new(),
             settings: env_settings("HTTPIN_AXUM".to_string()),
         }
     }
@@ -115,12 +120,23 @@ impl Operator for HTTPIn {
         "HTTPIn".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
 
-    fn handle(&self, _message: Message) -> Message {
-        return _message;
+        Arc::new(HTTPIn {
+            id: self.id.clone(),
+            engine: self.engine.clone(),
+            ws: self.ws,
+            sse: self.sse,
+            routes: self.routes.clone(),
+            method: self.method.clone(),
+            next_nodes,
+            settings: self.settings.clone(),
+        })
     }
 
     // fn handle_ptr(&self, _message: Arc<Message>) -> Arc<Message> {
@@ -129,77 +145,52 @@ impl Operator for HTTPIn {
     // }
 
     fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.id = node_meta.name.clone();
         self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
     }
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, start, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
+            // Message::Init { next, start, .. } => {
+            //     for n in next {
+            //         self.add_next(n);
+            //     }
 
-                self.setup_routes(start);
-            }
-            Message::Control { command, .. } => {
-                let mut current_settings = self.settings.to_owned();
-                match command {
-                    ControlCommand::SetSettings { settings } => {
-                        settings.iter().for_each(|(k, v)| {
-                            current_settings.push(Setting {
-                                key: k.replace("-", "_").to_uppercase().to_string(),
-                                value: v.as_str().unwrap_or("").to_string(),
-                            });
-                        });
-                    }
-                    _ => {
-                        panic!("Invalid control command {:?}", command);
-                    }
+            //     self.setup_routes(start);
+            // }
+            Message::Control { command, .. } => match command {
+                ControlCommand::Start { runtime } => {
+                    info!("HTTPIn - Start command received");
+                    self.setup_routes(runtime);
                 }
-                self.settings = current_settings;
-            }
+                ControlCommand::SetSettings { settings } => {
+                    let mut current_settings = self.settings.to_owned();
+                    settings.iter().for_each(|(k, v)| {
+                        current_settings.push(Setting {
+                            key: k.replace("-", "_").to_uppercase().to_string(),
+                            value: v.as_str().unwrap_or("").to_string(),
+                        });
+                    });
+                    self.settings = current_settings;
+                }
+                _ => {
+                    panic!("Invalid control command {:?}", command);
+                }
+            },
 
             _ => {
                 panic!("Unexpected message type for control");
             }
         }
     }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn send_ptr(&self, _message: Arc<Message>) {
-        let message = _message.to_owned();
-        self.next_ptr(self.handle_ptr(message));
-    }
-
-    fn next_ptr(&self, message: Arc<Message>) {
-        for n in &self.next {
-            n.operator.lock().unwrap().send_ptr(message.to_owned());
-        }
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<OperatorRef> {
-        panic!("Not implemented");
-        // self.next
-        //     .iter()
-        //     .map(|n| n.operator)
-        //     .collect::<Vec<OperatorRef>>()
-        //     .as_ref()
-    }
 }
 
 impl HTTPIn {
     fn next(&self, message: Message) {
         let mut counter = 0;
-        for n in &self.next {
+        for n in &self.next_nodes {
             if counter == 0 {
-                n.operator.lock().unwrap().send(message);
+                n.operator.send(message);
                 break;
             } else {
                 info!("Not implemented");
@@ -208,11 +199,7 @@ impl HTTPIn {
         }
     }
 
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
-    }
-
-    fn setup_routes(&self, start: Arc<Mutex<dyn Operator + 'static>>) {
+    fn setup_routes(&self, start: OperatorRuntimeType) {
         let mut singleton = get_instance().lock().unwrap();
         singleton.add_routes(
             self.routes.to_owned(),
@@ -221,5 +208,27 @@ impl HTTPIn {
             self.sse,
             start,
         );
+    }
+}
+
+impl OperatorRuntime for HTTPIn {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        return _message;
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
     }
 }

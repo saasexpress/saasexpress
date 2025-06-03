@@ -1,6 +1,7 @@
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use serde_json::json;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -9,18 +10,23 @@ use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{OperatorRef, OperatorRole, OperatorType};
+use crate::graph::operator::{
+    OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorType,
+};
 
 use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
 
 use crate::graph::meta::NodeMeta;
 use crate::graph::operator::Operator;
+use crate::graph::registry::GraphRegistry;
 use fastrace::future::FutureExt;
 
 #[derive(Debug)]
 pub(crate) struct FanOut {
-    next: Vec<OperatorRef>,
+    next: Vec<OperatorRole>,
+    graph_name: String,
+    id: String,
     senders: Vec<mpsc::Sender<Message>>,
 }
 
@@ -29,6 +35,8 @@ impl From<serde_yaml::Value> for FanOut {
         FanOut {
             next: Vec::new(),
             senders: Vec::new(),
+            graph_name: String::new(),
+            id: String::new(),
         }
     }
 }
@@ -42,39 +50,46 @@ impl Operator for FanOut {
         "FanOut".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
+    fn new_runtime(
+        &self,
+        mut_nodes: HashMap<String, OperatorRef>,
+        edges: HashMap<String, HashSet<(String, String)>>,
+    ) -> Arc<dyn OperatorRuntime> {
+        info!(
+            "FanOut::new_runtime - id: {}, graph_name: {}",
+            self.id, self.graph_name
+        );
+        let next_nodes = {
+            let graph = GraphRegistry::get_graph(&self.graph_name);
+            if graph.is_none() {
+                error!("Graph not found - incomplete runtime : {}", self.graph_name);
+                Vec::new()
+            } else {
+                let graph = graph.unwrap();
+                let graph = graph.lock().unwrap();
+                info!("Got graph now getting next nodes for {}..", self.id);
 
-    fn handle(&self, _message: Message) -> Message {
-        return _message;
-        //        panic!("Not implemented");
-        // return _message;
-        // // send message to "processor"
-        // // processor will create a new message for each next operator
-        // // and send it to them and wait for response
-        // // once it gets all the responses, it will send final message back to the original sender
-        // //
-        // match _message {
-        //     Message::Standard { message, origin } => Message::Standard {
-        //         message: message.to_owned(),
-        //         origin,
-        //     },
-        //     _ => panic!("Unexpected message type in FanOut::handle {}", _message),
-        // }
+                Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
+            }
+        };
+        info!("create fanout");
+        let fanout = FanOut::new(self.id.clone(), self.graph_name.clone(), next_nodes);
+
+        Arc::new(fanout)
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
-        debug!("FanOut::init - nothing to initialize");
+        self.id = node_meta.name.clone();
+        self.graph_name = node_meta.graph.clone();
     }
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
+            // Message::Init { next, .. } => {
+            //     for n in next {
+            //         self.add_next(n);
+            //     }
+            // }
             Message::Control { .. } => {
                 debug!("Control");
             }
@@ -83,18 +98,6 @@ impl Operator for FanOut {
                 panic!("Unexpected message type for control");
             }
         }
-    }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        todo!("FanOut::wait is not implemented yet");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        todo!("FanOut::get_output_channels is not implemented yet");
     }
 }
 
@@ -375,6 +378,21 @@ impl FanOut {
         tokio::spawn(future);
     }
 
+    fn new(id: String, graph_name: String, next: Vec<OperatorRole>) -> Self {
+        let mut fo = FanOut {
+            next: Vec::new(),
+            graph_name,
+            id,
+            senders: Vec::new(),
+        };
+        for n in next.iter() {
+            fo.add_next(n.clone());
+        }
+        fo.next = next;
+
+        fo
+    }
+
     fn add_next(&mut self, operator: OperatorRole) {
         //self.next.push(operator);
 
@@ -400,7 +418,7 @@ impl FanOut {
                     } => {
                         let r_to = respond_to;
 
-                        operator.lock().unwrap().send(Message::Standard {
+                        operator.send(Message::Standard {
                             message,
                             origin: Some(
                                 OriginMessage::new(Some(r_to))
@@ -416,7 +434,7 @@ impl FanOut {
                         // let r_to = og.respond_to.expect("No respond_to");
                         // let span = og.span.unwrap();
 
-                        operator.lock().unwrap().send(Message::JSON {
+                        operator.send(Message::JSON {
                             message,
                             origin, // origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
                         });
@@ -579,3 +597,39 @@ impl FanOut {
 // async fn main() {
 //     example_usage().await;
 // }
+
+impl OperatorRuntime for FanOut {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        return _message;
+        //        panic!("Not implemented");
+        // return _message;
+        // // send message to "processor"
+        // // processor will create a new message for each next operator
+        // // and send it to them and wait for response
+        // // once it gets all the responses, it will send final message back to the original sender
+        // //
+        // match _message {
+        //     Message::Standard { message, origin } => Message::Standard {
+        //         message: message.to_owned(),
+        //         origin,
+        //     },
+        //     _ => panic!("Unexpected message type in FanOut::handle {}", _message),
+        // }
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
+    }
+}
