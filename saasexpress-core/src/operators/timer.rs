@@ -25,16 +25,18 @@ use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Timer {
+    id: String,
     on_start: bool,
     interval_ms: Option<Duration>,
     iterations: u16,
-    next: Vec<OperatorRole>,
+    next_nodes: Vec<OperatorRole>,
 }
 
 impl From<serde_yaml::Value> for Timer {
     fn from(_value: serde_yaml::Value) -> Self {
         Timer {
-            next: Vec::new(),
+            id: "".to_string(),
+            next_nodes: Vec::new(),
             iterations: _value
                 .get("iterations")
                 .and_then(|v| v.as_u64())
@@ -65,18 +67,21 @@ impl Operator for Timer {
         mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> Arc<dyn OperatorRuntime> {
-        Arc::new(self.clone())
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+
+        Arc::new(Timer {
+            id: self.id.clone(),
+            next_nodes,
+            on_start: self.on_start,
+            interval_ms: self.interval_ms,
+            iterations: self.iterations,
+        })
     }
 
     fn init(&mut self, _: &mut Graph, _node_meta: &NodeMeta) {}
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
             Message::Control { .. } => {
                 debug!("Control");
             }
@@ -90,14 +95,10 @@ impl Operator for Timer {
 
 impl Timer {
     fn next(&self, message: Message) {
-        for n in &self.next {
+        for n in &self.next_nodes {
             n.operator.send(message);
             break;
         }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 
     fn start(&mut self) -> bool {
@@ -131,7 +132,7 @@ impl Timer {
                 .in_span(root_span),
             );
         } else if self.interval_ms.is_none() {
-            let sender = self.next.get(0).unwrap().clone().operator;
+            let sender = self.next_nodes.get(0).unwrap().clone().operator;
 
             let name = Operator::name(self);
 
@@ -229,7 +230,7 @@ impl OperatorRuntime for Timer {
     fn handle(&self, mut _message: Message) -> Message {
         // Only handle the message if we want to start a timer
         if self.on_start == false && self.interval_ms.is_some() {
-            let sender = self.next.get(0).unwrap().clone().operator;
+            let sender = self.next_nodes.get(0).unwrap().clone().operator;
 
             let mpsc_respond_to = _message
                 .get_origin()
