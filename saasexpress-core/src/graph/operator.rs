@@ -91,11 +91,8 @@ pub trait Operator: Send + Sync + Debug {
     //     OperatorState::Ready
     // }
 
-    fn new_runtime(
-        &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
-    ) -> Arc<dyn OperatorRuntime>;
+    fn new_runtime(&self, graph_operator_context: GraphOperatorContext)
+    -> Arc<dyn OperatorRuntime>;
     // fn new_runtime(&self) -> Arc<dyn OperatorRuntime> {
     //     panic!("No runtime defined for operator {}", self.name());
     // }
@@ -162,4 +159,22 @@ pub trait OperatorRuntime: Send + Sync + Debug {
     fn send(&self, message: Message);
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct GraphOperatorContext {
+    pub id: String,
+    pub node_fqn: String,
+    pub mut_nodes: HashMap<String, OperatorRef>,
+    pub edges: HashMap<String, HashSet<(String, String)>>,
+}
+
+impl GraphOperatorContext {
+    pub fn get_next_edges(&self) -> Option<&HashSet<(String, String)>> {
+        self.edges.get(&self.id)
+    }
+
+    pub fn get_next_nodes(&self) -> Vec<OperatorRole> {
+        Graph::get_next_nodes(self.clone())
+    }
 }

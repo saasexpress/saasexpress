@@ -8,9 +8,11 @@ use futures::channel::oneshot;
 use serde_json::Value;
 use tracing::{debug, error, info, warn};
 
+use crate::graph;
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
-    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
+    OperatorType,
 };
 
 use crate::graph::message::{ControlCommand, Message, OriginMessage};
@@ -50,21 +52,10 @@ impl Operator for Settings {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = {
-            // let graph = GraphRegistry::get_graph(&self.graph_name);
-            // if graph.is_none() {
-            //     error!("Graph not found - incomplete runtime : {}", self.graph_name);
-            //     Vec::new()
-            // } else {
-            // let graph = graph.unwrap();
-            // let graph = graph.lock().unwrap();
+        let next_nodes = graph_operator_context.get_next_nodes();
 
-            Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
-            // }
-        };
         Arc::new(Settings {
             graph_name: self.graph_name.clone(),
             id: self.id.clone(),

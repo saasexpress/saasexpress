@@ -1,9 +1,10 @@
+use crate::graph;
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::Message;
 use crate::graph::meta::NodeMeta;
 use crate::graph::operator::{
-    Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime, OperatorRuntimeType,
-    OperatorState, OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime,
+    OperatorRuntimeType, OperatorState, OperatorType,
 };
 use crate::graph::registry::GraphRegistry;
 use fastrace::future::FutureExt;
@@ -95,14 +96,13 @@ impl Operator for OperatorWrapper {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         let mgmt = self.management.lock().unwrap();
 
         Arc::new(OperatorWrapperRuntime {
             name: format!("RuntimeWrapper({})", self.name.clone()),
-            upstream_runtime: mgmt.new_runtime(mut_nodes.clone(), edges.clone()),
+            upstream_runtime: mgmt.new_runtime(graph_operator_context),
         })
     }
 }

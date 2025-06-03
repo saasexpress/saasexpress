@@ -9,9 +9,11 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
+use crate::graph;
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
-    OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorType,
+    GraphOperatorContext, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType,
+    OperatorType,
 };
 
 use crate::graph::message::OriginMessage;
@@ -52,10 +54,9 @@ impl Operator for FanOut {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
 
         Arc::new(FanOut::new(
             self.id.clone(),

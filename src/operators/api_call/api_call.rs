@@ -18,7 +18,7 @@ use tracing::{debug, warn};
 use tracing::{error, info};
 
 use saasexpress_core::graph::graph::{AsyncHandleTrait, Graph};
-use saasexpress_core::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
+use saasexpress_core::graph::operator::{GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
 
 use fastrace::future::FutureExt;
 use futures::future;
@@ -667,8 +667,7 @@ impl Operator for APICall {
     }
 
     fn new_runtime(&self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(self.clone())
     }

@@ -8,7 +8,9 @@ use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::Message;
 
 use crate::graph::meta::NodeMeta;
-use crate::graph::operator::{Operator, OperatorRef, OperatorRuntime, OperatorType};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRuntime, OperatorType,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct JSONToBuffer;
@@ -30,8 +32,7 @@ impl Operator for JSONToBuffer {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(self.clone())
     }

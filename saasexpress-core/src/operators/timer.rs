@@ -13,8 +13,8 @@ use tracing::{debug, error, info};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
-    Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime, OperatorRuntimeType,
-    OperatorState, OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRefRead, OperatorRole, OperatorRuntime,
+    OperatorRuntimeType, OperatorState, OperatorType,
 };
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
@@ -64,10 +64,9 @@ impl Operator for Timer {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
 
         Arc::new(Timer {
             id: self.id.clone(),

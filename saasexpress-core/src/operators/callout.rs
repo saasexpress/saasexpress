@@ -12,7 +12,8 @@ use tracing::{debug, error, info, warn};
 use crate::graph;
 use crate::graph::graph::{AsyncHandleTrait, Graph, GraphMod, GraphRunner, GraphStatus};
 use crate::graph::operator::{
-    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
+    OperatorType,
 };
 
 use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
@@ -75,8 +76,7 @@ impl Operator for Callout {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         let self_graph_name = self.self_graph_name.clone().unwrap();
         let callout_graph_name = self.graph_name.clone();
@@ -107,7 +107,7 @@ impl Operator for Callout {
             let next_nodes = {
                 //let self_graph = GraphRegistry::get_graph(&self_graph_name).unwrap();
                 //let self_graph = self_graph.lock().unwrap();
-                Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
+                Graph::get_next_nodes(graph_operator_context.clone())
             };
 
             info!(

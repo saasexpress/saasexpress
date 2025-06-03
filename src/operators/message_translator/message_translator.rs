@@ -15,7 +15,7 @@ use saasexpress_core::{
     graph::{
         graph::{AsyncHandleTrait, Graph},
         message::{Message, OriginMessage},
-        operator::{Operator, OperatorRef, OperatorRuntime, OperatorType},
+        operator::{GraphOperatorContext, Operator, OperatorRef, OperatorRuntime, OperatorType},
     },
     settings::settings::{Setting, env_settings},
     timestamp::{NaiveDateTimeExt, now},
@@ -106,8 +106,7 @@ impl Operator for MessageTranslator {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(MessageTranslator {
             node_fqn: self.node_fqn.clone(),

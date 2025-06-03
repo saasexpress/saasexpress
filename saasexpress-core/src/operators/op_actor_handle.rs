@@ -10,9 +10,11 @@ use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error, info, info_span, instrument, warn};
 
+use crate::graph;
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
-    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime,
+    OperatorRuntimeType, OperatorType,
 };
 
 use crate::graph::message::Message;
@@ -75,14 +77,13 @@ impl Operator for OperatorActorHandle {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
 
         let (sender, receiver) = mpsc::channel(8);
 
-        let runtime = self.operator.new_runtime(mut_nodes.clone(), edges.clone());
+        let runtime = self.operator.new_runtime(graph_operator_context);
 
         let mut actor = OpActor::new(
             self.name.clone(),

@@ -10,7 +10,8 @@ use crate::graph::message::OriginMessage;
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
-    Filter2Operator, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+    Filter2Operator, GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime,
+    OperatorType,
 };
 
 use crate::graph::meta::NodeMeta;
@@ -109,8 +110,7 @@ impl Operator for BufferToJSON {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(BufferToJSON {})
     }

@@ -10,8 +10,9 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::graph;
 use crate::graph::message::ControlCommand;
-use crate::graph::operator::{OperatorRole, OperatorState, OperatorType};
+use crate::graph::operator::{GraphOperatorContext, OperatorRole, OperatorState, OperatorType};
 use crate::graph::operator_types::canonical_model::CanonicalModel;
 
 use crate::my_reg::{ControlEvent, ControlEventType, broadcast_event, register};
@@ -326,16 +327,12 @@ impl Graph {
     //     self.runner.nodes.get(&self.start_node).unwrap()
     // }
 
-    pub fn get_next_nodes(
-        id: &str,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
-    ) -> Vec<OperatorRole> {
+    pub fn get_next_nodes(graph_operator_context: GraphOperatorContext) -> Vec<OperatorRole> {
         let mut childs: Vec<OperatorRole> = Vec::new();
 
-        let nodes = mut_nodes.clone();
+        let nodes = graph_operator_context.mut_nodes.clone();
 
-        let children = edges.get(id);
+        let children = graph_operator_context.get_next_edges();
         match children {
             Some(children) => {
                 for child in children {
@@ -349,7 +346,8 @@ impl Graph {
                                 continue;
                             }
                             let op = op.unwrap();
-                            let rt = op.new_runtime(mut_nodes.clone(), edges.clone());
+
+                            let rt = op.new_runtime(graph_operator_context.clone());
 
                             childs.push(OperatorRole {
                                 role: child.0.clone(),
@@ -359,7 +357,7 @@ impl Graph {
                         None => {
                             panic!(
                                 "Child {} not found in graph: {} (role {})",
-                                child.1, child.0, id
+                                child.1, child.0, graph_operator_context.node_fqn
                             );
                         }
                     }
@@ -384,7 +382,7 @@ impl Graph {
                     operator: opsc
                         .lock()
                         .unwrap()
-                        .new_runtime(mut_nodes.clone(), edges.clone()),
+                        .new_runtime(graph_operator_context.clone()),
                 }),
                 None => {}
             };
@@ -611,10 +609,12 @@ impl Graph {
             reason: "Graph runner updated".to_string(),
         };
 
+        let node_meta = self.node_meta_map.clone();
+
         //let self_name = self.name.clone();
 
         tokio::spawn(async move {
-            let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges);
+            let new_runtimes = Graph::generate_new_runtimes(node_meta, mut_nodes, edges);
 
             let self_name = new_runner.name.clone();
 
@@ -656,7 +656,8 @@ impl Graph {
     }
 
     pub fn generate_new_runtimes(
-        mut_nodes: HashMap<String, OperatorRef>,
+        node_meta: HashMap<String, NodeMeta>,
+        mut_nodes: HashMap<String, Arc<Mutex<dyn Operator + 'static>>>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> HashMap<String, OperatorRuntimeType> {
         let mut nodes = HashMap::new();
@@ -665,7 +666,18 @@ impl Graph {
             let runtime = {
                 let op = operator.lock().unwrap();
 
-                let runtime = op.new_runtime(mut_nodes.clone(), edges.clone());
+                let node_fqn = node_meta
+                    .get(id)
+                    .map(|meta| meta.fqn())
+                    .unwrap_or_else(|| "N/A".to_string());
+
+                let graph_operator_context = GraphOperatorContext {
+                    mut_nodes: mut_nodes.clone(),
+                    edges: edges.clone(),
+                    node_fqn,
+                    id: id.clone(),
+                };
+                let runtime = op.new_runtime(graph_operator_context);
                 runtime
             };
             nodes.insert(id.clone(), runtime);

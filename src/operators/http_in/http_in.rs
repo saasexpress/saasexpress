@@ -1,6 +1,6 @@
 use saasexpress_core::graph::operator::{
-    Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType, OperatorState,
-    OperatorType,
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime,
+    OperatorRuntimeType, OperatorState, OperatorType,
 };
 use saasexpress_core::{
     graph::{
@@ -122,10 +122,9 @@ impl Operator for HTTPIn {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
 
         Arc::new(HTTPIn {
             id: self.id.clone(),

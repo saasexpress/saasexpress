@@ -6,7 +6,7 @@ use tracing::{error, info, warn};
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::message::{Message, OriginMessage};
 use crate::graph::operator::{
-    Filter2Operator, Operator, OperatorRef, OperatorRuntime, OperatorType,
+    Filter2Operator, GraphOperatorContext, Operator, OperatorRef, OperatorRuntime, OperatorType,
 };
 
 use crate::graph::meta::NodeMeta;
@@ -172,8 +172,7 @@ impl Operator for ClaimCheck {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(self.clone())
     }

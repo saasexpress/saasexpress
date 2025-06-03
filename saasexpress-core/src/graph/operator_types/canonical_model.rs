@@ -5,7 +5,10 @@ use crate::graph::{
     graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
-    operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType},
+    operator::{
+        GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
+        OperatorType,
+    },
 };
 use core::panic;
 use std::{
@@ -50,8 +53,7 @@ impl Operator for CanonicalModel {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(CanonicalModel {
             name: self.name.clone(),

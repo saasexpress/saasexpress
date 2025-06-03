@@ -1,5 +1,5 @@
 // Operator.Engine(NodeId)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NodeMeta {
     pub graph: String,
     pub name: String,

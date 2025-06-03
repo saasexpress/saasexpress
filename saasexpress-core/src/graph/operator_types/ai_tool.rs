@@ -5,7 +5,10 @@ use crate::graph::{
     graph::{AsyncHandleTrait, Graph},
     message::Message,
     meta::NodeMeta,
-    operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState, OperatorType},
+    operator::{
+        GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
+        OperatorType,
+    },
 };
 use core::panic;
 use std::{
@@ -67,10 +70,10 @@ impl Operator for AITool {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
+
         Arc::new(AITool {
             id: self.id.clone(),
             name: self.name.clone(),

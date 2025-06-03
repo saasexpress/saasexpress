@@ -7,7 +7,9 @@ use tracing::{debug, error, info, warn};
 use crate::graph::message::{Message, OriginMessage};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+};
 
 use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
@@ -60,10 +62,9 @@ impl Operator for Shell {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
-        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+        let next_nodes = graph_operator_context.get_next_nodes();
 
         Arc::new(Shell {
             id: self.id.clone(),

@@ -6,7 +6,9 @@ use tokio::sync::mpsc::{self, Sender};
 use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
-use crate::graph::operator::{Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+};
 
 use crate::graph::message::{Message, OriginMessage};
 
@@ -35,8 +37,7 @@ impl Operator for NOOP {
 
     fn new_runtime(
         &self,
-        mut_nodes: HashMap<String, OperatorRef>,
-        edges: HashMap<String, HashSet<(String, String)>>,
+        _graph_operator_context: GraphOperatorContext,
     ) -> Arc<dyn OperatorRuntime> {
         Arc::new(NOOP {
             sender: self.sender.clone(),

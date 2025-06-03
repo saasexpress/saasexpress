@@ -127,6 +127,12 @@ impl OriginMessage {
 }
 
 #[derive(Debug)]
+pub struct MessagePayload {
+    pub message: Message,
+    pub origin: Option<OriginMessage>,
+}
+
+#[derive(Debug)]
 pub enum Message {
     Split {
         message: Vec<u8>,
