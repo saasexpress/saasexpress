@@ -166,17 +166,7 @@ pub enum Message {
         command: ControlCommand,
         origin: Option<OriginMessage>,
     },
-    Init2 {
-        id: String,
-        next: Vec<OperatorRole>,
-    },
-    Init {
-        id: String,
-        next: Vec<OperatorRole>,
-        end: Arc<dyn OperatorRuntime + 'static>, // does not appear to be used
-        start: Arc<dyn OperatorRuntime + 'static>, // used by http-in
-        op_runtime: OperatorRuntimeType,
-    },
+
     Error {
         error: String,
         origin: Option<OriginMessage>,
@@ -341,8 +331,7 @@ impl Display for Message {
             Message::JSON { message, .. } => write!(f, "JSON message: {:?}", message),
             Message::HTTP { message, .. } => write!(f, "HTTP message: {:?}", message),
             Message::ReqReply { message, .. } => write!(f, "ReqReply message: {:?}", message),
-            Message::Init { .. } => write!(f, "Init message"),
-            Message::Init2 { .. } => write!(f, "Init2 message"),
+
             Message::Control { command, .. } => write!(f, "Control message {:?}", command),
             Message::Tuple {
                 message_1,

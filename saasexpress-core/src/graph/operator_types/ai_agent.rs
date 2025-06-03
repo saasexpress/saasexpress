@@ -40,6 +40,7 @@ pub trait AIAgentOperator: Sync + Send + Debug {
 
 #[derive(Debug)]
 pub struct AIAgent {
+    id: String,
     node_fqn: Option<String>,
     graph_name: Option<String>,
     name: String,
@@ -49,7 +50,7 @@ pub struct AIAgent {
 
     tools: HashMap<String, OperatorRuntimeType>,
 
-    next: Vec<OperatorRole>,
+    next_nodes: Vec<OperatorRole>,
 }
 
 impl AIAgent {
@@ -69,12 +70,13 @@ impl AIAgent {
         //     .unwrap_or_default();
 
         AIAgent {
+            id: "".to_string(),
             node_fqn: None,
             graph_name: None,
             state: OperatorState::Pending,
             name: name.to_string(),
             operator: Arc::new(operator),
-            next: Vec::new(),
+            next_nodes: Vec::new(),
             tools: HashMap::new(),
         }
     }
@@ -94,13 +96,16 @@ impl Operator for AIAgent {
         mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+
         Arc::new(AIAgent {
+            id: self.id.clone(),
             node_fqn: self.node_fqn.clone(),
             graph_name: self.graph_name.clone(),
             name: self.name.clone(),
             state: self.state.clone(),
             operator: Arc::clone(&self.operator),
-            next: self.next.clone(),
+            next_nodes,
             tools: self.tools.clone(),
         })
     }
@@ -108,6 +113,7 @@ impl Operator for AIAgent {
     fn init(&mut self, graph: &mut Graph, node_meta: &NodeMeta) {
         //let settings = env_settings(node_meta.base_env_vars_settings(node_meta));
 
+        self.id = node_meta.name.clone();
         self.node_fqn = node_meta.fqn().into();
         self.graph_name = Some(graph.name.clone());
 
@@ -151,15 +157,6 @@ impl Operator for AIAgent {
 
     fn control(&mut self, message: Message) {
         match message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-
-                //let graph_name = self.graph_name.clone().unwrap();
-
-                //watch_control_bus(graph_name, self.node_fqn.clone().unwrap());
-            }
             _ => {
                 error!("Unexpected message type {}", message);
             }
@@ -170,7 +167,7 @@ impl Operator for AIAgent {
 impl AIAgent {
     async fn req_reply(&self, role: String, mut json: Value) {
         let mut is_match = true;
-        for node in self.next.iter().filter(|o| o.role == role) {
+        for node in self.next_nodes.iter().filter(|o| o.role == role) {
             let operator = &node.operator;
 
             let (tx, rx) = oneshot::channel();
@@ -189,7 +186,7 @@ impl AIAgent {
     }
 
     fn next(&self, mut _message: Message) {
-        let next = self.next.clone();
+        let next = self.next_nodes.clone();
 
         let tools = self.tools.clone();
 
@@ -213,12 +210,8 @@ impl AIAgent {
         self.operator.process(origin, user_prompt, next, tools);
     }
 
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
-    }
-
     fn start(&mut self) -> bool {
-        for operator in self.next.iter() {
+        for operator in self.next_nodes.iter() {
             debug!(
                 "Finalizing AIAgent {:?} {:?}",
                 operator.role, operator.operator
@@ -260,7 +253,7 @@ impl AIAgent {
 
     #[fastrace::trace]
     fn start_agent(&self) {
-        self.next.iter().for_each(|n| {
+        self.next_nodes.iter().for_each(|n| {
             let (tx, rx) = oneshot::channel();
 
             let origin = Some(OriginMessage::new(Some(tx)));

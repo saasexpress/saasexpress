@@ -134,7 +134,6 @@ impl Operator for MessageTranslator {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { .. } => {}
             Message::Control { command, .. } => {
                 let mut current_settings = self.settings.to_owned();
                 match command {

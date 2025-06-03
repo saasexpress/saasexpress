@@ -55,27 +55,13 @@ impl Operator for FanOut {
         mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> Arc<dyn OperatorRuntime> {
-        info!(
-            "FanOut::new_runtime - id: {}, graph_name: {}",
-            self.id, self.graph_name
-        );
-        let next_nodes = {
-            let graph = GraphRegistry::get_graph(&self.graph_name);
-            if graph.is_none() {
-                error!("Graph not found - incomplete runtime : {}", self.graph_name);
-                Vec::new()
-            } else {
-                let graph = graph.unwrap();
-                let graph = graph.lock().unwrap();
-                info!("Got graph now getting next nodes for {}..", self.id);
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
 
-                Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone())
-            }
-        };
-        info!("create fanout");
-        let fanout = FanOut::new(self.id.clone(), self.graph_name.clone(), next_nodes);
-
-        Arc::new(fanout)
+        Arc::new(FanOut::new(
+            self.id.clone(),
+            self.graph_name.clone(),
+            next_nodes,
+        ))
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {

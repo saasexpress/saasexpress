@@ -156,9 +156,6 @@ impl OperatorRuntime for OperatorActorHandleRuntime {
 
     fn send(&self, _message: Message) {
         match _message {
-            Message::Init { .. } => {
-                error!("Unexpected message type {}", _message);
-            }
             Message::Control { .. } => {
                 error!("Unexpected message type {}", _message);
             }

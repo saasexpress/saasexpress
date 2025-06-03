@@ -79,11 +79,6 @@ impl Operator for Settings {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
             Message::Control { .. } => {
                 debug!("Control");
             }
@@ -92,17 +87,6 @@ impl Operator for Settings {
                 panic!("Unexpected message type for control {}", _message);
             }
         }
-    }
-}
-
-impl Settings {
-    fn next(&self, message: Message) {
-        let next_node = self.next.get(0).unwrap();
-        next_node.operator.send(message);
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }
 
@@ -158,6 +142,7 @@ impl OperatorRuntime for Settings {
     }
 
     fn send(&self, message: Message) {
-        self.next(message);
+        let next_node = self.next.get(0).unwrap();
+        next_node.operator.send(message);
     }
 }

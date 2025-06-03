@@ -28,23 +28,25 @@ pub trait AIToolOperator: Sync + Send + Debug {
 
 #[derive(Debug)]
 pub struct AITool {
+    id: String,
     node_fqn: Option<String>,
 
     name: String,
     operator: OperatorType,
-    next: Vec<OperatorRole>,
+    next_nodes: Vec<OperatorRole>,
     //pub(crate) operator: Arc<dyn AIToolOperator + Send + Sync + 'static>,
 }
 
 impl AITool {
     pub fn new(name: &str, tool: impl AIToolOperator + Send + Sync + 'static) -> Self {
         AITool {
+            id: "".to_string(),
             node_fqn: None,
             name: name.to_string(),
             operator: OperatorType::AITool {
                 tool: Arc::new(tool),
             },
-            next: Vec::new(),
+            next_nodes: Vec::new(),
         }
     }
 }
@@ -68,11 +70,13 @@ impl Operator for AITool {
         mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
         Arc::new(AITool {
+            id: self.id.clone(),
             name: self.name.clone(),
             node_fqn: self.node_fqn.clone(),
             operator: Operator::_type(self),
-            next: self.next.clone(),
+            next_nodes,
         })
     }
 
@@ -82,11 +86,6 @@ impl Operator for AITool {
 
     fn control(&mut self, message: Message) {
         match message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
             _ => {
                 error!("Unexpected message type {}", message);
             }
@@ -96,14 +95,10 @@ impl Operator for AITool {
 
 impl AITool {
     fn next(&self, role: String, _message: Message) {
-        for node in self.next.iter().filter(|o| o.role == role) {
+        for node in self.next_nodes.iter().filter(|o| o.role == role) {
             node.operator.send(_message);
             break;
         }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }
 

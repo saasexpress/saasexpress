@@ -59,12 +59,6 @@ impl OpActor {
             let msg = msg.unwrap();
 
             match msg {
-                Message::Init2 { .. } => {
-                    panic!("This message type should not be used in OpActor: {}", msg);
-                }
-                Message::Init { .. } => {
-                    panic!("This message type should not be used in OpActor: {}", msg);
-                }
                 Message::Control { .. } => {
                     panic!("This message type should not be used in OpActor: {}", msg);
                 }

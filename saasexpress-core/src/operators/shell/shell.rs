@@ -16,6 +16,7 @@ use super::resources::get_instance;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Shell {
+    id: String,
     command: String,
     args: Vec<String>,
     next: Vec<OperatorRole>,
@@ -40,6 +41,7 @@ impl From<serde_yaml::Value> for Shell {
             .unwrap_or_default();
 
         Shell {
+            id: "".to_string(),
             command,
             args,
             next: Vec::new(),
@@ -61,10 +63,18 @@ impl Operator for Shell {
         mut_nodes: HashMap<String, OperatorRef>,
         edges: HashMap<String, HashSet<(String, String)>>,
     ) -> Arc<dyn OperatorRuntime> {
-        Arc::new(self.clone())
+        let next_nodes = Graph::get_next_nodes(&self.id, mut_nodes.clone(), edges.clone());
+
+        Arc::new(Shell {
+            id: self.id.clone(),
+            command: self.command.clone(),
+            args: self.args.clone(),
+            next: next_nodes,
+        })
     }
 
     fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.id = node_meta.name.clone();
         info!(
             "Initializing shell operator with command: {} {}",
             self.command,
@@ -74,11 +84,6 @@ impl Operator for Shell {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
             Message::Control { .. } => {
                 debug!("Control");
             }
@@ -110,10 +115,6 @@ impl Shell {
             }
             counter = counter + 1;
         }
-    }
-
-    fn add_next(&mut self, operator: OperatorRole) {
-        self.next.push(operator);
     }
 }
 
@@ -303,7 +304,6 @@ impl OperatorRuntime for Shell {
     }
 
     fn send(&self, message: Message) {
-        //panic!("Send not implemented for Shell operator");
         self.next(message);
     }
 }
