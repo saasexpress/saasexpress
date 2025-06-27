@@ -111,8 +111,6 @@ impl GraphRun for GraphRunner {
         let mut lines = Vec::new();
 
         while let Some(message) = rx.recv().await {
-            debug!("Message: {:?}", message);
-
             match message {
                 Message::Standard { message, .. } => {
                     debug!("Message: {:?}", message);
@@ -126,7 +124,9 @@ impl GraphRun for GraphRunner {
                     debug!("Exit: {:?}", origin);
                     break;
                 }
-                _ => {}
+                _ => {
+                    debug!("Ignored message (type: {:?})", message);
+                }
             }
         }
 

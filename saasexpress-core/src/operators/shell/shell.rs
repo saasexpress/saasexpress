@@ -186,7 +186,7 @@ impl OperatorRuntime for Shell {
                     .and_then(|o| o.session.clone())
                     .unwrap_or_default();
 
-                info!("Message for session id {:?}", session_id);
+                info!("Message for session ID {:?}", session_id);
                 let mut processes = get_instance().lock().unwrap();
 
                 let process = processes.get_process(session_id.clone());
@@ -277,15 +277,18 @@ impl OperatorRuntime for Shell {
                     }
                 };
 
-                shell_process.command(
-                    message
-                        .get("command")
-                        .unwrap()
-                        .as_str()
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                );
+                // the message does not have to have a command, it can be just a signal to start the process
+                if message.get("command").is_some() {
+                    shell_process.command(
+                        message
+                            .get("command")
+                            .unwrap()
+                            .as_str()
+                            .unwrap()
+                            .as_bytes()
+                            .to_vec(),
+                    );
+                }
 
                 processes.add_process(session_id, shell_process);
 

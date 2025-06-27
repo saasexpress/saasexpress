@@ -4,7 +4,7 @@ use graph::{
     graph::{Graph, GraphStatus},
     registry::GraphRegistry,
 };
-use my_reg::{ControlEvent, ControlEventType, broadcast_event, register};
+use my_reg::{ControlEvent, ControlEventType, broadcast_event, deregister, register};
 use operators::factory::add_node_to_graph;
 use serde_yaml::Value;
 use tokio::sync::{
@@ -20,6 +20,7 @@ pub mod operators;
 mod ports;
 pub mod random;
 pub mod settings;
+mod shared_resource;
 pub mod timestamp;
 
 pub fn add(left: u64, right: u64) -> u64 {
@@ -70,19 +71,49 @@ pub fn build_graph(yaml: Value) -> String {
     graph_name
 }
 
-pub async fn start_graphs() {
+pub fn get_pending() -> Vec<String> {
     let graph_registry = GraphRegistry::get_instance();
 
-    let graph_count = {
-        let graph_registry = graph_registry.lock().unwrap();
-        graph_registry.get_graphs().len()
+    let pending_graphs = {
+        let graph_names = {
+            let graph_registry = graph_registry.lock().unwrap();
+            graph_registry.graph_names()
+        };
+        info!("Evaluting pending graphs: {:?}", graph_names);
+        graph_names
+            .iter()
+            .filter(|name| {
+                let g = GraphRegistry::get_graph(name);
+                if g.is_none() {
+                    error!("Graph not found: {}", name);
+                    return true;
+                }
+                let g = g.unwrap();
+                let graph = g.try_lock();
+                if graph.is_err() {
+                    error!("Graph is locked, skipping: {:?}", g);
+                    return true;
+                }
+                let graph = graph.unwrap();
+
+                graph.runner.state == GraphStatus::Inactive
+            })
+            .map(|name| name.to_string())
+            .collect::<Vec<String>>()
     };
+    info!("Pending graphs: {:?}", pending_graphs);
+    pending_graphs
+}
+pub async fn start_graphs() {
+    let pending = get_pending();
+
+    let graph_count = pending.len();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
 
     register("startup", tx);
 
-    let my_duration = tokio::time::Duration::from_millis(1000);
+    let my_duration = tokio::time::Duration::from_millis(2000);
     let mut counter = 0;
 
     loop {
@@ -108,42 +139,17 @@ pub async fn start_graphs() {
                 }
             },
             Err(_) => {
-                let pending_graphs = {
-                    let graph_names = {
-                        let graph_registry = graph_registry.lock().unwrap();
-                        graph_registry.graph_names()
-                    };
-                    info!("Evaluting pending graphs: {:?}", graph_names);
-                    graph_names
-                        .iter()
-                        .filter(|name| {
-                            let g = GraphRegistry::get_graph(name);
-                            if g.is_none() {
-                                error!("Graph not found: {}", name);
-                                return true;
-                            }
-                            let g = g.unwrap();
-                            let graph = g.try_lock();
-                            if graph.is_err() {
-                                error!("Graph is locked, skipping: {:?}", g);
-                                return true;
-                            }
-                            let graph = graph.unwrap();
+                let pending_graphs = get_pending();
 
-                            graph.runner.state == GraphStatus::Inactive
-                        })
-                        .map(|name| name.to_string())
-                        .collect::<Vec<String>>()
-                };
-
-                if pending_graphs.is_empty() {
-                    info!("All graphs are active.");
-                    break;
-                }
+                // if pending_graphs.is_empty() {
+                //     info!("All graphs are active.");
+                //     break;
+                // }
                 panic!("Timeout waiting for message: {}", pending_graphs.join(", "));
             }
         }
     }
+    deregister::<ControlEvent>("startup");
     info!("All systems a go!");
 
     post_graph_hook();
@@ -170,7 +176,8 @@ mod saasexpress_core_tests {
 
     use crate::graph::graph::IntoGraphRunner;
     use crate::graph::registry::GraphRegistry;
-    use crate::my_reg::{broadcast_event, clear_registry};
+    use crate::my_reg::broadcast_event;
+    use crate::operators::global_space::resource::get_shared_service;
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -186,7 +193,6 @@ mod saasexpress_core_tests {
                 .init();
         });
         GraphRegistry::get_instance().lock().unwrap().clear();
-        clear_registry();
     }
 
     fn setup() {
@@ -440,6 +446,142 @@ mod saasexpress_core_tests {
         assert_eq!(nm, "Joe");
 
         //GraphRegistry::get_instance().lock().unwrap().clear();
+    }
+
+    #[tokio::test]
+    async fn test_shared_resources() {
+        initialize();
+
+        const GRAPH_1: &str = r#"
+        name: graph_1
+        nodes:
+        - id: global
+          action: GlobalSpace
+        edges: []
+        "#;
+
+        const GRAPH_WORKER: &str = r#"
+        name: worker
+        nodes:
+        - id: global
+          action: GlobalSpace
+        - id: start
+          action: Stub
+          config:
+            name: Joe
+        edges:
+        - from: global
+          to: start
+        "#;
+
+        let _ = build_graph(serde_yaml::from_str(GRAPH_1).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
+
+        start_graphs().await;
+
+        async fn eval(graph_name: String) {
+            let graph = graph_name.clone().into_graph_runner();
+
+            assert_eq!(graph.name, "worker");
+
+            let response = graph.end_to_end_standard("hello".as_bytes().to_vec()).await;
+
+            info!("Response : {:?}", response);
+
+            let Message::JSON { message, .. } = response else {
+                panic!("Expected Message to be JSON: {:?}", response);
+            };
+
+            let nm = message.get("name").unwrap();
+            assert_eq!(nm, "Joe");
+        }
+
+        get_shared_service().lock().unwrap().start();
+
+        eval(graph_name.clone()).await;
+    }
+
+    #[tokio::test]
+    async fn test_graph_upgrade() {
+        initialize();
+
+        const GRAPH: &str = r#"
+        name: g_callout
+        nodes:
+        - id: n_callout
+          action: Callout
+          config:
+            graph_name: worker
+        edges: []
+        "#;
+
+        const GRAPH_WORKER: &str = r#"
+        name: worker
+        nodes:
+        - id: start
+          action: Stub
+          config:
+            name: Joe
+        - id: global
+          action: GlobalSpace
+        edges: []
+        "#;
+
+        info!("Graph: {}", GRAPH);
+        let _ = build_graph(serde_yaml::from_str(GRAPH_WORKER).unwrap());
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        start_graphs().await;
+
+        async fn eval(graph_name: String) {
+            let graph = graph_name.clone().into_graph_runner();
+
+            assert_eq!(graph.name, "g_callout");
+
+            let response = graph.end_to_end_standard("hello".as_bytes().to_vec()).await;
+
+            info!("Response : {:?}", response);
+
+            let Message::Tuple {
+                message_1,
+                message_2,
+                ..
+            } = response
+            else {
+                panic!("Expected Tuple message");
+            };
+
+            let Message::Standard { message, .. } = message_1.as_ref() else {
+                panic!("Expected First Message to be Standard");
+            };
+
+            assert_eq!(message.to_vec(), "hello".as_bytes().to_vec());
+
+            let Message::JSON { message, .. } = message_2.as_ref() else {
+                panic!("Expected Second Message to be JSON: {:?}", message_2);
+            };
+
+            let nm = message.get("name").unwrap();
+            assert_eq!(nm, "Joe");
+            debug!("Test passed for graph: {}", graph_name);
+        }
+
+        eval(graph_name.clone()).await;
+
+        Graph::deregister(graph_name);
+
+        let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
+
+        // need to wait for the graph to be made active
+        start_graphs().await;
+
+        // let shared_service = get_shared_service();
+        // shared_service.lock().unwrap().start();
+        // shared_service.lock().unwrap().restart();
+
+        eval(graph_name.clone()).await;
+
+        teardown();
     }
 
     #[tokio::test]

@@ -3,6 +3,5 @@ nodes:
   - id: start
     action: Stub
     config:
-      info: Some Information Gathered
+      info: Some Information Gathered ok5
 edges: []
-

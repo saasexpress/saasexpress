@@ -30,7 +30,7 @@ pub(crate) struct OpActor {
 
 impl Drop for OpActor {
     fn drop(&mut self) {
-        error!("Dropping OpActor: {}", self.name);
+        debug!("DROP OpActor: {}", self.name);
     }
 }
 

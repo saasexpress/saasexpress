@@ -10,6 +10,7 @@ pub(crate) mod ai_agent;
 pub(crate) mod ai_tool;
 pub(crate) mod claim_check;
 pub(crate) mod fan_out;
+pub(crate) mod global_space;
 pub(crate) mod noop;
 pub(crate) mod op_actor;
 pub(crate) mod op_actor_handle;

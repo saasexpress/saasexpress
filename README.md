@@ -46,3 +46,9 @@ cargo watch -w src -x run
 ```sh
 cargo test -- --test-threads=1
 ```
+
+Or if you want to do development related to the test:
+
+```sh
+cargo watch -x 'test shell_works -- --test-threads=1 --nocapture'
+```

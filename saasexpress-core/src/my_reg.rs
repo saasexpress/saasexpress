@@ -52,6 +52,11 @@ impl Registry {
         channels.remove(name.to_string().as_str());
     }
 
+    fn exists(&self, name: &str) -> bool {
+        let channels = self.channels.lock().unwrap();
+        channels.contains_key(name)
+    }
+
     // Get a sender
     fn get<T: 'static + Send + Sync>(&self, name: &str) -> Option<mpsc::Sender<T>> {
         let channels = self.channels.lock().unwrap();
@@ -79,8 +84,9 @@ pub fn register<T: 'static + Send + Sync>(name: &str, sender: mpsc::Sender<T>) {
 }
 
 pub fn deregister<T: 'static + Send + Sync>(name: &str) {
-    if get::<T>(name).is_none() {
+    if REGISTRY.exists(name) == false {
         error!("Channel with name {} does not exist", name);
+        error!("Names {}", names().join(", "));
         return;
     }
     REGISTRY.deregister(name);
@@ -90,9 +96,9 @@ pub fn get<T: 'static + Send + Sync>(name: &str) -> Option<mpsc::Sender<T>> {
     REGISTRY.get(name)
 }
 
-pub fn clear_registry() {
-    REGISTRY.channels.lock().unwrap().clear();
-}
+// pub fn clear_registry() {
+//     REGISTRY.channels.lock().unwrap().clear();
+// }
 
 // pub async fn replay_events<T: 'static + Send + Sync>(name: &str) {
 //     let sender = REGISTRY.get(name).unwrap();
@@ -119,7 +125,8 @@ pub fn names() -> Vec<String> {
 pub async fn broadcast_event(event: ControlEvent) {
     let all_channels = names();
     debug!(
-        "Broadcasting to {} ({:?})",
+        "[{}] Broadcasting to {} ({:?})",
+        event.graph_name,
         all_channels.len(),
         all_channels
     );

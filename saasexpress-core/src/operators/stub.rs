@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
@@ -43,7 +43,9 @@ impl Operator for Stub {
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
-    fn control(&mut self, _: Message) {}
+    fn control(&mut self, _: Message) {
+        debug!("Doing nothing with control message");
+    }
 }
 
 impl Stub {

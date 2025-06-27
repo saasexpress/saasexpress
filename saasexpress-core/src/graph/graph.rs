@@ -107,7 +107,7 @@ impl GraphRunner {
 
 impl Drop for GraphRunner {
     fn drop(&mut self) {
-        error!("Dropping GraphRunner for graph {}", self.name);
+        debug!("DROP GraphRunner for graph {}", self.name);
         // if let Some(graph) = &self.graph {
         //     let mut graph = graph.lock().unwrap();
         // }
@@ -136,7 +136,8 @@ pub struct Graph {
 
 impl Drop for Graph {
     fn drop(&mut self) {
-        error!("Dropping Graph for graph {}", self.name);
+        debug!("DROP Graph for graph {}", self.name);
+        self.mut_nodes.clear();
     }
 }
 
@@ -291,6 +292,12 @@ impl Graph {
     }
 
     pub fn make_active_if_ready(&mut self) {
+        if self.runner.nodes.len() == 0 {
+            warn!("Graph {} has no nodes, cannot make active", self.name);
+            self.state = GraphStatus::Inactive;
+            return;
+        }
+
         let mut pending = 0;
         for (id, runner) in self.runner.nodes.iter() {
             if runner.state() == OperatorState::Pending {
@@ -321,6 +328,24 @@ impl Graph {
         let mut registry = registry.lock().unwrap();
         info!("[{}] REGISTER GRAPH", self.name);
         registry.add_graph(self);
+    }
+
+    pub fn deregister(graph_name: String) {
+        let graph_registry = GraphRegistry::get_instance();
+        let mut graph_registry = graph_registry.lock().unwrap_or_else(|err| {
+            error!("Failed to lock graph registry: {}", err);
+            panic!("Failed to lock graph registry: {}", err);
+        });
+        let graph = graph_registry.delete_graph(&graph_name);
+        match graph {
+            Ok(graph) => {
+                info!("Graph removed: {}", graph_name);
+                let _graph = graph.lock().unwrap();
+            }
+            Err(err) => {
+                error!("Failed to remove graph: {}", err);
+            }
+        }
     }
 
     // pub fn start_node(&self) -> &Arc<dyn OperatorRuntime + 'static> {

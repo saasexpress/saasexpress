@@ -7,6 +7,7 @@ use crate::graph::operator_types::{
     ai_agent::AIAgent, ai_tool::AITool, canonical_model::CanonicalModel,
 };
 
+use super::global_space::global_space::GlobalSpace;
 use super::{
     ai_agent::AIAgentV1, ai_tool::AIToolV1, buffer_to_json::BufferToJSON, callout::Callout,
     canodamo_sample::CanonicalModelSample, claim_check::claim_check::ClaimCheck,
@@ -86,6 +87,7 @@ pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
         "Timer" => graph.add_node(id, Timer::from(value)),
         "Settings" => graph.add_node(id, Settings::from(value)),
         "ClaimCheck" => graph.add_node(id, ClaimCheck::from(value)),
+        "GlobalSpace" => graph.add_node(id, GlobalSpace::from(value)),
         "CanonicalModelSample" => graph.add_node(
             id,
             CanonicalModel::new("CanonicalModelSample", CanonicalModelSample::from(value)),

@@ -50,6 +50,7 @@ pub fn watch_fs(path: String) -> Result<(), notify::Error> {
                 notify::event::ModifyKind::Data(_) => {
                     for path in paths {
                         info!("File modified: {:?}", get_relative(path.as_path()));
+
                         reload_graph(path.as_os_str().to_string_lossy().to_string());
                     }
                 }

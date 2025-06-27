@@ -2,6 +2,7 @@ use std::path::Path;
 
 use fastrace::trace;
 use saasexpress_core::graph::graph::{Graph, GraphStatus};
+use saasexpress_core::graph::operator::OperatorRef;
 use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_core::my_reg::{ControlEvent, broadcast_event, deregister};
 use saasexpress_core::{graph, start_graphs};
@@ -98,14 +99,16 @@ pub fn build_graph(yaml: Value) -> String {
 pub fn reload_graph(path: String) {
     serde_yaml::from_reader::<_, Value>(std::fs::File::open(path).unwrap())
         .map(|yaml| {
+            let graph_name = yaml["name"].as_str().unwrap();
+            remove_graph(graph_name);
+
             let graph_name = build_graph(yaml);
             let graph = GraphRegistry::get_graph(graph_name.as_str()).unwrap();
             let mut graph = graph.lock().unwrap();
             info!("Graph reloaded: {:?}", graph.name);
             //watch_control_bus(self.name.clone());
 
-            //deregister(&graph.name.as_str());
-            remove_graph(graph.name.as_str());
+            //remove_graph(graph.name.as_str());
 
             let graph_id = graph.id.clone();
             let graph_name = graph.name.clone();
@@ -119,10 +122,8 @@ pub fn reload_graph(path: String) {
             //     })
             //     .await;
             // });
-
-            tokio::spawn(async move {
-                start_graphs().await;
-            });
+            let mut singleton = http_in::resources::get_instance().lock().unwrap();
+            singleton.restart();
         })
         .unwrap_or_else(|e| {
             error!("Failed to reload graph: {}", e);

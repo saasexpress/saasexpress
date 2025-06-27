@@ -10,6 +10,7 @@ use saasexpress_core::{
         message::{DebuggableSpan, OriginMessage},
         operator::{Operator, OperatorRuntimeType},
     },
+    start_graphs,
     timestamp::now,
 };
 use serde::{Deserialize, Serialize};
@@ -84,6 +85,7 @@ impl MySharedState {
 
 pub struct Singleton {
     router: Router,
+    run_router: Router,
     handle: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -91,6 +93,7 @@ impl Singleton {
     fn new() -> Self {
         Singleton {
             router: Router::new(),
+            run_router: Router::new(),
             handle: None,
         }
     }
@@ -610,11 +613,6 @@ impl Singleton {
                 }
             }
         }
-
-        let main_router = self.router.clone();
-        self.router = main_router
-            .fallback(default_fallback)
-            .method_not_allowed_fallback(handle_405);
     }
 
     //#[instrument(name = "http_server_start", skip_all)]
@@ -639,6 +637,10 @@ impl Singleton {
 
         let router = self.router.to_owned();
 
+        let router = router
+            .fallback(default_fallback)
+            .method_not_allowed_fallback(handle_405);
+
         let service = router.into_make_service_with_connect_info::<SocketAddr>();
         let handle = tokio::spawn(async move {
             info!("[HTTPIn.axum] Starting Server: {}", addr);
@@ -654,15 +656,24 @@ impl Singleton {
             serve.await.expect("Failed to start server");
         });
 
+        self.router = Router::new();
         self.handle = Some(handle);
     }
 
-    pub async fn restart(&mut self) {
+    pub fn restart(&mut self) {
         if let Some(handle) = self.handle.take() {
             info!("Stopping HTTP server...");
-            handle.abort();
-            handle.await.unwrap_err().is_cancelled();
-            self.start();
+
+            tokio::spawn(async move {
+                handle.abort();
+                let cancelled = handle.await.unwrap_err().is_cancelled();
+
+                info!("HTTP server stopped. Cancelled? {}", cancelled);
+                //info!("HTTP server stopped.  Now starting again...");
+                get_instance().lock().unwrap().start();
+
+                start_graphs().await;
+            });
         }
     }
 

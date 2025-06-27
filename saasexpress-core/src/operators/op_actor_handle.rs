@@ -109,7 +109,10 @@ impl Operator for OperatorActorHandle {
     }
 
     fn control(&mut self, _message: Message) {
-        debug!("Control message received: {:?}", _message);
+        debug!(
+            "Control message received - sending to operator: {:?}",
+            _message
+        );
         self.operator.control(_message);
         // match _message {
         //     Message::Init2 { .. } => match self.sender.try_send(_message) {

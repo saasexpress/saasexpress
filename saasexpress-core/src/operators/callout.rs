@@ -20,11 +20,12 @@ use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::meta::NodeMeta;
 use crate::graph::registry::GraphRegistry;
-use crate::my_reg::{ControlEvent, broadcast_event, register};
+use crate::my_reg::{ControlEvent, deregister, register};
 use fastrace::future::FutureExt;
 
 #[derive(Clone, Debug)]
 pub(super) struct Callout {
+    runtime: bool,
     id: String,
     node_fqn: Option<String>,
     self_graph_name: Option<String>,
@@ -52,6 +53,7 @@ impl From<serde_yaml::Value> for Callout {
             graph_runner: None,
             state: OperatorState::Pending,
             next: Vec::new(),
+            runtime: false,
         }
     }
 }
@@ -113,6 +115,7 @@ impl Operator for Callout {
 
             Arc::new(Callout {
                 id: self.id.clone(),
+                runtime: true,
                 node_fqn: self.node_fqn.clone(),
                 self_graph_name: self.self_graph_name.clone(),
                 state: OperatorState::Ready,
@@ -382,6 +385,17 @@ impl Callout {
             let next_node = next_nd.clone();
             next_node.send(response);
         });
+    }
+}
+
+impl Drop for Callout {
+    fn drop(&mut self) {
+        if self.runtime == false {
+            debug!("DROP Callout operator: {}", self.id);
+            let fqn = self.node_fqn.as_ref().unwrap();
+            // Deregister the control bus
+            deregister::<ControlEvent>(fqn);
+        }
     }
 }
 

@@ -42,6 +42,12 @@ impl OperatorWrapper {
     }
 }
 
+impl Drop for OperatorWrapper {
+    fn drop(&mut self) {
+        debug!("DROP OperatorWrapper: {}", self.name);
+    }
+}
+
 impl Operator for OperatorWrapper {
     fn _type(&self) -> OperatorType {
         //self.management.lock().unwrap()._type()
