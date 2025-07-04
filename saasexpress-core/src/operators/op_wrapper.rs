@@ -100,6 +100,10 @@ impl Operator for OperatorWrapper {
         }
     }
 
+    fn shared_resources(&self) -> Vec<crate::shared_resource::SharedServiceRef> {
+        let mgmt = self.management.lock().unwrap();
+        mgmt.shared_resources()
+    }
     fn new_runtime(
         &self,
         graph_operator_context: GraphOperatorContext,

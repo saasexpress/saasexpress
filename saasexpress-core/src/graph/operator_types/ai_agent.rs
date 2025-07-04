@@ -7,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     graph::{
         graph::{AsyncHandleTrait, Graph, GraphStatus},
-        message::{Message, OriginMessage},
+        message::{ControlCommand, Message, OriginMessage},
         meta::NodeMeta,
         operator::{
             GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime,
@@ -156,6 +156,17 @@ impl Operator for AIAgent {
 
     fn control(&mut self, message: Message) {
         match message {
+            Message::Control { command, .. } => {
+                match command {
+                    ControlCommand::Start { runtime } => {
+                        info!("Starting AIAgent with runtime: {:?}", runtime);
+                        //self.start_agent();
+                    }
+                    _ => {
+                        error!("Invalid control command for AIAgent: {:?}", command);
+                    }
+                }
+            }
             _ => {
                 error!("Unexpected message type {}", message);
             }

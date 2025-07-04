@@ -177,7 +177,10 @@ mod saasexpress_core_tests {
     use crate::graph::graph::IntoGraphRunner;
     use crate::graph::registry::GraphRegistry;
     use crate::my_reg::broadcast_event;
-    use crate::operators::global_space::resource::get_shared_service;
+    use crate::operators::global_space::resource::WidgetsSharedService;
+    //use crate::operators::global_space::resource::SharedWidgets;
+    //use crate::operators::global_space::resource::get_shared_service;
+    //use crate::shared_resource::SharedService;
     use crate::{graph::message::Message, settings::settings::env_settings};
 
     use super::*;
@@ -496,7 +499,25 @@ mod saasexpress_core_tests {
             assert_eq!(nm, "Joe");
         }
 
-        get_shared_service().lock().unwrap().start();
+        {
+            let graph_registry = GraphRegistry::get_instance();
+            let graph_registry = graph_registry.lock().unwrap();
+            let graph = graph_registry.get_graph_by_name(&graph_name).unwrap();
+
+            let graph = graph.lock().unwrap();
+            let ls = graph.shared_resources();
+            ls.iter().for_each(|share| {
+                let share = share.lock().unwrap();
+                info!("Shared Resource: {:?}", share.purpose());
+
+                share.start();
+                share.stop();
+            });
+        }
+
+        WidgetsSharedService::drop_instance();
+
+        //get_shared_service().lock().unwrap().start();
 
         eval(graph_name.clone()).await;
     }
@@ -729,7 +750,7 @@ mod saasexpress_core_tests {
 
         assert_eq!(
             serde_json::to_string(&message).unwrap(),
-            "{\"input\":{\"first\":\"Joe\"},\"schema\":{\"properties\":{\"name\":{\"type\":\"string\"}},\"type\":\"object\"}}"
+            "{\"first\":\"Joe\"}"
         );
 
         //GraphRegistry::get_instance().lock().unwrap().clear();
@@ -763,8 +784,32 @@ mod saasexpress_core_tests {
         - id: chatgpt_llm
           action: Stub
           config:
-            something:
-                returned: true
+            choices:
+            - index: 0
+              message:
+                role: assistant
+                annotations: []
+                content: |
+                  {"something": {"returned": true}}
+              finish_reason: stop
+            created: 0
+            id: chatgpt-123
+            model: gpt-3.5-turbo
+            object: chat.completion
+            service_tier: free
+            system_fingerprint: "fingerprint-123"
+            usage:
+              completion_tokens: 0
+              completion_tokens_details:
+                accepted_prediction_tokens: 0
+                audio_tokens: 0
+                reasoning_tokens: 0
+                rejected_prediction_tokens: 0
+              prompt_tokens: 0
+              prompt_tokens_details:
+                audio_tokens: 0
+                cached_tokens: 0
+              total_tokens: 0
 
         edges:
         - from: start
@@ -813,7 +858,7 @@ mod saasexpress_core_tests {
 
         assert_eq!(
             serde_json::to_string(&message).unwrap(),
-            "{\"something\":{\"returned\":true}}"
+            "{\"response\":\"{\\\"something\\\": {\\\"returned\\\": true}}\\n\"}"
         );
 
         //GraphRegistry::get_instance().lock().unwrap().clear();

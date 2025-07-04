@@ -1,9 +1,9 @@
 use serde_yaml::{Error, Value};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::graph::{
     graph::{AsyncHandleTrait, Graph},
-    message::Message,
+    message::{ControlCommand, Message},
     meta::NodeMeta,
     operator::{
         GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
@@ -89,6 +89,17 @@ impl Operator for AITool {
 
     fn control(&mut self, message: Message) {
         match message {
+            Message::Control { command, .. } => {
+                match command {
+                    ControlCommand::Start { runtime } => {
+                        info!("Starting AITool with runtime: {:?}", runtime);
+                        //self.start_agent();
+                    }
+                    _ => {
+                        error!("Invalid control command for AIAgent: {:?}", command);
+                    }
+                }
+            }
             _ => {
                 error!("Unexpected message type {}", message);
             }

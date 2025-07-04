@@ -19,6 +19,7 @@ use crate::my_reg::{ControlEvent, ControlEventType, broadcast_event, register};
 use crate::operators::op_wrapper::OperatorWrapper;
 use crate::ports::ports::Ports;
 use crate::random::generate_random_id;
+use crate::shared_resource::{SharedService, SharedServiceRef};
 
 use super::super::operators::op_actor_handle::OperatorActorHandle;
 
@@ -453,6 +454,19 @@ impl Graph {
             origin: None,
         })
     }
+
+    pub fn shared_resources(&self) -> Vec<SharedServiceRef> {
+        let mut list = vec![];
+        self.mut_nodes.iter().for_each(|(_id, op)| {
+            let op = op.lock().unwrap();
+            let resources = op.shared_resources();
+
+            info!("{} :Adding...{} shared resources", _id, resources.len());
+            list.extend(resources);
+        });
+        list
+    }
+
     // pub fn init(&self, nodes: HashMap<String, Arc<dyn OperatorRuntime>>) -> &Self {
     //     //self.init_ports();
 

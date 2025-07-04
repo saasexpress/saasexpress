@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct AiAgentModel {
     pub choices: Vec<Choice>,
     pub created: u64,
@@ -44,7 +44,7 @@ pub struct Function {
     pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Usage {
     pub completion_tokens: u32,
     pub completion_tokens_details: CompletionTokensDetails,
@@ -53,7 +53,7 @@ pub struct Usage {
     pub total_tokens: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CompletionTokensDetails {
     pub accepted_prediction_tokens: u32,
     pub audio_tokens: u32,
@@ -61,7 +61,7 @@ pub struct CompletionTokensDetails {
     pub rejected_prediction_tokens: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct PromptTokensDetails {
     pub audio_tokens: u32,
     pub cached_tokens: u32,

@@ -1,26 +1,28 @@
 use std::{
     collections::HashMap,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use tracing::{info, warn};
 
-pub(crate) struct SharedWidgets {
+use crate::shared_resource::SharedService;
+
+#[derive(Debug)]
+pub(crate) struct WidgetsSharedService {
     data: Vec<String>,
 }
 
-trait SharedService<T> {
-    fn start(&self);
-    fn stop(&self);
-    fn restart(&self);
-}
-
-impl SharedWidgets {
+impl WidgetsSharedService {
     fn new() -> Self {
-        SharedWidgets { data: Vec::new() }
+        WidgetsSharedService { data: Vec::new() }
     }
 
     pub(super) fn add_widget(&mut self, widget: String) {
+        info!("Adding widget: {}", widget);
+        if self.data.contains(&widget) {
+            warn!("Widget {} already exists, not adding again", widget);
+            return;
+        }
         self.data.push(widget);
     }
 
@@ -28,27 +30,47 @@ impl SharedWidgets {
         &self.data
     }
 
-    pub(crate) fn start(&self) {
-        info!("Starting with widgets: {:?}", self.get_widgets());
+    pub(crate) fn get_instance() -> Option<Arc<Mutex<WidgetsSharedService>>> {
+        let mut singleton = INSTANCE.lock().unwrap();
+        if singleton.is_none() {
+            *singleton = Some(Arc::new(Mutex::new(WidgetsSharedService::new())));
+        }
+        singleton.clone()
+    }
+
+    pub(crate) fn drop_instance() {
+        let mut singleton = INSTANCE.lock().unwrap();
+        if singleton.is_some() {
+            info!("Dropping WidgetsSharedService instance");
+            *singleton = None;
+        }
     }
 }
 
-// impl SharedService<SharedWidgets> for SharedWidgets {
-//     fn start(&self) {
-//         info!("Starting with widgets: {:?}", self.get_widgets());
-//     }
-
-//     fn stop(&self) {
-//         todo!()
-//     }
-
-//     fn restart(&self) {
-//         todo!()
-//     }
-// }
-
-static INSTANCE: OnceLock<Mutex<SharedWidgets>> = OnceLock::new();
-
-pub(crate) fn get_shared_service() -> &'static Mutex<SharedWidgets> {
-    INSTANCE.get_or_init(|| Mutex::new(SharedWidgets::new()))
+impl Drop for WidgetsSharedService {
+    fn drop(&mut self) {
+        warn!(
+            "WidgetsSharedService is being dropped, current data: {:?}",
+            self.data
+        );
+    }
 }
+
+impl SharedService for WidgetsSharedService {
+    fn purpose(&self) -> String {
+        format!("Global Space Shared Widgets with {:?}", self.data)
+    }
+    fn start(&self) {
+        info!("Starting with widgets: {:?}", self.get_widgets());
+    }
+
+    fn stop(&self) {
+        info!("Stopping");
+    }
+
+    fn restart(&self) {
+        todo!()
+    }
+}
+
+static INSTANCE: Mutex<Option<Arc<Mutex<WidgetsSharedService>>>> = Mutex::new(None);

@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use tracing::debug;
 
+use crate::shared_resource::SharedServiceRef;
+
 use super::graph::{AsyncHandleTrait, Graph};
 use super::message::Message;
 use super::meta::NodeMeta;
@@ -111,6 +113,10 @@ pub trait Operator: Send + Sync + Debug {
 
     /// commands and events for controlling the operator
     fn control(&mut self, message: Message);
+
+    fn shared_resources(&self) -> Vec<SharedServiceRef> {
+        vec![]
+    }
 
     // /// performs the work of the operator
     // fn handle(&self, message: Message) -> Message;

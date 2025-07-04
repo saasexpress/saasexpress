@@ -12,7 +12,11 @@ use crate::graph::operator::{
 use crate::graph::message::{ControlCommand, Message};
 
 use crate::graph::meta::NodeMeta;
-use crate::operators::global_space::resource::get_shared_service;
+// use crate::shared_resource::get_shared_service;
+//use crate::operators::global_space::resource::get_shared_service;
+use crate::shared_resource::SharedServiceRef;
+
+use super::resource::WidgetsSharedService;
 
 #[derive(Clone, Debug)]
 pub(crate) struct GlobalSpace;
@@ -59,6 +63,14 @@ impl Operator for GlobalSpace {
             }
         }
     }
+
+    fn shared_resources(&self) -> Vec<SharedServiceRef> {
+        let mut list = vec![];
+        let s = WidgetsSharedService::get_instance();
+        let s = s.unwrap();
+        list.push(Arc::clone(&s) as SharedServiceRef);
+        list
+    }
 }
 
 impl OperatorRuntime for GlobalSpace {
@@ -100,7 +112,8 @@ impl OperatorRuntime for GlobalSpace {
 impl GlobalSpace {
     fn setup_shared_resource(&self, start: OperatorRuntimeType) {
         info!("Setting up shared resource for GlobalSpace");
-        let mut singleton = get_shared_service().lock().unwrap();
+        let singleton = WidgetsSharedService::get_instance().unwrap();
+        let mut singleton = singleton.lock().unwrap();
 
         singleton.add_widget(start.name().to_string());
         // singleton.add_routes(

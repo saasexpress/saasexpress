@@ -201,10 +201,14 @@ impl AIAgentOperator for AIAgentV1 {
                 .unwrap();
 
             next_send(
-                Message::Standard {
-                    message: serde_json::to_vec(&response).unwrap(),
+                Message::JSON {
+                    message: response,
                     origin,
                 },
+                // Message::Standard {
+                //     message: serde_json::to_vec(&response).unwrap(),
+                //     origin,
+                // },
                 next,
             )
             .await;

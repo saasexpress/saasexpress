@@ -132,6 +132,10 @@ impl Operator for OperatorActorHandle {
         //     }
         // }
     }
+
+    fn shared_resources(&self) -> Vec<crate::shared_resource::SharedServiceRef> {
+        self.operator.shared_resources()
+    }
 }
 
 #[derive(Debug)]
