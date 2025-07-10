@@ -29,7 +29,7 @@ mod fs_watch;
 mod operators;
 mod otlp;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 200)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 //#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     dotenv::dotenv().ok();
