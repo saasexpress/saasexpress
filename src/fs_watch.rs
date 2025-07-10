@@ -13,6 +13,7 @@ use tracing::{error, info};
 use crate::bootstrap::reload_graph;
 
 pub fn watch_fs(path: String) -> Result<(), notify::Error> {
+    info!("Watching file system at path: {}", path);
     let base_path = std::fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(path));
     let get_relative = |full_path: &Path| -> String {
         full_path

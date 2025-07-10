@@ -143,9 +143,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     // let mut singleton = http_in::resources::get_instance().lock().unwrap();
     // singleton.restart().await;
 
-    let r = watch_fs("saasexpress-tenants/src/bootstrap_all".to_string());
-    if r.is_err() {
-        error!("Error watching file system: {:?}", r);
+    if matches.get_flag("watch") {
+        let r = watch_fs("saasexpress-tenants/src/bootstrap_all".to_string());
+        if r.is_err() {
+            error!("Error watching file system: {:?}", r);
+        }
     }
 
     loop {
