@@ -20,7 +20,7 @@ nodes:
     config:
       mode: json
       in_temp: true
-      temp_group: token
+      temp_group: mentions
       template: |
         {
           "url": "https://api.twitter.com/2/users/" + settings.USER_ID + "/mentions?max_results=10&tweet.fields=created_at,author_id,conversation_id,text&user.fields=name,username&expansions=author_id",
@@ -35,14 +35,14 @@ nodes:
   - id: j2b
     action: JSONToBuffer
 
-  - id: token
+  - id: mentions
     action: APICall
     config:
       method: GET
-      url: temp.token.url
+      url: temp.mentions.url
 
 edges:
   - { from: start, to: b2j }
   - { from: b2j, to: translate }
   - { from: translate, to: j2b }
-  - { from: j2b, to: token }
+  - { from: j2b, to: mentions }

@@ -9,7 +9,9 @@ use saasexpress_core::{
     graph::{
         message::{DebuggableSpan, OriginMessage},
         operator::{Operator, OperatorRuntimeType},
+        registry::GraphRegistry,
     },
+    my_reg::{ControlEvent, ControlEventType, register},
     start_graphs,
     timestamp::now,
 };
@@ -52,7 +54,7 @@ use hyper::{HeaderMap, Method, StatusCode};
 use opentelemetry::trace::Tracer;
 use serde_json::json;
 use std::fmt::Debug;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::mpsc};
 use tracing::Instrument;
 use tracing::span;
 use tracing::{debug, error, info, instrument, warn};
@@ -84,33 +86,87 @@ impl MySharedState {
 }
 
 pub struct Singleton {
-    router: Router,
-    run_router: Router,
+    //router: Router,
+    //run_router: Router,
+    routes: Vec<InternalRoute>,
     handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+struct InternalRoute {
+    fqn: String,
+    paths: Vec<String>,
+    method: String,
+    ws: bool,
+    sse: bool,
+    start: OperatorRuntimeType,
 }
 
 impl Singleton {
     fn new() -> Self {
         Singleton {
-            router: Router::new(),
-            run_router: Router::new(),
+            routes: Vec::new(),
+            //router: Router::new(),
+            // run_router: Router::new(),
             handle: None,
         }
     }
 
     pub(super) fn add_routes(
         &mut self,
+        fqn: String,
         paths: Vec<String>,
         method: String,
         ws: bool,
         sse: bool,
         start: OperatorRuntimeType,
     ) {
-        for _path in paths.iter() {
-            let path = _path.clone();
-            debug!("Configuring path : {}", path);
+        if self.routes.iter().any(|r| r.fqn == fqn) {
+            warn!("Route already exists for paths: {:?} - replacing", fqn);
+            self.routes.remove(
+                self.routes
+                    .iter()
+                    .position(|r| r.fqn == fqn)
+                    .expect("Route not found"),
+            );
+        }
+        self.routes.push(InternalRoute {
+            fqn,
+            paths,
+            method,
+            ws,
+            sse,
+            start,
+        });
+    }
 
-            let main_router = self.router.clone();
+    fn build_all_routes(&mut self) -> Router {
+        let mut router = Router::new();
+        let routes = &self.routes;
+        for route in routes.iter() {
+            router = Singleton::build_routes(
+                router,
+                route.paths.clone(),
+                route.method.clone(),
+                route.ws,
+                route.sse,
+                route.start.clone(),
+            );
+        }
+        router
+    }
+
+    fn build_routes(
+        mut router: Router,
+        paths: Vec<String>,
+        method: String,
+        ws: bool,
+        sse: bool,
+        start: OperatorRuntimeType,
+    ) -> Router {
+        for _path in paths.iter() {
+            //let path = _path.clone();
+
+            let main_router = router.clone();
 
             let handler_for_websocket =
                 async |state: State<Arc<MySharedState>>,
@@ -519,7 +575,7 @@ impl Singleton {
             let path = _path;
             match method.as_str() {
                 "^(PUT|DELETE)$" => {
-                    self.router = main_router
+                    router = main_router
                         .merge(
                             Router::new()
                                 .route(path.as_str(), put(handler.clone()))
@@ -532,7 +588,7 @@ impl Singleton {
                         );
                 }
                 "^(POST|PUT|DELETE)$" => {
-                    self.router = main_router
+                    router = main_router
                         .merge(
                             Router::new()
                                 .route(path.as_str(), post(handler.clone()))
@@ -551,7 +607,7 @@ impl Singleton {
                 }
                 "PUT" => {
                     debug!("Adding POST route: {}", path);
-                    self.router = main_router.merge(
+                    router = main_router.merge(
                         Router::new()
                             .route(path.as_str(), put(handler.clone()))
                             .with_state(shared_state),
@@ -559,7 +615,7 @@ impl Singleton {
                 }
                 "POST" | "^(DELETE|POST)$" => {
                     debug!("Adding POST route: {}", path);
-                    self.router = main_router.merge(
+                    router = main_router.merge(
                         Router::new()
                             .route(path.as_str(), post(handler.clone()))
                             .with_state(shared_state.clone()),
@@ -569,13 +625,13 @@ impl Singleton {
                     debug!("Adding GET route: {}", path);
 
                     if sse {
-                        self.router = main_router.merge(
+                        router = main_router.merge(
                             Router::new()
                                 .route(path.to_string().as_str(), get(handler_sse))
                                 .with_state(shared_state),
                         );
                     } else {
-                        self.router = main_router.merge(
+                        router = main_router.merge(
                             Router::new()
                                 .route(path.to_string().as_str(), get(handler))
                                 .with_state(shared_state),
@@ -584,7 +640,7 @@ impl Singleton {
                 }
                 "DELETE" => {
                     debug!("Adding GET route: {}", path);
-                    self.router = main_router.nest(
+                    router = main_router.nest(
                         path,
                         Router::new()
                             .route("/".to_string().as_str(), delete(handler))
@@ -594,14 +650,14 @@ impl Singleton {
                 "^(ANY)$" => {
                     info!("Adding ANY route: {}", path);
                     if ws {
-                        self.router = main_router.nest(
+                        router = main_router.nest(
                             path,
                             Router::new()
                                 .route("/".to_string().as_str(), any(handler_for_websocket))
                                 .with_state(shared_state),
                         );
                     } else {
-                        self.router = main_router.merge(
+                        router = main_router.merge(
                             Router::new()
                                 .route(path.as_str(), any(handler))
                                 .with_state(shared_state),
@@ -613,6 +669,7 @@ impl Singleton {
                 }
             }
         }
+        router
     }
 
     //#[instrument(name = "http_server_start", skip_all)]
@@ -635,7 +692,7 @@ impl Singleton {
             port,
         );
 
-        let router = self.router.to_owned();
+        let router = self.build_all_routes();
 
         let router = router
             .fallback(default_fallback)
@@ -656,40 +713,82 @@ impl Singleton {
             serve.await.expect("Failed to start server");
         });
 
-        self.router = Router::new();
+        //self.router = Router::new();
         self.handle = Some(handle);
     }
 
-    pub fn restart(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            info!("Stopping HTTP server...");
-
-            tokio::spawn(async move {
-                handle.abort();
-                let cancelled = handle.await.unwrap_err().is_cancelled();
-
-                info!("HTTP server stopped. Cancelled? {}", cancelled);
-                //info!("HTTP server stopped.  Now starting again...");
-                get_instance().lock().unwrap().start();
-
-                start_graphs().await;
-            });
-        }
-    }
-
-    pub async fn stop(&mut self) {
+    pub fn stop(&mut self) -> Option<tokio::task::JoinHandle<()>> {
         if let Some(handle) = self.handle.take() {
             info!("Stopping HTTP server...");
             handle.abort();
-            handle.await.unwrap_err().is_cancelled();
+            Some(handle)
+        } else {
+            None
         }
+    }
+
+    pub fn watch_control_bus(&self) {
+        let (tx, mut rx) = mpsc::channel::<ControlEvent>(10);
+        register("http_in_control_bus", tx);
+
+        tokio::spawn(async move {
+            info!("Watching control bus for HTTPIn");
+            loop {
+                let msg = rx.recv().await;
+                if msg.is_none() {
+                    info!("Control bus for HTTPIn closed, stopping watcher.");
+                    break;
+                }
+                let msg = msg.unwrap();
+                // Handle control events
+                // For example, you can restart the server or update routes based on the event
+                info!("Received control event on http_in_control_bus {:?}", msg);
+
+                //continue;
+                if msg.event_type == ControlEventType::GraphReplaced {
+                    let graph_name = msg.graph_name;
+                    info!("Graph replaced: {}", graph_name);
+                    {
+                        let registry = GraphRegistry::get_instance();
+                        let registry = registry.lock().unwrap();
+                        registry
+                            .get_graph_by_name(graph_name.as_str())
+                            .expect("Graph not found")
+                            .lock()
+                            .unwrap()
+                            .post_start_hook();
+                    }
+
+                    let singleton = get_instance().unwrap();
+                    let handle = {
+                        let mut singleton = singleton.lock().unwrap();
+
+                        singleton.stop()
+                    };
+                    handle.unwrap().await.unwrap_err().is_cancelled();
+                    info!("Stopped HTTP server, now restarting...");
+                    {
+                        let mut singleton = singleton.lock().unwrap();
+                        singleton.start();
+                    }
+                }
+            }
+        });
     }
 }
 
-static INSTANCE: OnceLock<Mutex<Singleton>> = OnceLock::new();
+static INSTANCE: Mutex<Option<Arc<Mutex<Singleton>>>> = Mutex::new(None);
 
-pub fn get_instance() -> &'static Mutex<Singleton> {
-    INSTANCE.get_or_init(|| Mutex::new(Singleton::new()))
+// pub fn get_instance() -> &'static Mutex<Singleton> {
+//     INSTANCE.get_or_init(|| Mutex::new(Singleton::new()))
+// }
+
+pub(crate) fn get_instance() -> Option<Arc<Mutex<Singleton>>> {
+    let mut singleton = INSTANCE.lock().unwrap();
+    if singleton.is_none() {
+        *singleton = Some(Arc::new(Mutex::new(Singleton::new())));
+    }
+    singleton.clone()
 }
 
 async fn default_fallback(request: Request) -> impl IntoResponse {

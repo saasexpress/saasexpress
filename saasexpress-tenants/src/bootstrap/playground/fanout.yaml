@@ -1,0 +1,31 @@
+name: fanout
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: GET
+      routes:
+        - /fanout
+
+        
+  - id: b2j
+    action: BufferToJSON
+
+  - id: fanout
+    action: FanOut
+
+  - id: child1
+    action: Stub
+    config:
+      response: "Child 1 Response"
+
+  - id: child2
+    action: Stub
+    config:
+      response: "Child 2 Response"
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: fanout }
+  - { from: fanout, to: child1 }
+  - { from: fanout, to: child2 }

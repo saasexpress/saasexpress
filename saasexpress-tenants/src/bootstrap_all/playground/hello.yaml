@@ -5,7 +5,7 @@ nodes:
     config:
       method: GET
       routes:
-        - /hello
+        - /hello-canodamo
 
   - id: b2j
     action: BufferToJSON

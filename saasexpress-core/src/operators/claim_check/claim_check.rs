@@ -47,7 +47,7 @@ impl From<serde_yaml::Value> for ClaimCheck {
             .unwrap_or(ClaimCheckAction::Put);
         ClaimCheck {
             fqn: "".to_string(),
-            engine: "filesystem".to_string(),
+            engine: "FileSystem".to_string(),
             action,
         }
     }

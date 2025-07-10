@@ -1,0 +1,23 @@
+name: message-translator
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /message-translator/{id}
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "data": data,
+          "settings": settings,
+          "input": input,
+          "temp": temp,
+        }
+
+edges:
+  - { from: start, to: translate }

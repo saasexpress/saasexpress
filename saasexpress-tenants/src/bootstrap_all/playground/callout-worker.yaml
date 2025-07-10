@@ -3,5 +3,5 @@ nodes:
   - id: start
     action: Stub
     config:
-      name: Joey
+      name: Joe
 edges: []

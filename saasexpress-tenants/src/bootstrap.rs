@@ -3,7 +3,7 @@ use serde_yaml::Value;
 use tracing::debug;
 
 #[derive(RustEmbed)]
-#[folder = "src/bootstrap"]
+#[folder = "src/bootstrap_all"]
 struct Asset;
 
 pub fn gather_files() -> Vec<(String, Value)> {

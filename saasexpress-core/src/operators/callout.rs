@@ -168,6 +168,11 @@ impl Operator for Callout {
                             //     operator_names: vec![self_node_id.clone()],
                             // })
                             // .await;
+                        } else {
+                            info!(
+                                "Ignoring control event for different graph: {}",
+                                message.graph_name
+                            );
                         }
                     }
                 }

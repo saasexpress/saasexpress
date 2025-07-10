@@ -1,0 +1,31 @@
+name: sse-timer
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      sse: true
+      method: ^(GET)$
+      routes:
+        - /sse-timer
+
+  - id: timer
+    action: Timer
+    config:
+      interval_ms: 500
+      iterations: 5
+      on_start: false
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "sse": "stuff",
+          "data": data,
+          "_ts": now()
+        }
+
+edges:
+  - { from: start, to: timer }
+  - { from: timer, to: translate }

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+use serde::de::value;
 use tracing::{debug, error, warn};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
@@ -9,7 +10,7 @@ use crate::graph::operator::{
     OperatorType,
 };
 
-use crate::graph::message::Message;
+use crate::graph::message::{ControlCommand, Message};
 
 use crate::graph::meta::NodeMeta;
 
@@ -43,7 +44,26 @@ impl Operator for Stub {
     }
 
     fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {}
-    fn control(&mut self, _: Message) {
+    fn control(&mut self, message: Message) {
+        match message {
+            Message::Control { command, .. } => match command {
+                ControlCommand::Start { .. } => {}
+                ControlCommand::SetSettings { settings } => {
+                    debug!("Received SetSettings command with value: {:?}", settings);
+                    let value = serde_yaml::to_value(&settings)
+                        .expect("Failed to convert settings to serde_yaml::Value");
+                    self.value = Some(value);
+                }
+                _ => {
+                    error!("Invalid control command: {:?}", command);
+                    panic!("Invalid control command: {:?}", command);
+                }
+            },
+            _ => {
+                debug!("Received non-control message: {:?}", message);
+            }
+        }
+
         debug!("Doing nothing with control message");
     }
 }

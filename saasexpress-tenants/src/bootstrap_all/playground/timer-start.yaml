@@ -1,0 +1,19 @@
+name: timer-start
+nodes:
+  - id: start
+    action: Timer
+    config:
+      on_start: true
+      interval_ms: 30000
+
+  - id: terminate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "input": data
+        }
+
+edges:
+  - { from: start, to: terminate }

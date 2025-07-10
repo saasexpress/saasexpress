@@ -42,8 +42,8 @@ pub(crate) struct APICall {
     pub method: Option<String>,
     pub url: String,
     pub path: String,
-    pub content_type: Option<String>,
-    pub forward: bool,
+    //pub content_type: Option<String>,
+    //pub forward: bool,
     pub ws: bool,
     pub sse: bool,
     settings: Vec<Setting>,
@@ -95,8 +95,8 @@ impl From<serde_yaml::Value> for APICall {
             method,
             url,
             path,
-            content_type,
-            forward,
+            //content_type,
+            //forward,
             ws,
             sse,
             settings: Vec::new(),
@@ -146,7 +146,7 @@ impl AsyncHandleTrait for APICall {
         let name = Operator::name(self);
         let client = self.client.clone();
         let url = self.url.clone();
-        let forward = self.forward;
+        //let forward = self.forward;
         let ws = self.ws;
         let default_path = self.path.clone();
 
@@ -332,9 +332,9 @@ impl AsyncHandleTrait for APICall {
                     Message::Standard { message, origin } => {
                         debug!("APICall handle (passthrough)... {}", url);
 
-                        if forward {
-                            //url = format!("{}?{}", url, String::from_utf8_lossy(&message));
-                        }
+                        // if forward {
+                        //     //url = format!("{}?{}", url, String::from_utf8_lossy(&message));
+                        // }
 
                         // Make a GET request
                         if ws {

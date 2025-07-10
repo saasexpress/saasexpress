@@ -1,0 +1,31 @@
+name: ws-shell
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      ws: true
+      method: ^(ANY)$
+      routes:
+        - /ws-shell
+
+  - id: b2j
+    action: BufferToJSON
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        { "command": data.data }
+
+  - id: shell
+    action: Shell
+    config:
+      command: bash
+      # args:
+      #   - "-i"
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: translate }
+  - { from: translate, to: shell }

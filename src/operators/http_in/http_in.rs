@@ -37,6 +37,7 @@ impl Display for Engine {
 #[derive(Debug)]
 pub(crate) struct HTTPIn {
     id: String,
+    fqn: String,
     engine: Engine,
     ws: bool,
     sse: bool,
@@ -68,6 +69,7 @@ impl From<Value> for HTTPIn {
 
         HTTPIn {
             id: "".to_string(),
+            fqn: "".to_string(),
             engine,
             ws,
             sse,
@@ -101,6 +103,7 @@ impl From<serde_yaml::Value> for HTTPIn {
 
         HTTPIn {
             id: "".to_string(),
+            fqn: "".to_string(),
             engine,
             ws,
             sse,
@@ -128,6 +131,7 @@ impl Operator for HTTPIn {
 
         Arc::new(HTTPIn {
             id: self.id.clone(),
+            fqn: self.fqn.clone(),
             engine: self.engine.clone(),
             ws: self.ws,
             sse: self.sse,
@@ -145,6 +149,7 @@ impl Operator for HTTPIn {
 
     fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
         self.id = node_meta.name.clone();
+        self.fqn = node_meta.fqn();
         self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
     }
 
@@ -159,7 +164,7 @@ impl Operator for HTTPIn {
             // }
             Message::Control { command, .. } => match command {
                 ControlCommand::Start { runtime } => {
-                    info!("HTTPIn - Start command received");
+                    info!("HTTPIn - Start command received for {:}", self.fqn);
                     self.setup_routes(runtime);
                 }
                 ControlCommand::SetSettings { settings } => {
@@ -199,8 +204,10 @@ impl HTTPIn {
     }
 
     fn setup_routes(&self, start: OperatorRuntimeType) {
-        let mut singleton = get_instance().lock().unwrap();
+        let singleton = get_instance().unwrap();
+        let mut singleton = singleton.lock().unwrap();
         singleton.add_routes(
+            self.fqn.clone(),
             self.routes.to_owned(),
             self.method.to_owned(),
             self.ws,

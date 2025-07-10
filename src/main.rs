@@ -29,7 +29,7 @@ mod fs_watch;
 mod operators;
 mod otlp;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 100)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 200)]
 //#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     dotenv::dotenv().ok();
@@ -143,12 +143,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     // let mut singleton = http_in::resources::get_instance().lock().unwrap();
     // singleton.restart().await;
 
-    tokio::spawn(async move {
-        let r = watch_fs("saasexpress-tenants/src/bootstrap".to_string());
-        if r.is_err() {
-            error!("Error watching file system: {:?}", r);
-        }
-    });
+    let r = watch_fs("saasexpress-tenants/src/bootstrap_all".to_string());
+    if r.is_err() {
+        error!("Error watching file system: {:?}", r);
+    }
 
     loop {
         const ONE_HOUR: u64 = 3600;

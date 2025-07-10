@@ -10,12 +10,15 @@ use serde_yaml::Value;
 use tokio::sync::mpsc;
 use tracing::{Span, debug, error, info, instrument};
 
+use crate::http_in::resources::get_instance;
 use crate::operators::factory::add_node_to_graph;
 use crate::operators::http_in;
 
 pub fn bootstrap() {
     info!("Starting HTTP service");
-    let mut singleton = http_in::resources::get_instance().lock().unwrap();
+    let singleton = get_instance().unwrap();
+    let mut singleton = singleton.lock().unwrap();
+    singleton.watch_control_bus();
     singleton.start();
 }
 
@@ -89,10 +92,6 @@ pub fn build_graph(yaml: Value) -> String {
 
     graph.replace_runtime();
 
-    info!(
-        "Graph BUILT: {} : Manager:{:?}, Runner:{:?}",
-        graph_name, graph.state, graph.runner.state
-    );
     graph_name
 }
 
@@ -102,34 +101,14 @@ pub fn reload_graph(path: String) {
             let graph_name = yaml["name"].as_str().unwrap();
             remove_graph(graph_name);
 
-            let graph_name = build_graph(yaml);
-            let graph = GraphRegistry::get_graph(graph_name.as_str()).unwrap();
-            let mut graph = graph.lock().unwrap();
-            info!("Graph reloaded: {:?}", graph.name);
-            //watch_control_bus(self.name.clone());
-
-            //remove_graph(graph.name.as_str());
-
-            let graph_id = graph.id.clone();
-            let graph_name = graph.name.clone();
-
-            // tokio::spawn(async move {
-            //     broadcast_event(ControlEvent {
-            //         graph_id: graph_id,
-            //         graph_name: graph_name,
-            //         state: GraphStatus::Inactive,
-            //         operator_names: vec![],
-            //     })
-            //     .await;
-            // });
-            let mut singleton = http_in::resources::get_instance().lock().unwrap();
-            singleton.restart();
+            let _ = build_graph(yaml);
         })
         .unwrap_or_else(|e| {
             error!("Failed to reload graph: {}", e);
         });
 }
 
+#[trace]
 pub fn remove_graph(graph_name: &str) {
     info!("Removing graph: {}", graph_name);
 

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use fastrace::prelude::SpanContext;
 use futures::channel::oneshot;
@@ -8,6 +9,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc;
+use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 use crate::graph;
@@ -293,11 +295,11 @@ impl Graph {
     }
 
     pub fn make_active_if_ready(&mut self) {
-        if self.runner.nodes.len() == 0 {
-            warn!("Graph {} has no nodes, cannot make active", self.name);
-            self.state = GraphStatus::Inactive;
-            return;
-        }
+        // if self.runner.nodes.len() == 0 {
+        //     warn!("Graph {} has no nodes, cannot make active", self.name);
+        //     self.state = GraphStatus::Inactive;
+        //     return;
+        // }
 
         let mut pending = 0;
         for (id, runner) in self.runner.nodes.iter() {
@@ -666,7 +668,10 @@ impl Graph {
             reason: "Graph runner updated".to_string(),
         };
 
-        tokio::spawn(async move {
+        let timelimit = Duration::from_secs(2);
+
+        tokio::spawn(timeout(timelimit, async move {
+            info!("Generating new runtimes for graph: {}", new_runner.name);
             let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges, node_meta);
 
             let self_name = new_runner.name.clone();
@@ -710,7 +715,7 @@ impl Graph {
                 broadcast_event(event).await;
             });
             // broadcast_event(event).await;
-        });
+        }));
     }
 
     pub fn generate_new_runtimes(

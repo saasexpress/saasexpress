@@ -163,6 +163,7 @@ pub fn post_graph_hook() {
     for graph in graph_registry.get_graphs() {
         let graph = graph.lock().unwrap();
 
+        info!("Post start hook for graph: {}", graph.name);
         graph.post_start_hook();
     }
 }

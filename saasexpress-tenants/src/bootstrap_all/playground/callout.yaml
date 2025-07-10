@@ -7,7 +7,6 @@ nodes:
       routes:
         - /callout
 
-        
   - id: callout
     action: Callout
     config:

@@ -17,7 +17,7 @@ use crate::graph::operator::{
     OperatorRuntimeType, OperatorState, OperatorType,
 };
 
-use crate::graph::message::{DebuggableSpan, Message, OriginMessage};
+use crate::graph::message::{ControlCommand, DebuggableSpan, Message, OriginMessage};
 
 use crate::graph::meta::NodeMeta;
 
@@ -44,7 +44,13 @@ impl From<serde_yaml::Value> for Timer {
             interval_ms: _value
                 .get("interval_ms")
                 .and_then(|v| v.as_u64())
-                .map(|v| Duration::from_millis(v)),
+                .map_or(None, |v| {
+                    if v == 0 {
+                        None
+                    } else {
+                        Some(Duration::from_millis(v))
+                    }
+                }),
             on_start: _value
                 .get("on_start")
                 .and_then(|v| v.as_bool())
@@ -81,7 +87,15 @@ impl Operator for Timer {
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Control { .. } => {
+            Message::Control { command, .. } => {
+                match command {
+                    ControlCommand::Start { runtime } => {
+                        self.start(runtime);
+                    }
+                    _ => {
+                        panic!("Invalid control command {:?}", command);
+                    }
+                }
                 debug!("Control");
             }
 
@@ -100,7 +114,7 @@ impl Timer {
         }
     }
 
-    fn start(&mut self) -> bool {
+    fn start(&mut self, runtime: OperatorRuntimeType) -> bool {
         if self.on_start {
             let root_span = Span::root("timer", SpanContext::random());
 
@@ -110,56 +124,83 @@ impl Timer {
 
             let message = Message::JSON {
                 message: json!({"timer": "started"}),
-                origin: Some(OriginMessage::new(None).mpsc_respond_to(mpsc_respond_to)),
+                origin: Some(
+                    OriginMessage::new(None)
+                        .mpsc_respond_to(mpsc_respond_to.clone())
+                        .with_span(Some(DebuggableSpan(root_span))),
+                ),
             };
 
-            self.next(message);
+            runtime.send(message);
 
-            tokio::spawn(
-                async move {
-                    while let Some(message) = receiver.recv().await {
-                        match message {
-                            Message::JSON { message, .. } => {
-                                info!("Timer received message: {:?}", message);
-                            }
-                            _ => {
-                                error!("Unexpected message type {:?}", message);
-                            }
+            tokio::spawn(async move {
+                while let Some(message) = receiver.recv().await {
+                    match message {
+                        Message::JSON { message, .. } => {
+                            info!("Timer received message: {:?}", message);
+                        }
+                        _ => {
+                            error!("Unexpected message type {:?}", message);
                         }
                     }
                 }
-                .in_span(root_span),
-            );
-        } else if self.interval_ms.is_none() {
-            let sender = self.next_nodes.get(0).unwrap().clone().operator;
-
-            let name = Operator::name(self);
-
-            tokio::spawn(async move {
-                loop {
-                    sleep(std::time::Duration::from_secs(30));
-
-                    let root_span = Span::root(format!("timer {:?}", name), SpanContext::random());
-
-                    let recv_span = Span::enter_with_parent("recv_span", &root_span);
-                    // let _guard = root_span.set_local_parent();
-
-                    let (tx, rx) = oneshot::channel::<Message>();
-
-                    let message = Message::JSON {
-                        message: json!({"timer": "started"}),
-                        origin: Some(
-                            OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(root_span))),
-                        ),
-                    };
-
-                    info!("Timer sending message: {:?}", message);
-
-                    sender.send(message);
-
-                    rx.in_span(recv_span).await.unwrap();
-                }
             });
+
+            if self.interval_ms.is_some() {
+                let interval = self.interval_ms.unwrap();
+
+                tokio::spawn(async move {
+                    loop {
+                        sleep(interval);
+                        info!("Timer triggered");
+
+                        let root_span = Span::root("timer", SpanContext::random());
+                        let message = Message::JSON {
+                            message: json!({"timer": "triggered"}),
+                            origin: Some(
+                                OriginMessage::new(None)
+                                    .mpsc_respond_to(mpsc_respond_to.clone())
+                                    .with_span(Some(DebuggableSpan(root_span))),
+                            ),
+                        };
+
+                        runtime.send(message);
+                    }
+                });
+            }
+
+            // } else if self.interval_ms.is_none() {
+            //     let sender = self.next_nodes.get(0).unwrap().clone().operator;
+
+            //     let name = Operator::name(self);
+
+            //     tokio::spawn(async move {
+            //         loop {
+            //             sleep(std::time::Duration::from_secs(30));
+
+            //             let root_span = Span::root(format!("timer {:?}", name), SpanContext::random());
+
+            //             let _ = send_event(sender.clone(), &root_span, "started".to_string()).await;
+
+            //             // let recv_span = Span::enter_with_parent("recv_span", &root_span);
+            //             // // let _guard = root_span.set_local_parent();
+
+            //             // let (tx, rx) = oneshot::channel::<Message>();
+
+            //             // let message = Message::JSON {
+            //             //     message: json!({"timer": "started"}),
+            //             //     origin: Some(
+            //             //         OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(root_span))),
+            //             //     ),
+            //             // };
+
+            //             // info!("Timer sending message: {:?}", message);
+
+            //             // sender.send(message);
+
+            //             // rx.in_span(recv_span).await.unwrap();
+            //         }
+            //     });
         }
         true
     }
@@ -183,21 +224,22 @@ async fn interval_trigger(
         sleep(interval);
 
         let root_span = Span::root(format!("timer {:?}", name), SpanContext::random());
-        let recv_span = Span::enter_with_parent("recv_span", &root_span);
-        // let _guard = root_span.set_local_parent();
+        // let recv_span = Span::enter_with_parent("recv_span", &root_span);
+        // // let _guard = root_span.set_local_parent();
 
-        let (tx, rx) = oneshot::channel::<Message>();
+        // let (tx, rx) = oneshot::channel::<Message>();
 
-        let message = Message::JSON {
-            message: json!({"timer": "triggered"}),
-            origin: Some(OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(root_span)))),
-        };
+        // let message = Message::JSON {
+        //     message: json!({"timer": "triggered"}),
+        //     origin: Some(OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(root_span)))),
+        // };
 
-        // Send message to the next operator
-        sender.send(message);
+        // // Send message to the next operator
+        // sender.send(message);
 
-        // wait for cycle to finish
-        let response = rx.in_span(recv_span).await.unwrap();
+        // // wait for cycle to finish
+        // let response = rx.in_span(recv_span).await.unwrap();
+        let response = send_event(sender.clone(), &root_span, "triggered".to_string()).await;
 
         // send response back to the stream channel
         stream_channel
@@ -208,9 +250,35 @@ async fn interval_trigger(
         counter += 1;
         if iterations != 0 && counter >= iterations {
             info!("Timer finished after {} iterations", counter);
+            let response = send_event(sender.clone(), &root_span, "stopped".to_string()).await;
+            info!("Timer sending stop message: {:?}", response);
+            // send response back to the stream channel
+            stream_channel
+                .send(response)
+                .await
+                .expect("Failed to send response");
             break;
         }
     }
+}
+
+async fn send_event(sender: OperatorRuntimeType, root_span: &Span, timer_state: String) -> Message {
+    let (tx, rx) = oneshot::channel::<Message>();
+
+    let recv_span = Span::enter_with_parent("recv_span", root_span);
+
+    let message = Message::JSON {
+        message: json!({"timer": timer_state}),
+        origin: Some(OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(recv_span)))),
+    };
+
+    info!("Timer sending message: {:?}", message);
+
+    sender.send(message);
+
+    let recv_span = Span::enter_with_parent("recv_span_rx", root_span);
+
+    rx.in_span(recv_span).await.unwrap()
 }
 
 impl OperatorRuntime for Timer {
@@ -251,6 +319,11 @@ impl OperatorRuntime for Timer {
                 message: json!({"timer": "started"}),
                 origin: Some(OriginMessage::new(None).mpsc_respond_to(mpsc_respond_to)),
             };
+        }
+        if self.on_start {
+            info!("Timer started on initialization {:?}", _message);
+
+            return _message;
         }
         panic!("Timer does not handle any messages");
     }

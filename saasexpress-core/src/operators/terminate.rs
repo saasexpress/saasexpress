@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
 use crate::graph::operator::{
@@ -61,6 +61,7 @@ impl OperatorRuntime for Terminate {
     }
 
     fn handle(&self, _message: Message) -> Message {
+        info!("Terminate with message: {:?}", _message);
         return Message::NoOp {};
     }
 

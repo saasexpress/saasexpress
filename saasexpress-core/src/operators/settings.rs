@@ -113,12 +113,17 @@ impl OperatorRuntime for Settings {
                     .iter()
                     .for_each(|graph| match GraphRegistry::get_graph(graph) {
                         Some(graph) => {
-                            graph.lock().unwrap().apply_settings(&message);
+                            let mut mut_graph = graph.lock().unwrap();
+
+                            mut_graph.apply_settings(&message);
+                            mut_graph.replace_runtime();
+                            mut_graph.make_active_if_ready();
                         }
                         None => {
                             warn!("Graph {} not found", graph);
                         }
                     });
+
                 // Send the message to the next operator
                 return Message::JSON { message, origin };
             }

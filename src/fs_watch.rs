@@ -6,10 +6,11 @@ use notify::{PollWatcher, Watcher};
 use saasexpress_core::graph::registry::GraphRegistry;
 use saasexpress_core::start_graphs;
 use serde_yaml::Value;
+
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
-use crate::bootstrap::{build_graph, reload_graph};
+use crate::bootstrap::reload_graph;
 
 pub fn watch_fs(path: String) -> Result<(), notify::Error> {
     let base_path = std::fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(path));
@@ -19,6 +20,8 @@ pub fn watch_fs(path: String) -> Result<(), notify::Error> {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| full_path.to_string_lossy().to_string())
     };
+
+    let refresh_tx = refresher();
 
     let (tx, rx) = std::sync::mpsc::channel();
     // This example is a little bit misleading as you can just create one Config and use it for all watchers.
@@ -51,7 +54,19 @@ pub fn watch_fs(path: String) -> Result<(), notify::Error> {
                     for path in paths {
                         info!("File modified: {:?}", get_relative(path.as_path()));
 
-                        reload_graph(path.as_os_str().to_string_lossy().to_string());
+                        let result =
+                            refresh_tx.try_send(path.as_os_str().to_string_lossy().to_string());
+                        if result.is_err() {
+                            error!(
+                                "Failed to send refresh request for path: {}",
+                                get_relative(path.as_path())
+                            );
+                        } else {
+                            info!(
+                                "Refresh request sent for path: {}",
+                                get_relative(path.as_path())
+                            );
+                        }
                     }
                 }
                 _ => {}
@@ -63,4 +78,16 @@ pub fn watch_fs(path: String) -> Result<(), notify::Error> {
     }
 
     Ok(())
+}
+
+fn refresher() -> mpsc::Sender<String> {
+    let (refresh_tx, mut refresh_rx) = mpsc::channel::<String>(100);
+
+    tokio::spawn(async move {
+        while let Some(path) = refresh_rx.recv().await {
+            info!("Refreshing graph for path: {}", path);
+            reload_graph(path);
+        }
+    });
+    refresh_tx
 }

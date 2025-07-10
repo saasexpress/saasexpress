@@ -1,0 +1,20 @@
+name: hello-world
+nodes:
+  - id: start
+    action: HTTPIn
+    config:
+      method: ^(GET)$
+      routes:
+        - /hello
+
+  - id: translate
+    action: MessageTranslator
+    config:
+      mode: json
+      template: |
+        {
+          "message": "Hello World!"
+        }
+
+edges:
+  - { from: start, to: translate }
