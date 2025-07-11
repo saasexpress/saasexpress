@@ -40,7 +40,7 @@ pub(crate) fn init_tracer() {
 }
 
 pub(crate) fn init_logs() {
-    let console_layer = console_subscriber::spawn();
+    //let console_layer = console_subscriber::spawn();
 
     tracing_subscriber::registry()
     .with(tracing_subscriber::EnvFilter::new(
@@ -49,6 +49,6 @@ pub(crate) fn init_logs() {
         }),
     ))
     .with(tracing_subscriber::fmt::layer())
-    .with(console_layer)
+    //.with(console_layer)
     .init();
 }
