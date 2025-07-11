@@ -53,7 +53,7 @@ impl OpActor {
         loop {
             let msg = self.receiver.recv().await;
             if msg.is_none() {
-                warn!("OperatorActor is stopping for {}", self.runtime.name());
+                debug!("OperatorActor is stopping for {}", self.runtime.name());
                 break;
             }
             let msg = msg.unwrap();

@@ -38,7 +38,13 @@ Go to: http://localhost:2500/hello
 ## Development
 
 ```sh
-cargo watch -w src -x run
+cargo watch -w src -x 'run -- -w'
+```
+
+With tokio console:
+
+```sh
+RUSTFLAGS="--cfg tokio_unstable" cargo watch -w src -x 'run -- -w'
 ```
 
 ## Tests

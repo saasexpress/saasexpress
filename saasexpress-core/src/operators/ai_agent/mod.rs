@@ -1,3 +1,4 @@
+use crate::graph::message::DebuggableSpan;
 use crate::graph::operator::{OperatorRuntime, OperatorRuntimeType, OperatorType};
 use crate::graph::operator_types::ai_agent::AIAgentOperator;
 use crate::graph::operator_types::ai_tool::AIToolOperator;
@@ -5,6 +6,7 @@ use crate::graph::{
     message::{Message, OriginMessage},
     operator::{OperatorRef, OperatorRole},
 };
+use fastrace::{Span, trace};
 use futures::channel::oneshot;
 use futures::channel::oneshot::Canceled;
 use model::AiAgentModel;
@@ -271,14 +273,17 @@ async fn prepare_llm_request(
     })
 }
 
+#[trace]
 fn do_callout(message: Value, next: &OperatorRuntimeType) -> oneshot::Receiver<Message> {
     let (tx, rx) = oneshot::channel::<Message>();
 
     info!("Sending message to next operator: {:?}", message);
 
+    let span = Span::noop();
+
     let message = Message::Standard {
         message: serde_json::to_vec(&message).unwrap(),
-        origin: Some(OriginMessage::new(Some(tx))),
+        origin: Some(OriginMessage::new(Some(tx)).with_span(Some(DebuggableSpan(span)))),
     };
 
     next.send(message);

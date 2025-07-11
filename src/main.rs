@@ -32,6 +32,8 @@ mod otlp;
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 //#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    //console_subscriber::init();
+
     dotenv::dotenv().ok();
 
     let matches = parse_commands();

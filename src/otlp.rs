@@ -40,12 +40,15 @@ pub(crate) fn init_tracer() {
 }
 
 pub(crate) fn init_logs() {
+    let console_layer = console_subscriber::spawn();
+
     tracing_subscriber::registry()
     .with(tracing_subscriber::EnvFilter::new(
         std::env::var("RUST_LOG").unwrap_or_else(|_| {
-            "saasexpress_tenants=warn,saasexpress_core=debug,saasexpress=debug,tower_http=info".into()
+            "saasexpress_tenants=warn,saasexpress_core=debug,saasexpress=debug,tower_http=info,tokio=trace,runtime=trace".into()
         }),
     ))
     .with(tracing_subscriber::fmt::layer())
+    .with(console_layer)
     .init();
 }

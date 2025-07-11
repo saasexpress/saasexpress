@@ -20,6 +20,7 @@ pub enum ControlEventType {
 pub struct ControlEvent {
     pub graph_id: String,
     pub graph_name: String,
+    pub graph_status: GraphStatus,
     pub operator_names: Vec<String>,
     pub event_type: ControlEventType,
     pub reason: String,
@@ -74,12 +75,8 @@ pub fn register<T: 'static + Send + Sync>(name: &str, sender: mpsc::Sender<T>) {
     if get::<T>(name).is_some() {
         error!("Channel with name {} already exists - removing", name);
         REGISTRY.deregister(name);
-
-        //return;
     }
     info!("[{}] REGISTERED", name);
-    tokio::spawn(async move {});
-
     REGISTRY.register(name, sender);
 }
 
@@ -121,6 +118,21 @@ pub fn save_last_event<T: 'static + Send + Sync>(name: &str, event: T) {
 pub fn names() -> Vec<String> {
     REGISTRY.channels.lock().unwrap().keys().cloned().collect()
 }
+
+// pub async fn catchup<T: 'static + Send + Sync>(sender: mpsc::Sender<T>) {
+//     let mut last_events = REGISTRY.last_events.lock().unwrap();
+//     for (name, event) in last_events.iter() {
+//         let event = event.downcast_ref::<T>();
+//         let event: ControlEvent = match event {
+//             Some(e) => e.clone(),
+//             None => {
+//                 error!("Failed to downcast event for name: {}", name);
+//                 continue;
+//             }
+//         };
+//         sender.send(event.unwrap());
+//     }
+// }
 
 pub async fn broadcast_event(event: ControlEvent) {
     let all_channels = names();

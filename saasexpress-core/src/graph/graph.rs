@@ -119,6 +119,7 @@ impl Drop for GraphRunner {
 
 #[derive(Debug)]
 pub struct Graph {
+    pub revision: u64,
     pub id: String,
     pub name: String,
     pub state: GraphStatus,
@@ -186,6 +187,7 @@ impl GraphMod for Graph {
 impl Graph {
     pub fn new(name: String) -> Self {
         Graph {
+            revision: 0,
             id: generate_random_id(5).to_uppercase(),
             name: name.clone(),
             state: GraphStatus::Inactive,
@@ -371,7 +373,7 @@ impl Graph {
                     let opsch = nodes.get(&child.1);
                     match opsch {
                         Some(opsc) => {
-                            let op = opsc.try_lock();
+                            let op = opsc.lock();
                             if op.is_err() {
                                 warn!("Failed to lock operator {} - skipping", child.1);
                                 continue;
@@ -448,10 +450,17 @@ impl Graph {
             error!("No start node found in graph {}", self.name);
             return;
         }
+
+        let start_runtime = self.runner.start_node();
+        if start_runtime.is_none() {
+            error!("No start node runtime found in graph {}", self.name);
+            return;
+        }
+
         let start = start.unwrap();
         start.lock().unwrap().control(Message::Control {
             command: ControlCommand::Start {
-                runtime: Arc::clone(&self.runner.start_node().unwrap()),
+                runtime: Arc::clone(&start_runtime.unwrap()),
             },
             origin: None,
         })
@@ -612,7 +621,6 @@ impl Graph {
 
         self_graph.replace_runtime();
 
-        self_graph.make_active_if_ready();
         //self_graph.init(self_graph.runner.nodes.clone());
     }
 
@@ -648,6 +656,10 @@ impl Graph {
     pub fn replace_runtime(&mut self) {
         info!("Replacing runtime for graph: {}", self.name);
 
+        self.revision += 1;
+
+        let revision = self.revision;
+
         let mut_nodes = self.mut_nodes.clone();
         let edges = self.edges.clone();
         let node_meta = self.node_meta_map.clone();
@@ -660,20 +672,24 @@ impl Graph {
             hooks: self.runner.hooks.clone(),
         };
 
-        let event = ControlEvent {
+        let mut event = ControlEvent {
             graph_id: self.id.clone(),
             graph_name: self.name.clone(),
+            graph_status: GraphStatus::Inactive,
             operator_names: Vec::new(),
             event_type: ControlEventType::GraphReplaced,
-            reason: "Graph runner updated".to_string(),
+            reason: format!("Graph runner updated (rev.{})", revision),
         };
 
-        let timelimit = Duration::from_secs(2);
+        let timelimit = Duration::from_secs(10);
 
         tokio::spawn(timeout(timelimit, async move {
-            info!("Generating new runtimes for graph: {}", new_runner.name);
+            info!(
+                "Generating new runtimes for graph: {} (rev.{})",
+                new_runner.name, revision
+            );
             let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges, node_meta);
-
+            info!("Done new runtimes");
             let self_name = new_runner.name.clone();
 
             let pending_count = new_runtimes
@@ -688,10 +704,17 @@ impl Graph {
                 error!("Graph {} not found in registry", self_name);
                 return;
             }
+
             let self_graph = self_graph.unwrap();
             let mut self_graph = self_graph.lock().unwrap();
 
-            // self.runner = Arc::new(new_runner);
+            if revision < self_graph.revision {
+                warn!(
+                    "[Graph={}] Revision mismatch - not performing update: {} != {}",
+                    self_name, self_graph.revision, revision
+                );
+                return;
+            }
 
             info!("[Graph={}] Pending count: {}", self_name, pending_count);
             self_graph.state = if pending_count > 0 {
@@ -700,6 +723,11 @@ impl Graph {
                 GraphStatus::Active
             };
 
+            event.graph_status = self_graph.state.clone();
+
+            if &self_graph.state == &GraphStatus::Inactive {
+                event.reason = format!("{} - INACTIVE", event.reason);
+            }
             new_runner.state = self_graph.state.clone();
 
             self_graph.runner = Arc::new(new_runner);
@@ -714,7 +742,6 @@ impl Graph {
             tokio::spawn(async move {
                 broadcast_event(event).await;
             });
-            // broadcast_event(event).await;
         }));
     }
 

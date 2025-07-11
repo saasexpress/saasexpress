@@ -79,7 +79,7 @@ pub fn get_pending() -> Vec<String> {
             let graph_registry = graph_registry.lock().unwrap();
             graph_registry.graph_names()
         };
-        info!("Evaluting pending graphs: {:?}", graph_names);
+        info!("GetPending graph_list={:?}", graph_names);
         graph_names
             .iter()
             .filter(|name| {
@@ -89,7 +89,7 @@ pub fn get_pending() -> Vec<String> {
                     return true;
                 }
                 let g = g.unwrap();
-                let graph = g.try_lock();
+                let graph = g.lock();
                 if graph.is_err() {
                     error!("Graph is locked, skipping: {:?}", g);
                     return true;
@@ -104,33 +104,39 @@ pub fn get_pending() -> Vec<String> {
     info!("Pending graphs: {:?}", pending_graphs);
     pending_graphs
 }
+
 pub async fn start_graphs() {
-    let pending = get_pending();
-
-    let graph_count = pending.len();
-
     let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
 
     register("startup", tx);
 
     let my_duration = tokio::time::Duration::from_millis(2000);
-    let mut counter = 0;
 
     loop {
+        let mut pending = get_pending();
+
+        if pending.len() == 0 {
+            info!("No pending graphs to start.");
+            break;
+        }
         let msg = timeout(my_duration, rx.recv()).await;
         match msg {
             Ok(msg) => match msg {
                 Some(msg) => {
-                    if msg.event_type == ControlEventType::GraphReplaced {
-                        counter += 1;
+                    if msg.event_type == ControlEventType::GraphReplaced
+                        && msg.graph_status == GraphStatus::Active
+                    {
+                        let matched = pending.iter().position(|x| x == &msg.graph_name);
+                        if matched.is_some() {
+                            pending.remove(matched.unwrap());
+                        }
                     }
                     info!(
-                        "Received Event: {:?} (Active={}/{})",
+                        "Received Event: {:?} (Remaining={})",
                         serde_json::to_string(&msg),
-                        counter,
-                        graph_count
+                        pending.len(),
                     );
-                    if counter == graph_count {
+                    if pending.len() == 0 {
                         break;
                     }
                 }
@@ -171,9 +177,12 @@ pub fn post_graph_hook() {
 #[cfg(test)]
 mod saasexpress_core_tests {
     use std::panic;
+    use std::thread::sleep;
 
     use serde_json::json;
-    use tracing::{Level, debug, info};
+    use tracing::{Level, debug, info, instrument};
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
 
     use crate::graph::graph::IntoGraphRunner;
     use crate::graph::registry::GraphRegistry;
@@ -192,10 +201,20 @@ mod saasexpress_core_tests {
 
     pub fn initialize() {
         INIT.call_once(|| {
-            tracing_subscriber::fmt()
-                .with_max_level(Level::DEBUG)
-                .init();
+            let console_layer = console_subscriber::spawn();
+
+            tracing_subscriber::registry()
+            .with(console_layer)
+            .with(tracing_subscriber::EnvFilter::new(
+                std::env::var("RUST_LOG").unwrap_or_else(|_| {
+                    "saasexpress_tenants=warn,saasexpress_core=debug,saasexpress=debug,tower_http=info,tokio=trace,runtime=trace".into()
+                }),
+            ))
+            .with(tracing_subscriber::fmt::layer().with_thread_ids(true))
+            .init();
+
         });
+
         GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
@@ -757,6 +776,7 @@ mod saasexpress_core_tests {
         //GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
+    #[instrument]
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_ai_agent() {
         initialize();
@@ -861,8 +881,8 @@ mod saasexpress_core_tests {
             serde_json::to_string(&message).unwrap(),
             "{\"response\":\"{\\\"something\\\": {\\\"returned\\\": true}}\\n\"}"
         );
-
-        //GraphRegistry::get_instance().lock().unwrap().clear();
+        info!("Great, response as expected!");
+        // GraphRegistry::get_instance().lock().unwrap().clear();
     }
 
     #[tokio::test]
@@ -876,6 +896,7 @@ mod saasexpress_core_tests {
         broadcast_event(ControlEvent {
             graph_id: "ai_agent".to_string(),
             graph_name: "ai_agent".to_string(),
+            graph_status: GraphStatus::Active,
             event_type: ControlEventType::Notice,
             reason: "Test event".to_string(),
             operator_names: vec![],
