@@ -116,8 +116,9 @@ impl OperatorRuntime for Settings {
                             let mut mut_graph = graph.lock().unwrap();
 
                             mut_graph.apply_settings(&message);
-                            mut_graph.replace_runtime();
+
                             mut_graph.make_active_if_ready();
+                            mut_graph.replace_runner();
                         }
                         None => {
                             warn!("Graph {} not found", graph);

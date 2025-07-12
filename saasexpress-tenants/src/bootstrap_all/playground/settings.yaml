@@ -1,14 +1,14 @@
 name: settings
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(GET)$
       routes:
         - /settings
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -21,10 +21,10 @@ nodes:
         }
 
   - id: settings
-    action: Settings
+    operator: Settings
 
   - id: stub
-    action: Stub
+    operator: Stub
     config:
       name: Foo
 

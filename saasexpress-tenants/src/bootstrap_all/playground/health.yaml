@@ -1,14 +1,14 @@
 name: health
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(GET)$
       routes:
         - /health
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

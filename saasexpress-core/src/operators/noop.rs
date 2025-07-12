@@ -145,16 +145,21 @@ impl OperatorRuntime for NOOP {
             Message::JSON { message, origin } => {
                 if let Some(origin_message) = origin {
                     if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
-                        tokio::spawn(async move {
-                            debug!("Sending MPSC response");
-                            mpsc_respond_to
-                                .send(Message::JSON {
-                                    message: message.to_owned(),
-                                    origin: None,
-                                })
-                                .await
-                                .expect("[JSON] Failed to send response");
+                        // tokio::spawn(async move {
+                        debug!("Sending MPSC JSON response..");
+                        let r = mpsc_respond_to.try_send(Message::JSON {
+                            message: message.to_owned(),
+                            origin: None,
                         });
+                        match r {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to send: {}", e);
+                            }
+                        }
+                        // .await
+                        // .expect("[JSON] Failed to send response");
+                        //});
                     } else {
                         let respond_to = origin_message.respond_to.expect("No respond_to channel");
 

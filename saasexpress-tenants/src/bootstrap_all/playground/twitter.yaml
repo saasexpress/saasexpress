@@ -1,14 +1,14 @@
 name: twitter-mentions
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /twitter/mentions
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   # callout: See if token is already created, if not, create it and store it
   # if it is, then use it
@@ -16,7 +16,7 @@ nodes:
   # TWITTER_MENTIONS_TRANSLATE_USER_ID = "user_id"
   # TWITTER_MENTIONS_TRANSLATE_BEARER_TOKEN = "token"
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -33,10 +33,10 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
   - id: mentions
-    action: APICall
+    operator: APICall
     config:
       method: GET
       url: temp.mentions.url

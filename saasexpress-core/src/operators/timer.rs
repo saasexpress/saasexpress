@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::iter;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
 use std::time::Duration;
 
 use fastrace::Span;
@@ -9,6 +8,7 @@ use fastrace::prelude::SpanContext;
 use futures::channel::oneshot;
 use serde_json::json;
 use tokio::sync::mpsc;
+use tokio::time::sleep;
 use tracing::{debug, error, info};
 
 use crate::graph::graph::{AsyncHandleTrait, Graph};
@@ -23,9 +23,9 @@ use crate::graph::meta::NodeMeta;
 
 use fastrace::future::FutureExt;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Timer {
-    id: String,
+    fqn: String,
     on_start: bool,
     interval_ms: Option<Duration>,
     iterations: u16,
@@ -35,7 +35,7 @@ pub(crate) struct Timer {
 impl From<serde_yaml::Value> for Timer {
     fn from(_value: serde_yaml::Value) -> Self {
         Timer {
-            id: "".to_string(),
+            fqn: "".to_string(),
             next_nodes: Vec::new(),
             iterations: _value
                 .get("iterations")
@@ -59,6 +59,12 @@ impl From<serde_yaml::Value> for Timer {
     }
 }
 
+impl Drop for Timer {
+    fn drop(&mut self) {
+        debug!("DROP Timer: {}", self.fqn);
+    }
+}
+
 impl Operator for Timer {
     fn _type(&self) -> OperatorType {
         OperatorType::Endpoint
@@ -75,7 +81,7 @@ impl Operator for Timer {
         let next_nodes = graph_operator_context.get_next_nodes();
 
         Arc::new(Timer {
-            id: self.id.clone(),
+            fqn: self.fqn.clone(),
             next_nodes,
             on_start: self.on_start,
             interval_ms: self.interval_ms,
@@ -83,11 +89,14 @@ impl Operator for Timer {
         })
     }
 
-    fn init(&mut self, _: &mut Graph, _node_meta: &NodeMeta) {}
+    fn init(&mut self, _: &mut Graph, _node_meta: &NodeMeta) {
+        self.fqn = _node_meta.fqn();
+    }
 
     fn control(&mut self, _message: Message) {
         match _message {
             Message::Control { command, .. } => {
+                debug!("Control");
                 match command {
                     ControlCommand::Start { runtime } => {
                         self.start(runtime);
@@ -96,7 +105,6 @@ impl Operator for Timer {
                         panic!("Invalid control command {:?}", command);
                     }
                 }
-                debug!("Control");
             }
 
             _ => {
@@ -109,12 +117,16 @@ impl Operator for Timer {
 impl Timer {
     fn next(&self, message: Message) {
         for n in &self.next_nodes {
+            info!("Sending message to next node: {:?}", message);
             n.operator.send(message);
             break;
         }
     }
 
     fn start(&mut self, runtime: OperatorRuntimeType) -> bool {
+        info!("START Timer: {}", self.fqn);
+        let fqn = self.fqn.clone();
+
         if self.on_start {
             let root_span = Span::root("timer", SpanContext::random());
 
@@ -151,8 +163,8 @@ impl Timer {
 
                 tokio::spawn(async move {
                     loop {
-                        sleep(interval);
-                        info!("Timer triggered");
+                        sleep(interval).await;
+                        info!("{} Timer triggered..", fqn);
 
                         let root_span = Span::root("timer", SpanContext::random());
                         let message = Message::JSON {
@@ -221,7 +233,7 @@ async fn interval_trigger(
 
     let mut counter = 0;
     loop {
-        sleep(interval);
+        sleep(interval).await;
 
         let root_span = Span::root(format!("timer {:?}", name), SpanContext::random());
         // let recv_span = Span::enter_with_parent("recv_span", &root_span);

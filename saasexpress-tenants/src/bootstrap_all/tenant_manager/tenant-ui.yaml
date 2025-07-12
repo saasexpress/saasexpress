@@ -4,7 +4,7 @@
 name: tenant-ui
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
@@ -13,7 +13,7 @@ nodes:
         - /ui/{*rest}
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       url: http://localhost:8081
       # Running locally use:

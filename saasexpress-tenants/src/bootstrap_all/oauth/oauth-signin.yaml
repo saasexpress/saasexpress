@@ -3,7 +3,7 @@
 name: oauth-signin
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
@@ -14,7 +14,7 @@ nodes:
   # OAUTH_SIGNIN_PREP_AUTH_URL = "/oidc/auth"
   # OAUTH_SIGNIN_PREP_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -37,7 +37,7 @@ nodes:
         }
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 edges:
   - { from: start, to: prep }
   - { from: prep, to: b2j }

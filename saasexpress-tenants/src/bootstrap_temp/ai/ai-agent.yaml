@@ -6,14 +6,14 @@
 name: ai-agent
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /ai/agent
 
   - id: user_prompt
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       in_temp: false
       template: |
@@ -22,11 +22,11 @@ nodes:
         }
      
   - id: agent
-    action: AIAgent
+    operator: AIAgent
     config: {}
 
   - id: system_prompt
-    action: Stub
+    operator: Stub
     config:
       content: |
         You are a tenant assistant. Use these functions:
@@ -36,7 +36,7 @@ nodes:
         3. clarify_request: When user's request is unclear
 
   # - id: output
-  #   action: MessageTranslator
+  #   operator: MessageTranslator
   #   config:
   #     out_temp: true
   #     temp_group: ai_agent_response
@@ -48,10 +48,10 @@ nodes:
   #       }
 
   # - id: j2b
-  #   action: JSONToBuffer
+  #   operator: JSONToBuffer
 
   # - id: call
-  #   action: APICall
+  #   operator: APICall
   #   config:
   #     url: https://api.openai.com/v1/chat/completions
   #     method: POST
@@ -61,32 +61,32 @@ nodes:
   # If
 
   - id: tool_get_details
-    action: Callout
+    operator: Callout
     config:
       graph_name: ai-function-get-details
 
   - id: tool_clarify
-    action: Callout
+    operator: Callout
     config:
       graph_name: ai-function-clarify
 
   - id: tool_search
-    action: Callout
+    operator: Callout
     config:
       graph_name: ai-function-search
 
   # - id: agent_memory
-  #   action: AITool
+  #   operator: AITool
   #   config: {}
 
   - id: chatgpt
-    action: APICall
+    operator: APICall
     config:
       url: https://api.openai.com/v1/chat/completions
       method: POST
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
 edges:
   - { from: start, to: user_prompt }

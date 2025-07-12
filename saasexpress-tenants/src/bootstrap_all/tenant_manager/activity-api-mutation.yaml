@@ -6,7 +6,7 @@
 name: activity-api-mutation
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(DELETE|POST)$
       routes:
@@ -14,18 +14,18 @@ nodes:
         - /api/activity/{id}
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       url: http://localhost:8081
 
   - id: fanout
-    action: FanOut
+    operator: FanOut
 
   # - id: bufin
-  #   action: BufferToJSON
+  #   operator: BufferToJSON
 
   # - id: in
-  #   action: MessageTranslator
+  #   operator: MessageTranslator
   #   config:
   #     engine: cel-interpreter
   #     template: |
@@ -39,10 +39,10 @@ nodes:
   #         }
   #       }
 
-  # - { id: j2b, action: JSONToBuffer }
+  # - { id: j2b, operator: JSONToBuffer }
 
   # - id: create
-  #   action: APICall
+  #   operator: APICall
   #   config:
   #     method: POST
   #     url: http://localhost:8081
@@ -50,12 +50,12 @@ nodes:
   #     content_type: application/json
 
   - id: done
-    action: Passthrough
+    operator: Passthrough
 
   - id: terminate
-    action: Terminate
+    operator: Terminate
 
-  # - { id: bufout, action: JSONToBuffer }
+  # - { id: bufout, operator: JSONToBuffer }
 
 edges:
   - { from: start, to: rp }

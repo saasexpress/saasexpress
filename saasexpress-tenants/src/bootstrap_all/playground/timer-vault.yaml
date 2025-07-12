@@ -1,12 +1,12 @@
 name: timer-vault
 nodes:
   - id: start
-    action: Timer
+    operator: Timer
     config:
       on_start: true
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -15,10 +15,10 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
   - id: apicall
-    action: APICall
+    operator: APICall
     config:
       method: GET
       path: ""

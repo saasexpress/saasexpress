@@ -1,7 +1,7 @@
 name: worker
 nodes:
   - id: start
-    action: Stub
+    operator: Stub
     config:
       name: Joe
 edges: []

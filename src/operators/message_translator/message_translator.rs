@@ -290,6 +290,7 @@ impl OperatorRuntime for MessageTranslator {
     }
 
     fn handle(&self, _message: Message) -> Message {
+        info!("Handling message in MessageTranslator: {}", _message);
         match _message {
             Message::Standard { mut origin, .. } => {
                 let input = json!({

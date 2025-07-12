@@ -1,7 +1,7 @@
 name: sse-timer
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       sse: true
       method: ^(GET)$
@@ -9,14 +9,14 @@ nodes:
         - /sse-timer
 
   - id: timer
-    action: Timer
+    operator: Timer
     config:
       interval_ms: 500
       iterations: 5
       on_start: false
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

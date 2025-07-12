@@ -4,17 +4,17 @@
 name: claim_check
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: POST
       routes:
         - /claim_check
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: claim_check
-    action: ClaimCheck
+    operator: ClaimCheck
 
 edges:
   - { from: start, to: b2j }

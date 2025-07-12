@@ -1,7 +1,7 @@
 name: ws-1
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       ws: true
       method: ^(ANY)$
@@ -9,7 +9,7 @@ nodes:
         - /ws1
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       ws: true
       path: /ws-dest

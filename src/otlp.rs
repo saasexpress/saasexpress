@@ -48,7 +48,7 @@ pub(crate) fn init_logs() {
             "saasexpress_tenants=warn,saasexpress_core=debug,saasexpress=debug,tower_http=info,tokio=trace,runtime=trace".into()
         }),
     ))
-    .with(tracing_subscriber::fmt::layer())
+    .with(tracing_subscriber::fmt::layer().with_thread_ids(true))
     //.with(console_layer)
     .init();
 }

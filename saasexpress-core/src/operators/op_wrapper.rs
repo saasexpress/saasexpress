@@ -104,6 +104,7 @@ impl Operator for OperatorWrapper {
         let mgmt = self.management.lock().unwrap();
         mgmt.shared_resources()
     }
+
     fn new_runtime(
         &self,
         graph_operator_context: GraphOperatorContext,
@@ -141,6 +142,10 @@ impl OperatorRuntime for OperatorWrapperRuntime {
         let runtime: &(dyn OperatorRuntime + 'static) = self.upstream_runtime.as_ref();
         let message = runtime.handle(_message);
 
+        // info!(
+        //     "OperatorWrapperRuntime {} sending message: {:?}",
+        //     self.name, runtime
+        // );
         if let Message::Error { error, origin } = message {
             error!("Error in operator {}: {}", self.name, error);
             runtime.send(Message::Error { error, origin });

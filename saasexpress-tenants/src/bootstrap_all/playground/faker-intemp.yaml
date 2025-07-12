@@ -4,21 +4,21 @@
 name: faker-intemp
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: POST
       routes:
         - /faker-intemp
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: faker
-    action: Faker
+    operator: Faker
     config: {}
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -28,7 +28,7 @@ nodes:
         }
 
   - id: translate2
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

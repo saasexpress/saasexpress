@@ -4,7 +4,7 @@ nodes:
     operator: Timer
     config:
       on_start: true
-      interval_ms: 30000
+      interval_ms: 2000
 
   - id: terminate
     operator: MessageTranslator

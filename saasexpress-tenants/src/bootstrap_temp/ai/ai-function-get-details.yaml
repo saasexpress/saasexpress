@@ -6,7 +6,7 @@
 name: ai-function-get-details
 nodes:
   - id: start
-    action: AITool
+    operator: AITool
     config:
       schema:
         name: get_tenant_details
@@ -21,10 +21,10 @@ nodes:
             - tenant_id
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: search_prep
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -36,17 +36,17 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
         
   - id: search
-    action: APICall
+    operator: APICall
     config:
       method: GET
       # path: /api/tenants/{data.id}
       url: http://localhost:2243
 
   - id: result
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

@@ -4,21 +4,21 @@
 name: faker
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: POST
       routes:
         - /faker
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: faker
-    action: Faker
+    operator: Faker
     config: {}
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

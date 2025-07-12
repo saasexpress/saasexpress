@@ -145,6 +145,12 @@ pub(crate) struct OperatorActorHandleRuntime {
     //next_nodes: Vec<OperatorRef>,
 }
 
+impl Drop for OperatorActorHandleRuntime {
+    fn drop(&mut self) {
+        debug!("DROP OperatorActorHandleRuntime: {}", self.name);
+    }
+}
+
 impl OperatorRuntime for OperatorActorHandleRuntime {
     fn _type(&self) -> OperatorType {
         OperatorType::Endpoint

@@ -1,23 +1,23 @@
 name: health-temp
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(GET)$
       routes:
         - /health-temp
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       path: "/health"
       url: http://localhost:2243
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: translate0
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -27,7 +27,7 @@ nodes:
         }
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

@@ -7,7 +7,7 @@
 name: services-api-get
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(GET)$
       routes:
@@ -16,7 +16,7 @@ nodes:
         - /api/services/{id}
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       url: http://localhost:8081
 

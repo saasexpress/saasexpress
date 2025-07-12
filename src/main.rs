@@ -29,7 +29,7 @@ mod fs_watch;
 mod operators;
 mod otlp;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 //#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     //console_subscriber::init();
@@ -112,7 +112,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                     });
             }
 
-            warn!("Starting graphs...");
             start_graphs().await;
 
             bootstrap::bootstrap();
@@ -151,6 +150,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             error!("Error watching file system: {:?}", r);
         }
     }
+
+    // tokio::spawn(async move {
+    //     tokio::signal::ctrl_c().await.unwrap();
+
+    //     info!("Received Ctrl+C, shutting down gracefully...");
+    // });
 
     loop {
         const ONE_HOUR: u64 = 3600;

@@ -1,7 +1,0 @@
-name: worker
-nodes:
-  - id: start
-    action: Stub
-    config:
-      name: Joey
-edges: []

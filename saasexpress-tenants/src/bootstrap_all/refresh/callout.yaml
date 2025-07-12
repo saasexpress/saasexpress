@@ -1,13 +1,13 @@
 name: client
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: ^(GET)$
       routes:
         - /api/refresh/callout 
   - id: callout
-    action: Callout
+    operator: Callout
     config:
       graph_name: work
 edges:

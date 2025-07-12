@@ -1,7 +1,7 @@
 name: sse
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       sse: true
       method: ^(GET)$
@@ -9,7 +9,7 @@ nodes:
         - /sse
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       sse: true
       path: /sse-source

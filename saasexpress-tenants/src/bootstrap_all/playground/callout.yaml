@@ -1,14 +1,14 @@
 name: callout
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /callout
 
   - id: callout
-    action: Callout
+    operator: Callout
     config:
       graph_name: worker
 edges:

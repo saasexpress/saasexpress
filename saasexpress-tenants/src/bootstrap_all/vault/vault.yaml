@@ -8,24 +8,24 @@
 name: vault
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /v1/{*rest}
 
   - id: rp
-    action: APICall
+    operator: APICall
     config:
       path: ""
       url: http://localhost:8200
       method: GET
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

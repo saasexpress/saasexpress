@@ -52,6 +52,7 @@ impl OpActor {
     pub async fn run(&mut self) {
         loop {
             let msg = self.receiver.recv().await;
+            info!("Received!");
             if msg.is_none() {
                 debug!("OperatorActor is stopping for {}", self.runtime.name());
                 break;

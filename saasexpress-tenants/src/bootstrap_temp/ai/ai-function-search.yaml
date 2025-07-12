@@ -4,7 +4,7 @@
 name: ai-function-search
 nodes:
   - id: start
-    action: AITool
+    operator: AITool
     config:
       schema:
         name: search_tenants
@@ -21,7 +21,7 @@ nodes:
             - keywords
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -30,17 +30,17 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
   - id: search
-    action: APICall
+    operator: APICall
     config:
       method: GET
       path: /api/tenants
       url: http://localhost:2243
 
   - id: result
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

@@ -1,18 +1,18 @@
 name: oauth-callback
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /auth/callback
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   # OAUTH_CALLBACK_DISCOVERY_URL = "https://discovery"
   # - id: discovery
-  #   action: APICall
+  #   operator: APICall
   #   config:
   #     method: POST
   #     url: temp.token.url
@@ -31,7 +31,7 @@ nodes:
   # OAUTH_CALLBACK_TRANSLATE_CLIENT_ID = "client_id"
   # OAUTH_CALLBACK_TRANSLATE_CLIENT_SECRET = "client_secret"
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -51,10 +51,10 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
   - id: token
-    action: APICall
+    operator: APICall
     config:
       method: POST
       url: temp.token.url
@@ -62,7 +62,7 @@ nodes:
   # Do a callout to get the user info using the access token (or id token)
   # OAUTH_CALLBACK_USERINFO_URL = "https://userinfo"
   - id: userinfo
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -79,17 +79,17 @@ nodes:
         }
 
   - id: j2b2
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
   - id: userinfo_call
-    action: APICall
+    operator: APICall
     config:
       method: GET
       url: temp.token.url
 
 
   - id: claim_check_prep
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -99,12 +99,12 @@ nodes:
         }
 
   - id: claim_check
-    action: ClaimCheck
+    operator: ClaimCheck
 
   # OAUTH_CALLBACK_REDIRECT_URL = "http://localhost:2243/ui/"
   # OAUTH_CALLBACK_REDIRECT_COOKIE_DOMAIN = "localhost"
   - id: redirect
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true

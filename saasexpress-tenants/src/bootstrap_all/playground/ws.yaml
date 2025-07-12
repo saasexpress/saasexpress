@@ -1,7 +1,7 @@
 name: ws
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       ws: true
       method: ^(ANY)$
@@ -9,10 +9,10 @@ nodes:
         - /ws
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -23,7 +23,7 @@ nodes:
         }
 
   - id: j2b
-    action: JSONToBuffer
+    operator: JSONToBuffer
 
 edges:
   - { from: start, to: b2j }

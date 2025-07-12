@@ -57,7 +57,7 @@ use saasexpress_core::operators::factory::add_node_to_graph as add_node_to_graph
 
 pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
     let id = spec["id"].as_str().unwrap();
-    let name = spec["action"].as_str().unwrap();
+    let name = spec["operator"].as_str().unwrap();
     let value = spec["config"].clone();
     match name {
         "HTTPIn" => graph.add_node(id, HTTPIn::from(value)),

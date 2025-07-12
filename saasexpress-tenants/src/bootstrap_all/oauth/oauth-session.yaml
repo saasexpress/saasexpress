@@ -2,14 +2,14 @@
 name: oauth-session
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /auth/session
 
   - id: get_claim
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -18,15 +18,15 @@ nodes:
         }
 
   - id: claim_check
-    action: ClaimCheck
+    operator: ClaimCheck
     config:
-      action: Get
+      operator: Get
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: response
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |

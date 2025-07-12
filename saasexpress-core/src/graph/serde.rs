@@ -23,7 +23,7 @@ pub struct RawNode {
     /// Unique identifier for the node
     pub(super) id: String,
     /// The operation/action this node represents
-    pub(super) action: String,
+    pub(super) operator: String,
     /// Configuration values for this node
     pub(super) config: Value,
 }

@@ -4,14 +4,14 @@
 name: claim_check_get
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /claim_check/{id}
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -20,12 +20,12 @@ nodes:
         }
 
   - id: claim_check
-    action: ClaimCheck
+    operator: ClaimCheck
     config:
-      action: Get
+      operator: Get
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
 edges:
   - { from: start, to: translate }

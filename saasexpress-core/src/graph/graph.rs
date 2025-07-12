@@ -50,7 +50,7 @@ pub struct GraphRunner {
     pub state: GraphStatus,
     //graph: Option<Arc<Mutex<Graph>>>,
     start_node: String,
-    pub nodes: HashMap<String, Arc<dyn OperatorRuntime + 'static>>,
+    nodes: HashMap<String, Arc<dyn OperatorRuntime + 'static>>,
     hooks: Vec<Arc<dyn GraphHook + 'static>>,
 }
 
@@ -111,6 +111,11 @@ impl GraphRunner {
 impl Drop for GraphRunner {
     fn drop(&mut self) {
         debug!("DROP GraphRunner for graph {}", self.name);
+        // self.nodes.iter().for_each(|(id, op)| {
+        //     debug!("Dropping node {} in GraphRunner", id);
+        //     drop(op.to_owned());
+        //     // op.lock().unwrap().finalize();
+        // });
         // if let Some(graph) = &self.graph {
         //     let mut graph = graph.lock().unwrap();
         // }
@@ -358,6 +363,10 @@ impl Graph {
     // }
 
     pub fn get_next_nodes(graph_operator_context: GraphOperatorContext) -> Vec<OperatorRole> {
+        info!(
+            "[{}] Getting next nodes for {}",
+            graph_operator_context.id, graph_operator_context.node_fqn
+        );
         let mut childs: Vec<OperatorRole> = Vec::new();
 
         let id = graph_operator_context.id.clone();
@@ -619,7 +628,7 @@ impl Graph {
         let self_graph = self_graph.unwrap();
         let mut self_graph = self_graph.lock().unwrap();
 
-        self_graph.replace_runtime();
+        self_graph.replace_runner();
 
         //self_graph.init(self_graph.runner.nodes.clone());
     }
@@ -653,13 +662,14 @@ impl Graph {
     //     })
     // }
 
-    pub fn replace_runtime(&mut self) {
-        info!("Replacing runtime for graph: {}", self.name);
+    pub fn replace_runner(&mut self) {
+        info!("Replacing runner for graph: {}", self.name);
 
         self.revision += 1;
 
         let revision = self.revision;
 
+        let start_node = self.start_node.clone();
         let mut_nodes = self.mut_nodes.clone();
         let edges = self.edges.clone();
         let node_meta = self.node_meta_map.clone();
@@ -688,7 +698,8 @@ impl Graph {
                 "Generating new runtimes for graph: {} (rev.{})",
                 new_runner.name, revision
             );
-            let new_runtimes = Graph::generate_new_runtimes(mut_nodes, edges, node_meta);
+            let new_runtimes =
+                Graph::generate_new_runtimes(mut_nodes, start_node, edges, node_meta);
             info!("Done new runtimes");
             let self_name = new_runner.name.clone();
 
@@ -747,11 +758,14 @@ impl Graph {
 
     pub fn generate_new_runtimes(
         mut_nodes: HashMap<String, OperatorRef>,
+        start_node: String,
         edges: HashMap<String, HashSet<(String, String)>>,
         node_meta: HashMap<String, NodeMeta>,
     ) -> HashMap<String, OperatorRuntimeType> {
         let mut nodes = HashMap::new();
 
+        // let id = start_node.clone();
+        // let operator = mut_nodes.get(&start_node).unwrap();
         for (id, operator) in mut_nodes.iter() {
             let runtime = {
                 let op = operator.lock().unwrap();

@@ -1,17 +1,17 @@
 name: cookie
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /cookie
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true

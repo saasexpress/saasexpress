@@ -3,7 +3,7 @@
 name: oauth-signout
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
@@ -11,7 +11,7 @@ nodes:
 
   # Remove claim ticket
   - id: get_claim
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
@@ -20,16 +20,16 @@ nodes:
         }
 
   - id: claim_check
-    action: ClaimCheck
+    operator: ClaimCheck
     config:
-      action: Clear
+      operator: Clear
 
   # OAUTH_SIGNOUT_PREP_END_URL = "/oidc/end"
   # OAUTH_SIGNOUT_PREP_COOKIE_DOMAIN = "localhost"
   # OAUTH_SIGNOUT_PREP_END_CLIENT_ID = "client_id"
   # OAUTH_SIGNOUT_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -60,7 +60,7 @@ nodes:
         }
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 edges:
   - { from: start, to: get_claim }
   - { from: get_claim, to: claim_check }

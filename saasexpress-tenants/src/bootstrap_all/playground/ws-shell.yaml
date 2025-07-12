@@ -1,7 +1,7 @@
 name: ws-shell
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       ws: true
       method: ^(ANY)$
@@ -9,17 +9,17 @@ nodes:
         - /ws-shell
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 
   - id: translate
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       template: |
         { "command": data.data }
 
   - id: shell
-    action: Shell
+    operator: Shell
     config:
       command: bash
       # args:

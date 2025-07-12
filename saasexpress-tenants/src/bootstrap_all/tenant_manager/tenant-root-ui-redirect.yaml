@@ -4,14 +4,14 @@
 name: tenant-ui-redirect
 nodes:
   - id: start
-    action: HTTPIn
+    operator: HTTPIn
     config:
       method: GET
       routes:
         - /
 
   - id: redirect
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: true
@@ -28,7 +28,7 @@ nodes:
         }
 
   - id: b2j
-    action: BufferToJSON
+    operator: BufferToJSON
 edges:
   - { from: start, to: redirect }
   - { from: redirect, to: b2j }

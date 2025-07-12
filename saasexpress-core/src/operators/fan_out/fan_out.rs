@@ -105,7 +105,6 @@ impl FanOut {
         //     .get_origin()
         //     .expect("Failed to get origin from message");
 
-        error!("FanOut::next - message: {:?}", _message);
         //let origin = _message.take_origin().unwrap();
 
         // let respond_to;
@@ -196,7 +195,7 @@ impl FanOut {
 
         let data = all_data;
 
-        error!("FanOut::next - data: {:?}", data.3);
+        debug!("FanOut::next - data: {:?}", data.3);
         //let respond_to = data.1;
         //let span = data.2;
         //let _origin = all_data.1;
@@ -307,14 +306,13 @@ impl FanOut {
 
             debug!("Merged results: {:?}", merged);
             if senders.len() != merged.len() {
-                error!(
+                warn!(
                     "FanOut: not all responses received. Expected {}, got {}",
                     senders.len(),
                     merged.len()
                 );
             }
 
-            error!("Sending with origin {:?}", origin);
             if let Some(to) = to {
                 if merged.len() == 1 {
                     let value = merged.pop().unwrap();

@@ -57,16 +57,8 @@ pub fn build_graph(yaml: Value) -> String {
 
     let mut graph = graph.lock().unwrap();
 
-    //    graph.runner = graph.replace_all_runtimes();
-    //graph.refresh_runtime_nodes();
-
-    //graph.watch();
-
     graph.make_active_if_ready();
-
-    //graph.init(graph.runner.nodes.clone());
-
-    graph.replace_runtime();
+    graph.replace_runner();
 
     graph_name
 }
@@ -106,6 +98,7 @@ pub fn get_pending() -> Vec<String> {
 }
 
 pub async fn start_graphs() {
+    debug!("Starting graphs...");
     let (tx, mut rx) = tokio::sync::mpsc::channel::<ControlEvent>(100);
 
     register("startup", tx);
@@ -201,10 +194,10 @@ mod saasexpress_core_tests {
 
     pub fn initialize() {
         INIT.call_once(|| {
-            let console_layer = console_subscriber::spawn();
+            //let console_layer = console_subscriber::spawn();
 
             tracing_subscriber::registry()
-            .with(console_layer)
+            //.with(console_layer)
             .with(tracing_subscriber::EnvFilter::new(
                 std::env::var("RUST_LOG").unwrap_or_else(|_| {
                     "saasexpress_tenants=warn,saasexpress_core=debug,saasexpress=debug,tower_http=info,tokio=trace,runtime=trace".into()
@@ -257,7 +250,7 @@ mod saasexpress_core_tests {
         name: buffer_to_json
         nodes:
           - id: start
-            action: BufferToJSON
+            operator: BufferToJSON
         "#;
         let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
@@ -287,7 +280,7 @@ mod saasexpress_core_tests {
         name: claim_check
         nodes:
           - id: start
-            action: ClaimCheck
+            operator: ClaimCheck
         "#;
         let graph_name = build_graph(serde_yaml::from_str(GRAPH).unwrap());
 
@@ -322,9 +315,9 @@ mod saasexpress_core_tests {
         name: shell
         nodes:
           - id: start
-            action: BufferToJSON
+            operator: BufferToJSON
           - id: shell
-            action: Shell
+            operator: Shell
             config:
               command: bash
               args:
@@ -365,11 +358,11 @@ mod saasexpress_core_tests {
         name: fan_out
         nodes:
         - id: fanout
-          action: FanOut
+          operator: FanOut
         - id: fanout_1
-          action: Passthrough
+          operator: Passthrough
         - id: fanout_2
-          action: Passthrough
+          operator: Passthrough
         edges:
         - from: fanout
           to: fanout_1
@@ -407,7 +400,7 @@ mod saasexpress_core_tests {
         name: g_callout
         nodes:
         - id: n_callout
-          action: Callout
+          operator: Callout
           config:
             graph_name: worker
         edges: []
@@ -417,7 +410,7 @@ mod saasexpress_core_tests {
         name: worker
         nodes:
         - id: start
-          action: Stub
+          operator: Stub
           config:
             name: Joe
         edges: []
@@ -479,7 +472,7 @@ mod saasexpress_core_tests {
         name: graph_1
         nodes:
         - id: global
-          action: GlobalSpace
+          operator: GlobalSpace
         edges: []
         "#;
 
@@ -487,9 +480,9 @@ mod saasexpress_core_tests {
         name: worker
         nodes:
         - id: global
-          action: GlobalSpace
+          operator: GlobalSpace
         - id: start
-          action: Stub
+          operator: Stub
           config:
             name: Joe
         edges:
@@ -550,7 +543,7 @@ mod saasexpress_core_tests {
         name: g_callout
         nodes:
         - id: n_callout
-          action: Callout
+          operator: Callout
           config:
             graph_name: worker
         edges: []
@@ -560,11 +553,11 @@ mod saasexpress_core_tests {
         name: worker
         nodes:
         - id: start
-          action: Stub
+          operator: Stub
           config:
             name: Joe
         - id: global
-          action: GlobalSpace
+          operator: GlobalSpace
         edges: []
         "#;
 
@@ -633,7 +626,7 @@ mod saasexpress_core_tests {
         name: settings
         nodes:
         - id: settings
-          action: Settings
+          operator: Settings
         edges: []
         "#;
 
@@ -668,7 +661,7 @@ mod saasexpress_core_tests {
         name: canonical_model
         nodes:
         - id: start
-          action: CanonicalModelSample
+          operator: CanonicalModelSample
         edges: []
         "#;
 
@@ -703,7 +696,7 @@ mod saasexpress_core_tests {
         name: canonical_model_err
         nodes:
         - id: start
-          action: CanonicalModelSample
+          operator: CanonicalModelSample
         edges: []
         "#;
 
@@ -741,7 +734,7 @@ mod saasexpress_core_tests {
         name: ai_tool
         nodes:
         - id: start
-          action: AITool
+          operator: AITool
           config:
             name: Joe
             schema:
@@ -785,14 +778,14 @@ mod saasexpress_core_tests {
         name: ai_agent
         nodes:
         - id: start
-          action: AIAgent
+          operator: AIAgent
         - id: tool_a
-          action: Callout
+          operator: Callout
           config:
             graph_name: ai_tool
 
         - id: system_prompt
-          action: Stub
+          operator: Stub
           config:
             content: |
                 You are a shopping assistant. Use these functions:
@@ -803,7 +796,7 @@ mod saasexpress_core_tests {
                 
 
         - id: chatgpt_llm
-          action: Stub
+          operator: Stub
           config:
             choices:
             - index: 0
@@ -848,7 +841,7 @@ mod saasexpress_core_tests {
         name: ai_tool
         nodes:
         - id: start
-          action: AITool
+          operator: AITool
           config:
             name: Joe
             schema:

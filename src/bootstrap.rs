@@ -81,16 +81,8 @@ pub fn build_graph(yaml: Value) -> String {
 
     let mut graph = graph.lock().unwrap();
 
-    //    graph.runner = graph.replace_all_runtimes();
-    //graph.refresh_runtime_nodes();
-
-    //graph.watch();
-
     graph.make_active_if_ready();
-
-    //graph.init(graph.runner.nodes.clone());
-
-    graph.replace_runtime();
+    graph.replace_runner();
 
     graph_name
 }

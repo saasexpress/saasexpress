@@ -9,11 +9,11 @@ name: oauth-metadata-discovery
 nodes:
   # OAUTH_METADATA_DISCOVERY_CALL_URL = "https://discovery"
   - id: call
-    action: APICall
+    operator: APICall
     config:
       url: "{OAUTH_SERVER}.well-known/openid-configuration"
   - id: reduce
-    action: MessageTranslator
+    operator: MessageTranslator
     config:
       mode: json
       in_temp: false
