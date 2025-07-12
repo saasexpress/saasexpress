@@ -5,37 +5,33 @@ name: faker-intemp
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: POST
-      routes:
-        - /faker-intemp
+    method: POST
+    routes:
+      - /faker-intemp
 
   - id: b2j
     operator: BufferToJSON
 
   - id: faker
     operator: Faker
-    config: {}
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      template: |
-        {
-          "first_name": temp.faker.name
-        }
+    mode: json
+    in_temp: true
+    template: |
+      {
+        "first_name": temp.faker.name
+      }
 
   - id: translate2
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "data": data,
-          "temp": temp
-        }
+    mode: json
+    template: |
+      {
+        "data": data,
+        "temp": temp
+      }
 
 edges:
   - { from: start, to: b2j }

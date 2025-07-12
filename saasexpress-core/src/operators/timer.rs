@@ -32,8 +32,8 @@ pub(crate) struct Timer {
     next_nodes: Vec<OperatorRole>,
 }
 
-impl From<serde_yaml::Value> for Timer {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Timer {
+    fn from(_value: &serde_yaml::Value) -> Self {
         Timer {
             fqn: "".to_string(),
             next_nodes: Vec::new(),

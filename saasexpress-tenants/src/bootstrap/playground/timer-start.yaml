@@ -2,18 +2,16 @@ name: timer-start
 nodes:
   - id: start
     operator: Timer
-    config:
-      on_start: true
-      interval_ms: 2000
+    on_start: true
+    interval_ms: 2000
 
   - id: terminate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "input": data
-        }
+    mode: json
+    template: |
+      {
+        "input": data
+      }
 
 edges:
   - { from: start, to: terminate }

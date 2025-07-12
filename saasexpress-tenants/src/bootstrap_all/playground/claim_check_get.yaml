@@ -5,24 +5,21 @@ name: claim_check_get
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /claim_check/{id}
+    method: GET
+    routes:
+      - /claim_check/{id}
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "claim_id": temp.http_in.params.id
-        }
+    mode: json
+    template: |
+      {
+        "claim_id": temp.http_in.params.id
+      }
 
   - id: claim_check
     operator: ClaimCheck
-    config:
-      operator: Get
+    action: Get
 
   - id: b2j
     operator: BufferToJSON

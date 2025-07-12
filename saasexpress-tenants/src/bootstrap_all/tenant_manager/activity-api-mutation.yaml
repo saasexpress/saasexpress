@@ -7,16 +7,14 @@ name: activity-api-mutation
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(DELETE|POST)$
-      routes:
-        - /api/activity
-        - /api/activity/{id}
+    method: ^(DELETE|POST)$
+    routes:
+      - /api/activity
+      - /api/activity/{id}
 
   - id: rp
     operator: APICall
-    config:
-      url: http://localhost:8081
+    url: http://localhost:8081
 
   - id: fanout
     operator: FanOut

@@ -2,6 +2,6 @@ name: oauth-enforcer
 nodes:
   - id: evaluate
     operator: Stub
-    config:
+    data:
       allow: true
 edges: []

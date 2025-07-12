@@ -24,31 +24,28 @@ name: ai-claude
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /prompt
+    method: GET
+    routes:
+      - /prompt
 
   - id: prepare
     operator: MessageTranslator
-    config:
-      template: |
-        { 
-          "model": "claude-3-7-sonnet-20250219",
-          "max_tokens": 1024,
-          "messages": [
-              {"role": "user", "content": temp.http_in.query.prompt}
-          ]
-        }
+    template: |
+      { 
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": temp.http_in.query.prompt}
+        ]
+      }
 
   - id: j2b
     operator: JSONToBuffer
 
   - id: call
     operator: APICall
-    config:
-      url: https://api.anthropic.com/v1/messages
-      method: POST
+    url: https://api.anthropic.com/v1/messages
+    method: POST
 
 edges:
   - { from: start, to: prepare }

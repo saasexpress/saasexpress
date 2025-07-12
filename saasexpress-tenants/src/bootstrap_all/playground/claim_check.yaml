@@ -5,10 +5,9 @@ name: claim_check
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: POST
-      routes:
-        - /claim_check
+    method: POST
+    routes:
+      - /claim_check
 
   - id: b2j
     operator: BufferToJSON

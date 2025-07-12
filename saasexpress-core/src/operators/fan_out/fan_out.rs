@@ -32,8 +32,8 @@ pub(crate) struct FanOut {
     senders: Vec<mpsc::Sender<Message>>,
 }
 
-impl From<serde_yaml::Value> for FanOut {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for FanOut {
+    fn from(_value: &serde_yaml::Value) -> Self {
         FanOut {
             next: Vec::new(),
             senders: Vec::new(),

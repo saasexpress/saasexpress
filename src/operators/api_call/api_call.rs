@@ -80,8 +80,8 @@ impl SessionRegistry {
 
 static INSTANCE: OnceLock<Mutex<SessionRegistry>> = OnceLock::new();
 
-impl From<serde_yaml::Value> for APICall {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for APICall {
+    fn from(value: &serde_yaml::Value) -> Self {
         let url = value["url"].as_str().unwrap().to_string();
         let path = value["path"].as_str().unwrap_or("").to_string();
         let forward = value["forward"].as_bool().unwrap_or(false);

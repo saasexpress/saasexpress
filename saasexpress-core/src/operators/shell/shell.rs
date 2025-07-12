@@ -24,8 +24,8 @@ pub(crate) struct Shell {
     next: Vec<OperatorRole>,
 }
 
-impl From<serde_yaml::Value> for Shell {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Shell {
+    fn from(value: &serde_yaml::Value) -> Self {
         let command = value
             .get("command")
             .and_then(|v| v.as_str())

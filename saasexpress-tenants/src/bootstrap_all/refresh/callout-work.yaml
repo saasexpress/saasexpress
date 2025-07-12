@@ -2,6 +2,6 @@ name: work
 nodes:
   - id: start
     operator: Stub
-    config:
+    data:
       info: Some Information Gathered ok5
 edges: []

@@ -70,8 +70,8 @@ pub(crate) struct MessageTranslator {
     settings: Vec<Setting>,
 }
 
-impl From<serde_yaml::Value> for MessageTranslator {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for MessageTranslator {
+    fn from(value: &serde_yaml::Value) -> Self {
         MessageTranslator {
             node_fqn: None,
             template: value["template"].as_str().unwrap_or("").to_string(),

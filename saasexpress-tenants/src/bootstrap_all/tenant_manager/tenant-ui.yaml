@@ -5,17 +5,15 @@ name: tenant-ui
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /ui
-        - /ui/
-        - /ui/{*rest}
+    method: GET
+    routes:
+      - /ui
+      - /ui/
+      - /ui/{*rest}
 
   - id: rp
     operator: APICall
-    config:
-      url: http://localhost:8081
+    url: http://localhost:8081
       # Running locally use:
       #url: http://localhost:5173
 

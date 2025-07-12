@@ -2,19 +2,17 @@ name: ws-2
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      ws: true
-      method: ^(ANY)$
-      routes:
-        - /ws-dest
+    ws: true
+    method: ^(ANY)$
+    routes:
+      - /ws-dest
 
   - id: rp
     operator: APICall
-    config:
-      ws: true
-      method: GET
-      path: /ws-tweak
-      url: http://localhost:2243
+    ws: true
+    method: GET
+    path: /ws-tweak
+    url: http://localhost:2243
 
 edges:
   - { from: start, to: rp }

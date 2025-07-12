@@ -7,52 +7,49 @@ name: ai-function-get-details
 nodes:
   - id: start
     operator: AITool
-    config:
-      schema:
-        name: get_tenant_details
-        description: Get detailed information about a specific tenant
-        parameters:
-          type: object
-          properties:
-            tenant_id:
-              type: string
-              description: Tenant ID to get details for
-          required:
-            - tenant_id
+    schema:
+      name: get_tenant_details
+      description: Get detailed information about a specific tenant
+      parameters:
+        type: object
+        properties:
+          tenant_id:
+            type: string
+            description: Tenant ID to get details for
+        required:
+          - tenant_id
 
   - id: b2j
     operator: BufferToJSON
 
   - id: search_prep
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: APICall
-      template: |
-        { 
-            "path": "/api/tenants/" + data.tenant_id,
-            "body": null
-        }
+    mode: json
+    in_temp: true
+    temp_group: APICall
+    template: |
+      { 
+          "path": "/api/tenants/" + data.tenant_id,
+          "body": null
+      }
 
   - id: j2b
     operator: JSONToBuffer
         
   - id: search
     operator: APICall
-    config:
-      method: GET
-      # path: /api/tenants/{data.id}
-      url: http://localhost:2243
+    method: GET
+    # path: /api/tenants/{data.id}
+    url: http://localhost:2243
 
   - id: result
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "response": data.displayName + " : name: " + data.displayName
-        }
+    mode: json
+    template: |
+      {
+        "response": data.displayName + " : name: " + data.displayName
+      }
+
 edges:
   - { from: start, to: b2j }
   - { from: b2j, to: search_prep }

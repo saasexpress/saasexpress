@@ -38,8 +38,8 @@ pub(super) struct Callout {
     next: Vec<OperatorRole>,
 }
 
-impl From<serde_yaml::Value> for Callout {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Callout {
+    fn from(_value: &serde_yaml::Value) -> Self {
         let graph_name = _value
             .get("graph_name")
             .and_then(|v| v.as_str())

@@ -5,26 +5,23 @@ name: faker
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: POST
-      routes:
-        - /faker
+    method: POST
+    routes:
+      - /faker
 
   - id: b2j
     operator: BufferToJSON
 
   - id: faker
     operator: Faker
-    config: {}
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "first_name": temp.faker.name
-        }
+    mode: json
+    template: |
+      {
+        "first_name": temp.faker.name
+      }
 edges:
   - { from: start, to: b2j }
   - { from: b2j, to: faker }

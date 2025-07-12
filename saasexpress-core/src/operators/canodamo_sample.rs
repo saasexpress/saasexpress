@@ -11,8 +11,8 @@ struct ThisModel {
 #[derive(Debug)]
 pub(super) struct CanonicalModelSample;
 
-impl From<serde_yaml::Value> for CanonicalModelSample {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for CanonicalModelSample {
+    fn from(_value: &serde_yaml::Value) -> Self {
         CanonicalModelSample {}
     }
 }

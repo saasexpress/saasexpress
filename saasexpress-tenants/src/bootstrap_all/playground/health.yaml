@@ -2,19 +2,17 @@ name: health
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /health
+    method: ^(GET)$
+    routes:
+      - /health
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "status": "UP"
-        }
+    mode: json
+    template: |
+      {
+        "status": "UP"
+      }
 
 edges:
   - { from: start, to: translate }

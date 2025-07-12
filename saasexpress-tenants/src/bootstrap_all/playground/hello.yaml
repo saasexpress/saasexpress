@@ -2,27 +2,24 @@ name: hello
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /hello-canodamo
+    method: GET
+    routes:
+      - /hello-canodamo
 
   - id: b2j
     operator: BufferToJSON
 
-
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "name": has(temp.http_in.query.name) ? temp.http_in.query.name : null,
-          "hello": "worldagain",
-          "settings": settings,
-          "temp": temp,
-          "health": data
-        }
+    mode: json
+    template: |
+      {
+        "name": has(temp.http_in.query.name) ? temp.http_in.query.name : null,
+        "hello": "worldagain",
+        "settings": settings,
+        "temp": temp,
+        "health": data
+      }
 
   - id: canodamo
     operator: CanoName

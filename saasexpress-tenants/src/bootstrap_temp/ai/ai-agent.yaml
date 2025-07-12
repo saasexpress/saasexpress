@@ -7,27 +7,24 @@ name: ai-agent
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /ai/agent
+    method: GET
+    routes:
+      - /ai/agent
 
   - id: user_prompt
     operator: MessageTranslator
-    config:
-      in_temp: false
-      template: |
-        {
-            "prompt": temp.http_in.query.prompt
-        }
+    in_temp: false
+    template: |
+      {
+          "prompt": temp.http_in.query.prompt
+      }
      
   - id: agent
     operator: AIAgent
-    config: {}
 
   - id: system_prompt
     operator: Stub
-    config:
+    data:
       content: |
         You are a tenant assistant. Use these functions:
 
@@ -62,18 +59,15 @@ nodes:
 
   - id: tool_get_details
     operator: Callout
-    config:
-      graph_name: ai-function-get-details
+    graph_name: ai-function-get-details
 
   - id: tool_clarify
     operator: Callout
-    config:
-      graph_name: ai-function-clarify
+    graph_name: ai-function-clarify
 
   - id: tool_search
     operator: Callout
-    config:
-      graph_name: ai-function-search
+    graph_name: ai-function-search
 
   # - id: agent_memory
   #   operator: AITool
@@ -81,9 +75,8 @@ nodes:
 
   - id: chatgpt
     operator: APICall
-    config:
-      url: https://api.openai.com/v1/chat/completions
-      method: POST
+    url: https://api.openai.com/v1/chat/completions
+    method: POST
 
   - id: b2j
     operator: BufferToJSON

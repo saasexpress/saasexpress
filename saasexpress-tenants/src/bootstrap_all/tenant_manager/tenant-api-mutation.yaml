@@ -7,15 +7,13 @@ name: tenant-api-mutation
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(PUT|DELETE)$
-      routes:
-        - /api/tenants/{id}
+    method: ^(PUT|DELETE)$
+    routes:
+      - /api/tenants/{id}
 
   - id: rp
     operator: APICall
-    config:
-      url: http://localhost:8081
+    url: http://localhost:8081
 
   - id: fanout
     operator: FanOut
@@ -28,30 +26,28 @@ nodes:
 
   - id: in
     operator: MessageTranslator
-    config:
-      engine: cel-interpreter
-      template: |
-        {
-          "message": "{action} {resource} ({id}) {key}",
-          "result":  "success",
-          "params": {
-            "actor": temp.faker.name,
-            "action": temp.http_in.method,
-            "resource": "Tenant",
-            "id": temp.http_in.params.id,
-            "key": input.resource
-          }
+    engine: cel-interpreter
+    template: |
+      {
+        "message": "{action} {resource} ({id}) {key}",
+        "result":  "success",
+        "params": {
+          "actor": temp.faker.name,
+          "action": temp.http_in.method,
+          "resource": "Tenant",
+          "id": temp.http_in.params.id,
+          "key": input.resource
         }
+      }
 
   - { id: j2b, operator: JSONToBuffer }
 
   - id: create
     operator: APICall
-    config:
-      method: POST
-      url: http://localhost:8081
-      path: /api/activity
-      content_type: application/json
+    method: POST
+    url: http://localhost:8081
+    path: /api/activity
+    content_type: application/json
 
   - id: done
     operator: Passthrough

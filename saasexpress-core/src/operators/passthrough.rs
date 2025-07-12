@@ -14,8 +14,8 @@ use crate::graph::meta::NodeMeta;
 #[derive(Clone, Debug)]
 pub(crate) struct Passthrough;
 
-impl From<serde_yaml::Value> for Passthrough {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Passthrough {
+    fn from(_value: &serde_yaml::Value) -> Self {
         Passthrough {}
     }
 }

@@ -8,17 +8,15 @@ name: services-api-get
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /api/openapi.yaml
-        - /api/services
-        - /api/services/{id}
+    method: ^(GET)$
+    routes:
+      - /api/openapi.yaml
+      - /api/services
+      - /api/services/{id}
 
   - id: rp
     operator: APICall
-    config:
-      url: http://localhost:8081
+    url: http://localhost:8081
 
 edges:
   - { from: start, to: rp }

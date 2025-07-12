@@ -47,8 +47,8 @@ pub(crate) struct HTTPIn {
     settings: Vec<Setting>,
 }
 
-impl From<Value> for HTTPIn {
-    fn from(value: Value) -> Self {
+impl From<&Value> for HTTPIn {
+    fn from(value: &Value) -> Self {
         let routes = value["routes"]
             .as_array()
             .unwrap()
@@ -81,8 +81,8 @@ impl From<Value> for HTTPIn {
     }
 }
 
-impl From<serde_yaml::Value> for HTTPIn {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for HTTPIn {
+    fn from(value: &serde_yaml::Value) -> Self {
         let routes = value["routes"]
             .as_sequence()
             .unwrap()

@@ -18,8 +18,8 @@ use fake::Fake;
 #[derive(Clone, Debug)]
 pub struct Faker;
 
-impl From<serde_yaml::Value> for Faker {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Faker {
+    fn from(_value: &serde_yaml::Value) -> Self {
         Faker {}
     }
 }

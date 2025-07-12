@@ -2,10 +2,9 @@ name: oauth-callback
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /auth/callback
+    method: GET
+    routes:
+      - /auth/callback
 
   - id: b2j
     operator: BufferToJSON
@@ -32,71 +31,66 @@ nodes:
   # OAUTH_CALLBACK_TRANSLATE_CLIENT_SECRET = "client_secret"
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: token
-      template: |
-        {
-          "url": settings.URL,
-          "content_type": "application/x-www-form-urlencoded",
-          "body": {
-            "grant_type": "authorization_code",
-            "code": temp.http_in.query.code,
-            "client_id": settings.CLIENT_ID,
-            "client_secret": settings.CLIENT_SECRET
-          },
-          "path": "",
-          "headers": {}
-        }
+    mode: json
+    in_temp: true
+    temp_group: token
+    template: |
+      {
+        "url": settings.URL,
+        "content_type": "application/x-www-form-urlencoded",
+        "body": {
+          "grant_type": "authorization_code",
+          "code": temp.http_in.query.code,
+          "client_id": settings.CLIENT_ID,
+          "client_secret": settings.CLIENT_SECRET
+        },
+        "path": "",
+        "headers": {}
+      }
 
   - id: j2b
     operator: JSONToBuffer
 
   - id: token
     operator: APICall
-    config:
-      method: POST
-      url: temp.token.url
+    method: POST
+    url: temp.token.url
 
   # Do a callout to get the user info using the access token (or id token)
   # OAUTH_CALLBACK_USERINFO_URL = "https://userinfo"
   - id: userinfo
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: userinfo_call
-      template: |
-        {
-          "url": settings.URL,
-          "content_type": "application/json",
-          "body": null,
-          "path": "",
-          "headers": {
-            "Authorization": "Bearer " + data.access_token
-          }
+    mode: json
+    in_temp: true
+    temp_group: userinfo_call
+    template: |
+      {
+        "url": settings.URL,
+        "content_type": "application/json",
+        "body": null,
+        "path": "",
+        "headers": {
+          "Authorization": "Bearer " + data.access_token
         }
+      }
 
   - id: j2b2
     operator: JSONToBuffer
 
   - id: userinfo_call
     operator: APICall
-    config:
-      method: GET
-      url: temp.token.url
+    method: GET
+    url: temp.token.url
 
 
   - id: claim_check_prep
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "data": data,
-          "temp": temp
-        }
+    mode: json
+    template: |
+      {
+        "data": data,
+        "temp": temp
+      }
 
   - id: claim_check
     operator: ClaimCheck
@@ -105,31 +99,30 @@ nodes:
   # OAUTH_CALLBACK_REDIRECT_COOKIE_DOMAIN = "localhost"
   - id: redirect
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: http_in
-      template: |
-        {
-          "response": {
-            "redirect-url": {
-              "url": settings.URL,
-              "query": {}
-            },
-            "set-cookies": [
-              {
-                "name": "s",
-                "value": data.claim_value,
-                "path": "/",
-                "domain": settings.COOKIE_DOMAIN,
-                "http_only": true,
-                "same_site": "Strict",
-                "secure": true,
-                "expire_hours": 12*1
-              }
-            ]
-          }
+    mode: json
+    in_temp: true
+    temp_group: http_in
+    template: |
+      {
+        "response": {
+          "redirect-url": {
+            "url": settings.URL,
+            "query": {}
+          },
+          "set-cookies": [
+            {
+              "name": "s",
+              "value": data.claim_value,
+              "path": "/",
+              "domain": settings.COOKIE_DOMAIN,
+              "http_only": true,
+              "same_site": "Strict",
+              "secure": true,
+              "expire_hours": 12*1
+            }
+          ]
         }
+      }
 
 edges:
   - { from: start, to: b2j }

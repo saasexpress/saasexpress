@@ -20,8 +20,8 @@ use crate::timestamp::{NaiveDateTimeExt, now};
 #[derive(Debug)]
 pub(crate) struct BufferToJSON;
 
-impl From<serde_yaml::Value> for BufferToJSON {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for BufferToJSON {
+    fn from(_value: &serde_yaml::Value) -> Self {
         BufferToJSON {}
     }
 }

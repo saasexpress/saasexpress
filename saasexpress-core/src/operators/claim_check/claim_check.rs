@@ -39,8 +39,8 @@ pub(crate) struct ClaimCheck {
     action: ClaimCheckAction,
 }
 
-impl From<serde_yaml::Value> for ClaimCheck {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for ClaimCheck {
+    fn from(_value: &serde_yaml::Value) -> Self {
         let action = _value["action"]
             .as_str()
             .map(|s| ClaimCheckAction::from(s))

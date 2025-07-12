@@ -15,8 +15,8 @@ use crate::graph::operator::{
 #[derive(Debug, Clone)]
 pub(crate) struct JSONToBuffer;
 
-impl From<serde_yaml::Value> for JSONToBuffer {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for JSONToBuffer {
+    fn from(_value: &serde_yaml::Value) -> Self {
         JSONToBuffer {}
     }
 }

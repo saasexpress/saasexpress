@@ -2,14 +2,12 @@ name: callout
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /callout
+    method: GET
+    routes:
+      - /callout
 
   - id: callout
     operator: Callout
-    config:
-      graph_name: worker
+    graph_name: worker
 edges:
   - { from: start, to: callout }

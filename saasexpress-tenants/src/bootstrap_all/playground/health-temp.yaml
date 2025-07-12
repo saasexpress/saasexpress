@@ -2,40 +2,36 @@ name: health-temp
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /health-temp
+    method: ^(GET)$
+    routes:
+      - /health-temp
 
   - id: rp
     operator: APICall
-    config:
-      path: "/health"
-      url: http://localhost:2243
+    path: "/health"
+    url: http://localhost:2243
 
   - id: b2j
     operator: BufferToJSON
 
   - id: translate0
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      template: |
-        {
-          "info": true
-        }
+    mode: json
+    in_temp: true
+    template: |
+      {
+        "info": true
+      }
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "settings": settings,
-          "temp": temp,
-          "health": data
-        }
+    mode: json
+    template: |
+      {
+        "settings": settings,
+        "temp": temp,
+        "health": data
+      }
 
 edges:
   - { from: start, to: rp }

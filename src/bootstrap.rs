@@ -39,7 +39,7 @@ pub fn build_graph(yaml: Value) -> String {
     // );
     // let _nodes_guard = nodes_span.enter();
 
-    for (idx, node) in yaml["nodes"].as_sequence().unwrap().iter().enumerate() {
+    for (_, node) in yaml["nodes"].as_sequence().unwrap().iter().enumerate() {
         // let node_span = tracing::info_span!("add_node", node_index = idx);
         // let _node_guard = node_span.enter();
 

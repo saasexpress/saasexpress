@@ -74,7 +74,7 @@ use super::{
 pub fn add_node_to_graph(spec: &serde_yaml::Value, graph: &mut Graph) {
     let id = spec["id"].as_str().unwrap();
     let name = spec["operator"].as_str().unwrap();
-    let value = spec["config"].clone();
+    let value = spec; //spec["config"].clone();
     match name {
         "Callout" => graph.add_node(id, Callout::from(value)),
         "BufferToJSON" => graph.add_node(id, BufferToJSON::from(value)),

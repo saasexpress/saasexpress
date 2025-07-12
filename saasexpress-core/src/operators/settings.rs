@@ -28,8 +28,8 @@ pub(crate) struct Settings {
     next: Vec<OperatorRole>,
 }
 
-impl From<serde_yaml::Value> for Settings {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Settings {
+    fn from(_value: &serde_yaml::Value) -> Self {
         Settings {
             id: String::new(),
             graph_name: String::new(),

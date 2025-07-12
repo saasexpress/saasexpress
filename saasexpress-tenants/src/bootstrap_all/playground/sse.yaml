@@ -2,18 +2,16 @@ name: sse
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      sse: true
-      method: ^(GET)$
-      routes:
-        - /sse
+    sse: true
+    method: ^(GET)$
+    routes:
+      - /sse
 
   - id: rp
     operator: APICall
-    config:
-      sse: true
-      path: /sse-source
-      url: http://localhost:2243
+    sse: true
+    path: /sse-source
+    url: http://localhost:2243
 
 edges:
   - { from: start, to: rp }

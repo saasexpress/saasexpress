@@ -5,30 +5,29 @@ name: tenant-ui-redirect
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /
+    method: GET
+    routes:
+      - /
 
   - id: redirect
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: http_in
-      template: |
-        {
-          "response": {
-            "redirect-url": {
-              "url": "/ui/",
-              "query": {}
-            },
-            "set-cookies": []
-          }
+    mode: json
+    in_temp: true
+    temp_group: http_in
+    template: |
+      {
+        "response": {
+          "redirect-url": {
+            "url": "/ui/",
+            "query": {}
+          },
+          "set-cookies": []
         }
+      }
 
   - id: b2j
     operator: BufferToJSON
+
 edges:
   - { from: start, to: redirect }
   - { from: redirect, to: b2j }

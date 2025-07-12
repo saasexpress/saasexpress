@@ -2,6 +2,6 @@ name: worker
 nodes:
   - id: start
     operator: Stub
-    config:
+    data:
       name: Joe
 edges: []

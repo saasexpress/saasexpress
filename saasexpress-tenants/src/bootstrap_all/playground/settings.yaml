@@ -2,30 +2,28 @@ name: settings
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /settings
+    method: ^(GET)$
+    routes:
+      - /settings
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "settings": {
-            "stub": {
-              "name": "Bar"
-            }
+    mode: json
+    template: |
+      {
+        "settings": {
+          "stub": {
+            "name": "Bar"
           }
         }
+      }
 
   - id: settings
     operator: Settings
 
   - id: stub
     operator: Stub
-    config:
+    data:
       name: Foo
 
 edges:

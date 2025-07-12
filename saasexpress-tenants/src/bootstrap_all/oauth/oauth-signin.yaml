@@ -4,10 +4,9 @@ name: oauth-signin
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /auth/signin
+    method: GET
+    routes:
+      - /auth/signin
 
 
   # OAUTH_SIGNIN_PREP_CLIENT_ID = "client_id"
@@ -15,29 +14,29 @@ nodes:
   # OAUTH_SIGNIN_PREP_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: http_in
-      template: |
-        {
-          "response": {
-            "redirect-url": {
-              "url": settings.AUTH_URL,
-              "query": {
-                "prompt": "login consent",
-                "scope": "openid offline_access profile email",
-                "client_id": settings.CLIENT_ID,
-                "response_type": "code",
-                "redirect_uri": settings.EXTERNAL_URL + "/auth/callback"
-              }
-            },
-            "set-cookies": []
-          }
+    mode: json
+    in_temp: true
+    temp_group: http_in
+    template: |
+      {
+        "response": {
+          "redirect-url": {
+            "url": settings.AUTH_URL,
+            "query": {
+              "prompt": "login consent",
+              "scope": "openid offline_access profile email",
+              "client_id": settings.CLIENT_ID,
+              "response_type": "code",
+              "redirect_uri": settings.EXTERNAL_URL + "/auth/callback"
+            }
+          },
+          "set-cookies": []
         }
+      }
 
   - id: b2j
     operator: BufferToJSON
+
 edges:
   - { from: start, to: prep }
   - { from: prep, to: b2j }

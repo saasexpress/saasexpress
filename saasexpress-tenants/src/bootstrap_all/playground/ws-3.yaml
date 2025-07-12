@@ -2,25 +2,23 @@ name: ws-3
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      ws: true
-      method: ^(ANY)$
-      routes:
-        - /ws-tweak
+    ws: true
+    method: ^(ANY)$
+    routes:
+      - /ws-tweak
 
   - id: b2j
     operator: BufferToJSON
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "temp": temp,
-          "resource": input.resource,
-          "data": data
-        }
+    mode: json
+    template: |
+      {
+        "temp": temp,
+        "resource": input.resource,
+        "data": data
+      }
 
   - id: j2b
     operator: JSONToBuffer

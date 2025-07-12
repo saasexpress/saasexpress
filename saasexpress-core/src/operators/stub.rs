@@ -16,13 +16,15 @@ use crate::graph::meta::NodeMeta;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Stub {
-    value: Option<serde_yaml::Value>,
+    yaml: Option<serde_yaml::Value>,
 }
 
-impl From<serde_yaml::Value> for Stub {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Stub {
+    fn from(value: &serde_yaml::Value) -> Self {
+        let data = value.get("data").unwrap();
+
         Stub {
-            value: Some(_value),
+            yaml: Some(data.clone()),
         }
     }
 }
@@ -52,7 +54,7 @@ impl Operator for Stub {
                     debug!("Received SetSettings command with value: {:?}", settings);
                     let value = serde_yaml::to_value(&settings)
                         .expect("Failed to convert settings to serde_yaml::Value");
-                    self.value = Some(value);
+                    self.yaml = Some(value);
                 }
                 _ => {
                     error!("Invalid control command: {:?}", command);
@@ -93,7 +95,7 @@ impl OperatorRuntime for Stub {
         match _message {
             _ => {
                 return Message::JSON {
-                    message: self.yaml_to_json(self.value.as_ref().unwrap()),
+                    message: self.yaml_to_json(self.yaml.as_ref().unwrap()),
                     origin,
                 };
             }

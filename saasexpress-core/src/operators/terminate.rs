@@ -16,8 +16,8 @@ use crate::graph::meta::NodeMeta;
 #[derive(Clone, Debug)]
 pub(crate) struct Terminate;
 
-impl From<serde_yaml::Value> for Terminate {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Terminate {
+    fn from(_value: &serde_yaml::Value) -> Self {
         Terminate {}
     }
 }

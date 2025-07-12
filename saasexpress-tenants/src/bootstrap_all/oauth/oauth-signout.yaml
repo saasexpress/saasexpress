@@ -4,25 +4,22 @@ name: oauth-signout
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /auth/signout
+    method: GET
+    routes:
+      - /auth/signout
 
   # Remove claim ticket
   - id: get_claim
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "claim_id": temp.http_in.cookies.s
-        }
+    mode: json
+    template: |
+      {
+        "claim_id": temp.http_in.cookies.s
+      }
 
   - id: claim_check
     operator: ClaimCheck
-    config:
-      operator: Clear
+    action: Clear
 
   # OAUTH_SIGNOUT_PREP_END_URL = "/oidc/end"
   # OAUTH_SIGNOUT_PREP_COOKIE_DOMAIN = "localhost"
@@ -30,37 +27,37 @@ nodes:
   # OAUTH_SIGNOUT_PREP_END_EXTERNAL_URL = "http://localhost:2243/ui/"
   - id: prep
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: true
-      temp_group: http_in
-      template: |
-        {
-          "response": {
-            "redirect-url": {
-              "url": settings.END_URL,
-              "query": {
-                "client_id": settings.CLIENT_ID,
-                "post_logout_redirect_uri": settings.EXTERNAL_URL + "/ui/",
-              }
-            },
-            "set-cookies": [
-              {
-                "name": "s",
-                "value": "deleted",
-                "path": "/",
-                "domain": settings.COOKIE_DOMAIN,
-                "http_only": true,
-                "same_site": "Strict",
-                "secure": true,
-                "expire_hours": -8760
-              }
-            ]
-          }
+    mode: json
+    in_temp: true
+    temp_group: http_in
+    template: |
+      {
+        "response": {
+          "redirect-url": {
+            "url": settings.END_URL,
+            "query": {
+              "client_id": settings.CLIENT_ID,
+              "post_logout_redirect_uri": settings.EXTERNAL_URL + "/ui/",
+            }
+          },
+          "set-cookies": [
+            {
+              "name": "s",
+              "value": "deleted",
+              "path": "/",
+              "domain": settings.COOKIE_DOMAIN,
+              "http_only": true,
+              "same_site": "Strict",
+              "secure": true,
+              "expire_hours": -8760
+            }
+          ]
         }
+      }
 
   - id: b2j
     operator: BufferToJSON
+
 edges:
   - { from: start, to: get_claim }
   - { from: get_claim, to: claim_check }

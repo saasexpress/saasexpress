@@ -3,37 +3,33 @@ name: oauth-session
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: GET
-      routes:
-        - /auth/session
+    method: GET
+    routes:
+      - /auth/session
 
   - id: get_claim
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "claim_id": temp.http_in.cookies.s
-        }
+    mode: json
+    template: |
+      {
+        "claim_id": temp.http_in.cookies.s
+      }
 
   - id: claim_check
     operator: ClaimCheck
-    config:
-      operator: Get
+    action: Get
 
   - id: b2j
     operator: BufferToJSON
 
   - id: response
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "sub": data.data.sub,
-          "email": data.data.email
-        }
+    mode: json
+    template: |
+      {
+        "sub": data.data.sub,
+        "email": data.data.email
+      }
 
 edges:
   - { from: start, to: get_claim }

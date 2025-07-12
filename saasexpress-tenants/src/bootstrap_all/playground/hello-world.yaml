@@ -2,19 +2,17 @@ name: hello-world
 nodes:
   - id: start
     operator: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /hello
+    method: ^(GET)$
+    routes:
+      - /hello
 
   - id: translate
     operator: MessageTranslator
-    config:
-      mode: json
-      template: |
-        {
-          "message": "Hello World!"
-        }
+    mode: json
+    template: |
+      {
+        "message": "Hello World!"
+      }
 
 edges:
   - { from: start, to: translate }

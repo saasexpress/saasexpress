@@ -21,8 +21,8 @@ use super::resource::WidgetsSharedService;
 #[derive(Clone, Debug)]
 pub(crate) struct GlobalSpace;
 
-impl From<serde_yaml::Value> for GlobalSpace {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for GlobalSpace {
+    fn from(_value: &serde_yaml::Value) -> Self {
         GlobalSpace {}
     }
 }

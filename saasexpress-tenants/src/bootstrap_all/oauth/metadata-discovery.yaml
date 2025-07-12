@@ -10,20 +10,19 @@ nodes:
   # OAUTH_METADATA_DISCOVERY_CALL_URL = "https://discovery"
   - id: call
     operator: APICall
-    config:
-      url: "{OAUTH_SERVER}.well-known/openid-configuration"
+    url: "{OAUTH_SERVER}.well-known/openid-configuration"
+
   - id: reduce
     operator: MessageTranslator
-    config:
-      mode: json
-      in_temp: false
-      temp_group: discovery
-      template: |
-        {
-          "token_endpoint": data.token_endpoint,
-          "authorization_endpoint": data.authorization_endpoint,
-          "userinfo_endpoint": data.userinfo_endpoint,
-        }
+    mode: json
+    in_temp: false
+    temp_group: discovery
+    template: |
+      {
+        "token_endpoint": data.token_endpoint,
+        "authorization_endpoint": data.authorization_endpoint,
+        "userinfo_endpoint": data.userinfo_endpoint,
+      }
 
 edges:
   - { from: call, to: reduce }
