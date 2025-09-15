@@ -36,7 +36,7 @@ impl BasicProcessor {
         // return Message::Standard { message: vec![] };
     }
 
-    pub async fn wait(&mut self) -> Message {
+    async fn wait(&mut self) -> Message {
         while let Some(msg) = self.end.recv().await {
             match msg {
                 _ => {

@@ -1,21 +1,28 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
+    ptr::null,
     sync::{Arc, Mutex},
     thread::sleep,
 };
 
 use crate::operators::message_translator::cel_to_json::cel_value_to_json;
-use cel_interpreter::{Context, Program, Value};
+use axum::extract::Query;
+use cel_interpreter::{Context, Program, Value, extractors::This, objects::Map};
 use fastrace::{local::LocalSpan, trace};
 use opentelemetry::{KeyValue, trace::get_active_span};
-use saasexpress_core::settings::settings::ToHashMap;
 use saasexpress_core::{
     graph::{
-        graph::{AsyncHandleTrait, Graph, Operator, OperatorType},
+        graph::{AsyncHandleTrait, Graph},
         message::{Message, OriginMessage},
+        operator::{GraphOperatorContext, Operator, OperatorRef, OperatorRuntime, OperatorType},
     },
     settings::settings::{Setting, env_settings},
+    timestamp::{NaiveDateTimeExt, now},
+};
+use saasexpress_core::{
+    graph::{message::ControlCommand, meta::NodeMeta},
+    settings::settings::ToHashMap,
 };
 use serde_json::{Value as JsonValue, json};
 use tracing::{Level, Span, debug, error, info, info_span, instrument, span};
@@ -35,7 +42,7 @@ impl Display for MessageTranslatorEngine {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum MessageTranslatorMode {
     Expression,
     JSON,
@@ -53,18 +60,24 @@ impl MessageTranslatorMode {
 
 #[derive(Debug)]
 pub(crate) struct MessageTranslator {
+    node_fqn: Option<String>,
     template: String,
     engine: MessageTranslatorEngine,
 
     mode: MessageTranslatorMode,
+    in_temp: bool,
+    temp_group: Option<String>,
     settings: Vec<Setting>,
 }
 
-impl From<serde_yaml::Value> for MessageTranslator {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for MessageTranslator {
+    fn from(value: &serde_yaml::Value) -> Self {
         MessageTranslator {
+            node_fqn: None,
             template: value["template"].as_str().unwrap_or("").to_string(),
-            settings: env_settings("MESSAGE_TRANSLATOR".to_string()),
+            in_temp: value["in_temp"].as_bool().unwrap_or(false),
+            temp_group: value["temp_group"].as_str().map(|s| s.to_string()),
+            settings: Vec::new(),
             mode: MessageTranslatorMode::from(value["mode"].as_str().unwrap_or("json").to_string()),
             engine: value
                 .get("engine")
@@ -91,80 +104,57 @@ impl Operator for MessageTranslator {
         "MessageTranslator".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
+    fn new_runtime(
+        &self,
+        _graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(MessageTranslator {
+            node_fqn: self.node_fqn.clone(),
+            template: self.template.clone(),
+            engine: MessageTranslator::compile(
+                "cel-interpreter".to_string().as_str(),
+                &self.template,
+            ),
+            mode: self.mode.clone(),
+            in_temp: self.in_temp,
+            temp_group: self.temp_group.clone(),
+            settings: self.settings.clone(),
+        })
     }
 
-    fn handle(&self, _message: Message) -> Message {
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.node_fqn = Some(node_meta.fqn());
+        if self.temp_group.is_none() {
+            self.temp_group = Some(node_meta.name.to_string());
+        }
+
+        self.settings = env_settings(node_meta.base_env_vars_settings(node_meta))
+    }
+
+    fn control(&mut self, _message: Message) {
         match _message {
-            Message::JSON { message, origin } => {
-                let cel_value = self.parse(&message);
-
-                Message::JSON {
-                    message: cel_value,
-                    origin,
+            Message::Control { command, .. } => {
+                let mut current_settings = self.settings.to_owned();
+                match command {
+                    ControlCommand::SetSettings { settings } => {
+                        settings.iter().for_each(|(k, v)| {
+                            current_settings.push(Setting {
+                                key: k.replace("-", "_").to_uppercase().to_string(),
+                                value: v.as_str().unwrap_or("").to_string(),
+                            });
+                        });
+                    }
+                    _ => {
+                        panic!("Invalid control command {:?}", command);
+                    }
                 }
+                self.settings = current_settings;
             }
-            Message::ReqReply {
-                message,
-                respond_to,
-                span,
-                ..
-            } => {
-                debug!(
-                    "Data message {:?}",
-                    String::from_utf8(message.clone()).unwrap()
-                );
 
-                let json: serde_json::Value = match message {
-                    message if message.is_empty() => serde_json::from_str("{}").unwrap(),
-                    _ => serde_json::from_slice(&message).unwrap(),
-                };
-
-                let cel_value = self.parse(&json);
-
-                Message::JSON {
-                    message: cel_value,
-                    origin: Some(OriginMessage::new(Some(respond_to)).with_span(span)),
-                }
-            }
-            Message::Exit { origin } => Message::Exit { origin },
-            // Message::ReqReply {
-            //     message,
-            //     respond_to,
-            //     ..
-            // } => {
-            //     return Message::Standard {
-            //         message,
-            //         origin: Some(OriginMessage { respond_to }),
-            //     };
-            // }
             _ => {
-                error!("Unexpected message type {}", _message);
-                Message::Error {
-                    error: "Unexpected message type".to_string(),
-                }
+                panic!("Unexpected message type for control");
             }
         }
-    }
-
-    fn init(&mut self, _: &mut Graph) {
-        debug!("Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        debug!("Not implemented");
-    }
-
-    fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
     }
 }
 
@@ -176,8 +166,17 @@ impl MessageTranslator {
     //     Program::compile(template).unwrap()
     // }
 
+    fn compile(engine: &str, template: &str) -> MessageTranslatorEngine {
+        match engine {
+            "cel-interpreter" => MessageTranslatorEngine::CelInterpreter {
+                program: Program::compile(template).expect("Failed to compile CEL template"),
+            },
+            _ => panic!("Unknown engine: {}", engine),
+        }
+    }
+
     #[trace(short_name = true)]
-    fn parse(&self, data: &JsonValue) -> JsonValue {
+    fn parse(&self, data: &JsonValue, input: JsonValue, temp: &JsonValue) -> JsonValue {
         let program = {
             let _guard = LocalSpan::enter_with_local_parent("program");
             match &self.engine {
@@ -195,18 +194,12 @@ impl MessageTranslator {
             let mut context = Context::default();
             let _guard = LocalSpan::enter_with_local_parent("context");
 
-            context.add_function("add", |a: i64, b: i64| a + b);
+            context = add_functions(context);
 
             debug!("Templ {}", self.template);
-            debug!("In {}", serde_json::to_string_pretty(data).unwrap());
-
-            let input = json!({
-                "resource": "Tenant",
-                "http_method": "POST",
-                "query": {
-                    "prompt": "Hello World"
-                }
-            });
+            debug!("Data {}", serde_json::to_string_pretty(data).unwrap());
+            debug!("Input {}", serde_json::to_string_pretty(&input).unwrap());
+            debug!("Temp {}", serde_json::to_string_pretty(&temp).unwrap());
 
             context
                 .add_variable("data", cel_data)
@@ -220,6 +213,11 @@ impl MessageTranslator {
             context
                 .add_variable("input", input)
                 .expect("Variable input problem");
+
+            context
+                .add_variable("temp", temp)
+                .expect("Variable temp problem");
+
             //sleep(std::time::Duration::from_millis(100));
             context
         };
@@ -250,5 +248,184 @@ impl MessageTranslator {
                 }
             }
         }
+    }
+}
+
+fn is_empty(This(s): This<Arc<String>>) -> bool {
+    error!("is_empty {} {}", s, s.is_empty());
+    s.is_empty()
+}
+
+fn use_one(a: Arc<String>, b: Arc<String>) -> String {
+    error!("use_one {} {}", a, b);
+    if !a.is_empty() {
+        return a.to_string();
+    }
+    if !b.is_empty() {
+        return b.to_string();
+    }
+    return "".to_string();
+}
+
+fn add_functions(mut context: Context) -> Context {
+    context.add_function("add", |a: i64, b: i64| a + b);
+
+    context.add_function("use_one", |a: Arc<String>, b: Arc<String>| use_one(a, b));
+    context.add_function("is_empty", is_empty);
+    context.add_function("now", || now().to_rfc3339());
+    context
+}
+
+impl OperatorRuntime for MessageTranslator {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        info!("Handling message in MessageTranslator: {}", _message);
+        match _message {
+            Message::Standard { mut origin, .. } => {
+                let input = json!({
+                    "resource": self.node_fqn,
+                });
+
+                let message = json!({});
+
+                let cel_value = {
+                    let temp = &origin.as_ref().unwrap().temp;
+
+                    let temp = temp.lock().unwrap();
+                    self.parse(&message, input, &temp)
+                };
+
+                if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
+                    let og = origin.unwrap();
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let og = og.temp_push(temp_group, cel_value);
+
+                    Message::JSON {
+                        message,
+                        origin: Some(
+                            OriginMessage::new(og.respond_to)
+                                .with_span(og.span)
+                                .with_temp(og.temp),
+                        ),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin,
+                    }
+                }
+            }
+            Message::JSON { message, origin } => {
+                let input = json!({
+                    "resource": self.node_fqn,
+                });
+
+                let cel_value = {
+                    let temp = &origin.as_ref().unwrap().temp;
+
+                    let temp = temp.lock().unwrap();
+                    self.parse(&message, input, &temp)
+                };
+
+                if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
+                    let og = origin.unwrap();
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let og = og.temp_push(temp_group, cel_value);
+
+                    Message::JSON {
+                        message,
+                        origin: Some(
+                            OriginMessage::new(og.respond_to)
+                                .with_span(og.span)
+                                .with_temp(og.temp),
+                        ),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin,
+                    }
+                }
+            }
+            Message::ReqReply {
+                message,
+                respond_to,
+                span,
+                temp,
+                ..
+            } => {
+                debug!(
+                    "Data message {:?}",
+                    String::from_utf8(message.clone()).unwrap()
+                );
+
+                let input = json!({
+                    "resource": self.node_fqn,
+                });
+
+                let json: serde_json::Value = match &message {
+                    message if message.is_empty() => serde_json::from_str("{}").unwrap(),
+                    _ => serde_json::from_slice(&message).unwrap(),
+                };
+
+                let cel_value = {
+                    let temp = temp.lock().unwrap();
+                    self.parse(&json, input, &temp)
+                };
+
+                if self.in_temp {
+                    let temp_group = self.temp_group.clone().unwrap();
+
+                    let origin = OriginMessage::new(Some(respond_to))
+                        .with_span(span)
+                        .with_temp(temp);
+
+                    debug!("Pushing into temp: [{}] = {}", temp_group, cel_value);
+                    let origin = origin.temp_push(temp_group, cel_value);
+
+                    Message::Standard {
+                        message,
+                        origin: Some(origin),
+                    }
+                } else {
+                    Message::JSON {
+                        message: cel_value,
+                        origin: Some(
+                            OriginMessage::new(Some(respond_to))
+                                .with_span(span)
+                                .with_temp(temp),
+                        ),
+                    }
+                }
+            }
+            Message::Exit { origin } => Message::Exit { origin },
+            Message::Error { error, origin } => return Message::Error { error, origin },
+            _ => {
+                error!("Unexpected message type {}", _message);
+                Message::Error {
+                    error: "Unexpected message type".to_string(),
+                    origin: None,
+                }
+            }
+        }
+    }
+
+    fn send(&self, _: Message) {
+        panic!("Not implemented");
     }
 }

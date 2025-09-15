@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{mpsc, oneshot};
@@ -5,20 +6,26 @@ use tracing::{debug, error, info, warn};
 
 use crate::graph::message::{Message, OriginMessage};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, Operator, OperatorType, Origin};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+};
+
+use crate::graph::meta::NodeMeta;
 use crate::operators::shell::process::ShellProcess;
 
 use super::resources::get_instance;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Shell {
+    id: String,
     command: String,
     args: Vec<String>,
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
 }
 
-impl From<serde_yaml::Value> for Shell {
-    fn from(value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for Shell {
+    fn from(value: &serde_yaml::Value) -> Self {
         let command = value
             .get("command")
             .and_then(|v| v.as_str())
@@ -36,6 +43,7 @@ impl From<serde_yaml::Value> for Shell {
             .unwrap_or_default();
 
         Shell {
+            id: "".to_string(),
             command,
             args,
             next: Vec::new(),
@@ -50,6 +58,74 @@ impl Operator for Shell {
 
     fn name(&self) -> String {
         "Shell".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = graph_operator_context.get_next_nodes();
+
+        Arc::new(Shell {
+            id: self.id.clone(),
+            command: self.command.clone(),
+            args: self.args.clone(),
+            next: next_nodes,
+        })
+    }
+
+    fn init(&mut self, _graph: &mut Graph, node_meta: &NodeMeta) {
+        self.id = node_meta.name.clone();
+        info!(
+            "Initializing shell operator with command: {} {}",
+            self.command,
+            self.args.join(" ")
+        );
+    }
+
+    fn control(&mut self, _message: Message) {
+        match _message {
+            Message::Control { .. } => {
+                debug!("Control");
+            }
+
+            _ => {
+                panic!("Unexpected message type for control");
+            }
+        }
+    }
+
+    // fn wait(&self) -> Message {
+    //     panic!("Wait not implemented for Shell operator");
+    // }
+
+    // fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
+    //     panic!("Get output channels not implemented for Shell operator");
+    // }
+}
+
+impl Shell {
+    fn next(&self, message: Message) {
+        let mut counter = 0;
+        for n in &self.next {
+            if counter == 0 {
+                n.operator.send(message);
+                break;
+            } else {
+                info!("Not implemented");
+            }
+            counter = counter + 1;
+        }
+    }
+}
+
+impl OperatorRuntime for Shell {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
     }
 
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
@@ -110,7 +186,7 @@ impl Operator for Shell {
                     .and_then(|o| o.session.clone())
                     .unwrap_or_default();
 
-                info!("Message for session id {:?}", session_id);
+                info!("Message for session ID {:?}", session_id);
                 let mut processes = get_instance().lock().unwrap();
 
                 let process = processes.get_process(session_id.clone());
@@ -201,15 +277,18 @@ impl Operator for Shell {
                     }
                 };
 
-                shell_process.command(
-                    message
-                        .get("command")
-                        .unwrap()
-                        .as_str()
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                );
+                // the message does not have to have a command, it can be just a signal to start the process
+                if message.get("command").is_some() {
+                    shell_process.command(
+                        message
+                            .get("command")
+                            .unwrap()
+                            .as_str()
+                            .unwrap()
+                            .as_bytes()
+                            .to_vec(),
+                    );
+                }
 
                 processes.add_process(session_id, shell_process);
 
@@ -228,55 +307,7 @@ impl Operator for Shell {
         }
     }
 
-    fn init(&mut self, _graph: &mut Graph) {
-        info!(
-            "Initializing shell operator with command: {} {}",
-            self.command,
-            self.args.join(" ")
-        );
-    }
-
-    fn control(&mut self, _message: Message) {
-        match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
-            }
-            _ => {
-                panic!("Unexpected message type for control");
-            }
-        }
-    }
     fn send(&self, message: Message) {
-        //panic!("Send not implemented for Shell operator");
         self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Wait not implemented for Shell operator");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Get output channels not implemented for Shell operator");
-    }
-}
-
-impl Shell {
-    fn next(&self, message: Message) {
-        let mut counter = 0;
-        for n in &self.next {
-            if counter == 0 {
-                n.lock().unwrap().send(message);
-                break;
-            } else {
-                info!("Not implemented");
-            }
-            counter = counter + 1;
-        }
-    }
-
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
-        self.next.push(operator);
     }
 }

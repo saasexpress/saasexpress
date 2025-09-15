@@ -1,0 +1,13 @@
+name: callout
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /callout
+
+  - id: callout
+    operator: Callout
+    graph_name: worker
+edges:
+  - { from: start, to: callout }

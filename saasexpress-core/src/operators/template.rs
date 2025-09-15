@@ -1,12 +1,17 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tracing::{error, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorState,
+    OperatorType,
+};
 
 use crate::graph::message::Message;
 
-use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Template;
@@ -26,6 +31,31 @@ impl Operator for Template {
         "Template".to_string()
     }
 
+    fn new_runtime(
+        &self,
+        _graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        warn!("Init Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        warn!("Control Not implemented");
+    }
+}
+
+impl OperatorRuntime for Template {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
         None
     }
@@ -42,28 +72,13 @@ impl Operator for Template {
                 error!("Unexpected message type {}", _message);
                 Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 }
             }
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {
-        warn!("Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        warn!("Not implemented");
-    }
-
     fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
+        panic!("Send Not implemented");
     }
 }

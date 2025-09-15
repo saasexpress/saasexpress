@@ -1,0 +1,69 @@
+#
+# - make the input and output available in content enricher
+# - have "variables" in the content-enricher
+#
+#
+name: activity-api-mutation
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(DELETE|POST)$
+    routes:
+      - /api/activity
+      - /api/activity/{id}
+
+  - id: rp
+    operator: APICall
+    url: http://localhost:8081
+
+  - id: fanout
+    operator: FanOut
+
+  # - id: bufin
+  #   operator: BufferToJSON
+
+  # - id: in
+  #   operator: MessageTranslator
+  #   config:
+  #     engine: cel-interpreter
+  #     template: |
+  #       {
+  #         "message": "{action} {resource} ({id})",
+  #         "result":  "success",
+  #         "params": {
+  #           "action":  input.http_method,
+  #           "resource": "Activity",
+  #           "id": data.id
+  #         }
+  #       }
+
+  # - { id: j2b, operator: JSONToBuffer }
+
+  # - id: create
+  #   operator: APICall
+  #   config:
+  #     method: POST
+  #     url: http://localhost:8081
+  #     path: /api/activity
+  #     content_type: application/json
+
+  - id: done
+    operator: Passthrough
+
+  - id: terminate
+    operator: Terminate
+
+  # - { id: bufout, operator: JSONToBuffer }
+
+edges:
+  - { from: start, to: rp }
+  - { from: rp, to: fanout }
+  - { from: fanout, to: done }
+
+  - { from: fanout, to: terminate }
+  # - { from: bufin, to: in }
+  # - { from: in, to: j2b }
+  # - { from: j2b, to: create }
+  # - { from: create, to: terminate }
+
+  # - { from: bufin, to: bufout }

@@ -1,0 +1,18 @@
+name: ws-1
+nodes:
+  - id: start
+    operator: HTTPIn
+    ws: true
+    method: ^(ANY)$
+    routes:
+      - /ws1
+
+  - id: rp
+    operator: APICall
+    ws: true
+    path: /ws-dest
+    method: GET
+    url: http://localhost:2243
+
+edges:
+  - { from: start, to: rp }

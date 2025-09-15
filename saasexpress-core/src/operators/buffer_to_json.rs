@@ -1,59 +1,74 @@
 use core::panic;
-use serde_json::Value;
+use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use tracing::{debug, error, warn};
 
 use crate::graph::message::Message;
 use crate::graph::message::OriginMessage;
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    Filter2Operator, GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime,
+    OperatorType,
+};
 
-use crate::graph::graph::Operator;
-//use chrono::{NaiveDate, TimeZone, Utc};
+use crate::graph::meta::NodeMeta;
+use crate::timestamp::{NaiveDateTimeExt, now};
 
 #[derive(Debug)]
 pub(crate) struct BufferToJSON;
 
-impl From<serde_yaml::Value> for BufferToJSON {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for BufferToJSON {
+    fn from(_value: &serde_yaml::Value) -> Self {
         BufferToJSON {}
     }
 }
 
-impl Operator for BufferToJSON {
-    fn _type(&self) -> OperatorType {
-        OperatorType::Filter
-    }
-
-    fn name(&self) -> String {
-        "BufferToJSON".to_string()
-    }
-
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
-    }
-
+impl Filter2Operator for BufferToJSON {
     fn handle(&self, _message: Message) -> Message {
-        debug!("BufferToJSON Processing...");
-
         match _message {
             Message::ReqReply {
                 message,
                 respond_to,
                 span,
+                temp,
                 ..
             } => {
-                debug!("Passthrough message");
+                debug!("[Filter2] ReqReply to JSON message");
 
-                let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
+                let origin = Some(
+                    OriginMessage::new(Some(respond_to))
+                        .with_span(span)
+                        .with_temp(temp),
+                );
 
-                let origin = Some(OriginMessage::new(Some(respond_to)).with_span(span));
+                if message.is_empty() {
+                    let empty = json!({});
+                    return to_json(empty, origin);
+                }
+
+                let result: Value = match serde_json::from_slice(&message) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        error!("Error serializing JSON to Vec<u8>: {}", e);
+                        return Message::Error {
+                            error: "Error serializing JSON".to_string(),
+                            origin: None,
+                        };
+                    }
+                };
 
                 return to_json(result, origin);
             }
             Message::Standard { message, origin } => {
                 debug!("Standard not expected");
+                if message.is_empty() {
+                    warn!("What??? Empty! {:?}", message);
+                    let empty = json!({});
+                    return to_json(empty, origin);
+                }
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
                 return to_json(result, origin);
             }
@@ -67,53 +82,97 @@ impl Operator for BufferToJSON {
                 let result: Value = serde_json::from_slice(&message).expect("JSON parse error");
                 return to_json(result, origin);
             }
+            Message::Error { error, origin } => return Message::Error { error, origin },
+            Message::Exit { origin } => {
+                return Message::Exit { origin };
+            }
             _ => {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 };
             }
         };
     }
+}
 
-    fn init(&mut self, _: &mut Graph) {
-        debug!("Not implemented");
+impl Operator for BufferToJSON {
+    fn _type(&self) -> OperatorType {
+        OperatorType::Filter2 {
+            operator: Arc::new(BufferToJSON {}),
+        }
+    }
+
+    fn name(&self) -> String {
+        "BufferToJSON".to_string()
+    }
+
+    fn new_runtime(
+        &self,
+        _graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(BufferToJSON {})
+    }
+
+    // fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+    //     None
+    // }
+
+    // fn handle(&self, _message: Message) -> Message {
+    //     panic!("BufferToJSON - Handle Not implemented");
+    // }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        debug!("Init Not implemented");
     }
 
     fn control(&mut self, _: Message) {
-        debug!("Not implemented");
+        debug!("Control Not implemented");
     }
 
-    fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
+    // fn send(&self, _: Message) {
+    //     panic!("Send Not implemented");
+    // }
 
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
+    // fn wait(&self) -> Message {
+    //     panic!("Wait Not implemented");
+    // }
 
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
-    }
+    // fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
+    //     panic!("Not implemented");
+    // }
 }
 
 fn to_json(mut data: Value, origin: Option<OriginMessage>) -> Message {
-    // let naive_date = NaiveDate::from_ymd_opt(2016, 7, 8).unwrap();
-    // let naive_datetime = naive_date.and_hms_opt(9, 10, 11).unwrap();
-    // let dt = Utc.from_utc_datetime(&naive_datetime);
-
-    // let dt = Utc::now();
-    let dt = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("Time went backwards");
-    let dt = dt.as_secs();
-
     data.as_object_mut()
         .unwrap()
-        .insert("_ts".to_string(), Value::Number(dt.into()));
+        .insert("_ts".to_string(), Value::String(now().to_rfc3339()));
 
     return Message::JSON {
         message: data,
         origin,
     };
+}
+
+impl OperatorRuntime for BufferToJSON {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn handle(&self, message: Message) -> Message {
+        panic!("BufferToJSON - Handle Not implemented");
+    }
+
+    fn send(&self, _message: Message) {
+        panic!("Send Not implemented");
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
 }

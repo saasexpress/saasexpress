@@ -1,0 +1,15 @@
+name: activity-api-get
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(GET)$
+    routes:
+      - /api/activity
+
+  - id: rp
+    operator: APICall
+    url: http://localhost:8081
+
+edges:
+  - from: start
+    to: rp

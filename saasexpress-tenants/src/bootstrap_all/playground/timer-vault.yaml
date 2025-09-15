@@ -1,0 +1,27 @@
+name: timer-vault
+nodes:
+  - id: start
+    operator: Timer
+    on_start: true
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "status": "Hardcoded UP"
+      }
+
+  - id: j2b
+    operator: JSONToBuffer
+
+  - id: apicall
+    operator: APICall
+    method: GET
+    path: ""
+    url: http://localhost:2243/health
+
+edges:
+  - { from: start, to: translate }
+  - { from: translate, to: j2b }
+  - { from: j2b, to: apicall }

@@ -1,0 +1,22 @@
+#
+# - implement HTTPIn to match the route
+# - make the input and output available in content enricher
+# -
+#
+#
+name: services-api-get
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(GET)$
+    routes:
+      - /api/openapi.yaml
+      - /api/services
+      - /api/services/{id}
+
+  - id: rp
+    operator: APICall
+    url: http://localhost:8081
+
+edges:
+  - { from: start, to: rp }

@@ -1,0 +1,30 @@
+name: hello
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /hello-canodamo
+
+  - id: b2j
+    operator: BufferToJSON
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "name": has(temp.http_in.query.name) ? temp.http_in.query.name : null,
+        "hello": "worldagain",
+        "settings": settings,
+        "temp": temp,
+        "health": data
+      }
+
+  - id: canodamo
+    operator: CanoName
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: translate }
+  - { from: translate, to: canodamo }

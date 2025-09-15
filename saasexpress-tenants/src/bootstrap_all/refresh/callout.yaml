@@ -1,0 +1,13 @@
+name: client
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(GET)$
+    routes:
+      - /api/refresh/callout 
+  - id: callout
+    operator: Callout
+    graph_name: work
+edges:
+  - from: start
+    to: callout

@@ -1,0 +1,7 @@
+name: worker
+nodes:
+  - id: start
+    operator: Stub
+    data:
+      name: Joe
+edges: []

@@ -7,6 +7,7 @@ use axum::{
     },
     response::IntoResponse,
 };
+use fastrace::Span;
 //use futures::channel::mpsc::TryRecvError;
 use futures::stream::SplitStream;
 use std::result;
@@ -67,6 +68,7 @@ impl SocketSession {
         let state = self.state.clone();
         let who = self.who;
         let span = self.span;
+        let inbound_span = Span::enter_with_parent("inbound_span", &span);
 
         let (sender, receiver) = self.socket.split();
         // send message to the first operator of the flow
@@ -89,7 +91,7 @@ impl SocketSession {
         let mut recv_task = tokio::spawn(async move {
             let state = self.state.clone();
 
-            let (resp_tx1, resp_rx1) = oneshot::channel::<GraphMessage>();
+            //let (resp_tx1, resp_rx1) = oneshot::channel::<GraphMessage>();
 
             // let _origin = OriginMessage::new(resp_tx1)
             //     .session(who.to_string())
@@ -97,14 +99,14 @@ impl SocketSession {
 
             // let origin = Some(_origin);
 
-            start_it(resp_rx1).await;
+            //start_it(resp_rx1).await;
 
             // state.start.lock().unwrap().send(GraphMessage::Standard {
             //     message: "ls\n".as_bytes().to_vec(),
             //     origin,
             // });
 
-            client_to_upstream(receiver, state, who, _tx).await
+            client_to_upstream(receiver, state, who, _tx, &inbound_span).await
         });
 
         // If any one of the tasks exit, abort the other.
@@ -131,11 +133,8 @@ impl SocketSession {
                 .with_span(Some(DebuggableSpan(span))),
         );
 
-        state
-            .start
-            .lock()
-            .unwrap()
-            .send(GraphMessage::Exit { origin });
+        warn!("Sending exit message to graph");
+        state.start.send(GraphMessage::Exit { origin });
 
         ()
     }
@@ -172,6 +171,19 @@ async fn upstream_to_client(
                 match msg {
                     GraphMessage::Standard { message, .. } => {
                         let returned = String::from_utf8(message).unwrap();
+                        info!("-> Back to client: {:?}", returned);
+                        // send to the websocket
+                        if sender
+                            .send(Message::Text(Utf8Bytes::from(returned)))
+                            .await
+                            .is_err()
+                        {
+                            error!("Error sending message");
+                            return n_msg;
+                        }
+                    }
+                    GraphMessage::JSON { message, .. } => {
+                        let returned = serde_json::to_string(&message).unwrap();
                         info!("-> Back to client: {:?}", returned);
                         // send to the websocket
                         if sender
@@ -233,6 +245,7 @@ async fn client_to_upstream(
     state: State<Arc<MySharedState>>,
     who: SocketAddr,
     tx: mpsc::Sender<GraphMessage>,
+    span: &fastrace::Span,
 ) -> usize {
     let mut cnt = 0;
 
@@ -241,22 +254,25 @@ async fn client_to_upstream(
 
         match &msg {
             Message::Text(t) => {
-                let value = serde_json::from_str::<serde_json::Value>(t).unwrap();
-
-                let data = value["data"].as_str().unwrap().to_string();
-                debug!("T = {}", data);
+                //let value = serde_json::from_str::<serde_json::Value>(t).unwrap();
+                debug!("[WS]: Recv {:?} bytes", t.len());
+                // let data = value["data"].as_str().unwrap().to_string();
+                // debug!("T = {}", data);
 
                 // let origin = Some(
                 //     OriginMessage::new(oneshot::channel::<GraphMessage>().0)
                 //         .session(who.to_string()),
                 // );
+                let span = Span::enter_with_parent("ws-recv", span);
+
                 let _origin = OriginMessage::new(None)
                     .session(who.to_string())
+                    .with_span(Some(DebuggableSpan(span)))
                     .mpsc_respond_to(tx.clone());
                 let origin = Some(_origin);
 
-                state.start.lock().unwrap().send(GraphMessage::JSON {
-                    message: value,
+                state.start.send(GraphMessage::Standard {
+                    message: t.as_bytes().to_vec(),
                     origin,
                 });
 
@@ -268,6 +284,10 @@ async fn client_to_upstream(
                 //     let msg = r.unwrap();
                 //     _sender.send(msg).await.unwrap();
                 // }
+            }
+            Message::Close { .. } => {
+                info!("Client closed connection");
+                break;
             }
             _ => {
                 error!("Unexpected message type {:?}", msg);

@@ -1,14 +1,18 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::oneshot;
 use tokio::sync::mpsc::{self, Sender};
 use tracing::{debug, error, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRole, OperatorRuntime, OperatorType,
+};
 
 use crate::graph::message::{Message, OriginMessage};
 
-use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
 
 //use futures::SinkExt;
 
@@ -31,20 +35,39 @@ impl Operator for NOOP {
         "NOOP".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
+    fn new_runtime(
+        &self,
+        _graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(NOOP {
+            sender: self.sender.clone(),
+        })
     }
 
-    fn handle(&self, _message: Message) -> Message {
-        panic!("NOOP - Not implemented");
-    }
-
-    fn init(&mut self, _: &mut Graph) {
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
         debug!("Not implemented");
     }
 
     fn control(&mut self, _: Message) {
         debug!("NOOP - no control to do - Not implemented");
+    }
+}
+
+impl OperatorRuntime for NOOP {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        _message
     }
 
     fn send(&self, _message: Message) {
@@ -107,7 +130,11 @@ impl Operator for NOOP {
                         respond_to
                             .send(Message::Standard {
                                 message: message.to_owned(),
-                                origin: Some(OriginMessage::new(None).with_span(span)),
+                                origin: Some(
+                                    OriginMessage::new(None)
+                                        .with_span(span)
+                                        .with_temp(origin_message.temp),
+                                ),
                             })
                             .expect("[Standard] Failed to send response");
                     }
@@ -118,16 +145,21 @@ impl Operator for NOOP {
             Message::JSON { message, origin } => {
                 if let Some(origin_message) = origin {
                     if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
-                        tokio::spawn(async move {
-                            debug!("Sending MPSC response");
-                            mpsc_respond_to
-                                .send(Message::JSON {
-                                    message: message.to_owned(),
-                                    origin: None,
-                                })
-                                .await
-                                .expect("[JSON] Failed to send response");
+                        // tokio::spawn(async move {
+                        debug!("Sending MPSC JSON response..");
+                        let r = mpsc_respond_to.try_send(Message::JSON {
+                            message: message.to_owned(),
+                            origin: None,
                         });
+                        match r {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to send: {}", e);
+                            }
+                        }
+                        // .await
+                        // .expect("[JSON] Failed to send response");
+                        //});
                     } else {
                         let respond_to = origin_message.respond_to.expect("No respond_to channel");
 
@@ -147,10 +179,76 @@ impl Operator for NOOP {
                 }
             }
 
+            Message::Tuple {
+                message_1,
+                message_2,
+                origin,
+                ..
+            } => {
+                if let Some(origin_message) = origin {
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::Tuple {
+                                    message_1,
+                                    message_2,
+                                    origin: None,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
+                    } else {
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
+
+                        let result = respond_to.send(Message::Tuple {
+                            message_1,
+                            message_2,
+                            origin: None,
+                        });
+                        match result {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to send: {}", e);
+                            }
+                        }
+                    }
+                } else {
+                    warn!("No origin provided - so no channel to send to for Tuple");
+                }
+            }
+
             Message::NoOp {} => {
                 debug!("NOOP - NoOp message");
             }
 
+            Message::Error { error, origin } => {
+                if let Some(origin_message) = origin {
+                    if let Some(mpsc_respond_to) = origin_message.mpsc_respond_to {
+                        tokio::spawn(async move {
+                            debug!("Sending MPSC response");
+                            mpsc_respond_to
+                                .send(Message::Error {
+                                    error: error.to_owned(),
+                                    origin: None,
+                                })
+                                .await
+                                .expect("[JSON] Failed to send response");
+                        });
+                    } else {
+                        let respond_to = origin_message.respond_to.expect("No respond_to channel");
+
+                        respond_to
+                            .send(Message::Error {
+                                error: error.to_owned(),
+                                origin: None,
+                            })
+                            .expect("[Standard] Failed to send response");
+                    }
+                } else {
+                    warn!("No respond_to channel to send to");
+                }
+            }
             Message::Exit { .. } => {
                 warn!("Exit - do nothing");
             }
@@ -158,13 +256,5 @@ impl Operator for NOOP {
                 warn!("Message type not supported for respond_to {}", _message);
             }
         }
-    }
-
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        panic!("Not implemented");
     }
 }

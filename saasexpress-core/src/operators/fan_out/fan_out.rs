@@ -1,6 +1,7 @@
 use fastrace::Span;
 use fastrace::local::LocalSpan;
 use serde_json::json;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -8,25 +9,36 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use tracing::{debug, error, info, span, warn};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType, Origin};
+use crate::graph;
+use crate::graph::graph::{AsyncHandleTrait, Graph};
+use crate::graph::operator::{
+    GraphOperatorContext, OperatorRef, OperatorRole, OperatorRuntime, OperatorRuntimeType,
+    OperatorType,
+};
 
 use crate::graph::message::OriginMessage;
 use crate::graph::message::{DebuggableSpan, Message};
 
-use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
+use crate::graph::operator::Operator;
+use crate::graph::registry::GraphRegistry;
 use fastrace::future::FutureExt;
 
 #[derive(Debug)]
 pub(crate) struct FanOut {
-    next: Vec<Arc<Mutex<dyn Operator + 'static>>>,
+    next: Vec<OperatorRole>,
+    graph_name: String,
+    id: String,
     senders: Vec<mpsc::Sender<Message>>,
 }
 
-impl From<serde_yaml::Value> for FanOut {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for FanOut {
+    fn from(_value: &serde_yaml::Value) -> Self {
         FanOut {
             next: Vec::new(),
             senders: Vec::new(),
+            graph_name: String::new(),
+            id: String::new(),
         }
     }
 }
@@ -40,55 +52,39 @@ impl Operator for FanOut {
         "FanOut".to_string()
     }
 
-    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
-        None
+    fn new_runtime(
+        &self,
+        graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        let next_nodes = graph_operator_context.get_next_nodes();
+
+        Arc::new(FanOut::new(
+            self.id.clone(),
+            self.graph_name.clone(),
+            next_nodes,
+        ))
     }
 
-    fn handle(&self, _message: Message) -> Message {
-        return _message;
-        //        panic!("Not implemented");
-        // return _message;
-        // // send message to "processor"
-        // // processor will create a new message for each next operator
-        // // and send it to them and wait for response
-        // // once it gets all the responses, it will send final message back to the original sender
-        // //
-        // match _message {
-        //     Message::Standard { message, origin } => Message::Standard {
-        //         message: message.to_owned(),
-        //         origin,
-        //     },
-        //     _ => panic!("Unexpected message type in FanOut::handle {}", _message),
-        // }
-    }
-
-    fn init(&mut self, _: &mut Graph) {
-        debug!("FanOut::init - nothing to initialize");
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        self.id = node_meta.name.clone();
+        self.graph_name = node_meta.graph.clone();
     }
 
     fn control(&mut self, _message: Message) {
         match _message {
-            Message::Init { next, .. } => {
-                for n in next {
-                    self.add_next(n);
-                }
+            // Message::Init { next, .. } => {
+            //     for n in next {
+            //         self.add_next(n);
+            //     }
+            // }
+            Message::Control { .. } => {
+                debug!("Control");
             }
+
             _ => {
                 panic!("Unexpected message type for control");
             }
         }
-    }
-
-    fn send(&self, message: Message) {
-        self.next(message);
-    }
-
-    fn wait(&self) -> Message {
-        todo!("FanOut::wait is not implemented yet");
-    }
-
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
-        todo!("FanOut::get_output_channels is not implemented yet");
     }
 }
 
@@ -105,7 +101,9 @@ impl FanOut {
 
         //let _guard = fanout_span.set_local_parent();
 
-        let _origin = _message.get_origin().unwrap();
+        // let _origin = _message
+        //     .get_origin()
+        //     .expect("Failed to get origin from message");
 
         //let origin = _message.take_origin().unwrap();
 
@@ -121,23 +119,24 @@ impl FanOut {
             msg: Message,
         ) -> (
             serde_json::Value,
-            oneshot::Sender<Message>,
+            Option<oneshot::Sender<Message>>,
             Option<DebuggableSpan>,
+            Arc<Mutex<serde_json::Value>>,
         ) {
             let info = match msg {
-                Message::ReqReply {
-                    message,
-                    respond_to,
-                    span,
-                    ..
-                } => {
-                    let s: String = message
-                        .iter()
-                        .map(|b| *b as char)
-                        .collect::<String>()
-                        .to_string();
-                    (serde_json::from_str(&s).unwrap(), respond_to, span)
-                }
+                // Message::ReqReply {
+                //     message,
+                //     respond_to,
+                //     span,
+                //     ..
+                // } => {
+                //     let s: String = message
+                //         .iter()
+                //         .map(|b| *b as char)
+                //         .collect::<String>()
+                //         .to_string();
+                //     (serde_json::from_str(&s).unwrap(), Some(respond_to), span)
+                // }
                 Message::HTTP {
                     message,
                     status,
@@ -165,11 +164,11 @@ impl FanOut {
                             })
                             .unwrap();
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, oneshot::channel().0, og.span)
+                        (json, None, og.span, og.temp)
                     } else if status == 204 {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let json = serde_json::from_str("{}".to_string().as_str()).unwrap();
-                        (json, respond_to, og.span)
+                        (json, Some(respond_to), og.span, og.temp)
                     } else {
                         let respond_to = og.respond_to.expect("No respond_to");
                         let s: String = message
@@ -178,7 +177,7 @@ impl FanOut {
                             .collect::<String>()
                             .to_string();
                         let json = serde_json::from_str(&s).unwrap();
-                        (json, respond_to, og.span)
+                        (json, Some(respond_to), og.span, og.temp)
                     }
                 }
                 Message::JSON {
@@ -186,7 +185,7 @@ impl FanOut {
                 } => {
                     let og = origin.unwrap();
                     let respond_to = og.respond_to.expect("No respond_to");
-                    (message, respond_to, og.span)
+                    (message, Some(respond_to), og.span, og.temp)
                 }
                 _ => panic!("Unexpected message type in FanOut::next {}", msg),
             };
@@ -195,6 +194,8 @@ impl FanOut {
         let all_data = all_data(fanout_span, _message);
 
         let data = all_data;
+
+        debug!("FanOut::next - data: {:?}", data.3);
         //let respond_to = data.1;
         //let span = data.2;
         //let _origin = all_data.1;
@@ -206,7 +207,12 @@ impl FanOut {
             //let respond_to = origin.respond_to;
             let to = data.1;
             //let message = data.0.to_owned();
-            let origin = OriginMessage::new(None).with_span(data.2);
+
+            let temp = data.3.clone();
+
+            let origin = OriginMessage::new(None)
+                .with_span(data.2)
+                .with_temp(Arc::clone(&temp));
 
             let mut response_receivers = Vec::new();
 
@@ -217,6 +223,8 @@ impl FanOut {
             for _sender in &senders {
                 index += 1;
                 debug!("Sending message to sender {}", index);
+
+                let temp = temp.clone();
 
                 let sender = _sender.clone();
                 let (resp_tx1, resp_rx1) = oneshot::channel::<Message>();
@@ -229,14 +237,16 @@ impl FanOut {
                 let fan_span = Span::enter_with_parent(format!("fanout:{}", index), &span);
 
                 let result = async {
-                    let fan2_span = Span::enter_with_local_parent(format!("fanout2:{}", index));
+                    let fan_inner_span =
+                        Span::enter_with_local_parent(format!("fanout2:{}", index));
 
                     let result = s
                         .send(Message::JSON {
                             message: data.0.to_owned(),
                             origin: Some(
                                 OriginMessage::new(Some(resp_tx1))
-                                    .with_span(Some(DebuggableSpan(fan2_span))),
+                                    .with_span(Some(DebuggableSpan(fan_inner_span)))
+                                    .with_temp(temp),
                             ),
                         })
                         .await;
@@ -256,9 +266,14 @@ impl FanOut {
                 .await
                 .into_iter()
                 .filter_map(|res| match res {
-                    Ok(response) => Some(response),
+                    Ok(response) => {
+                        debug!("Received response {:?}", response);
+                        Some(response)
+                    }
                     Err(e) => {
-                        error!("Failed to receive response: {}", e);
+                        // this can be acceptable if one of the fanouts uses the "Terminate" operator
+                        // where it returns a NoOp message (which causes the respond_to to drop)
+                        warn!("Failed to receive response: {}", e);
                         None
                     }
                 })
@@ -281,7 +296,7 @@ impl FanOut {
                         merged.push(message.to_owned());
                     }
                     Message::NoOp {} => {
-                        debug!("NoOp - do not include in merged results")
+                        warn!("NoOp - do not include in merged results")
                     }
                     _ => {
                         error!("Unexpected message type in FanOut::next {}", r);
@@ -291,26 +306,28 @@ impl FanOut {
 
             debug!("Merged results: {:?}", merged);
             if senders.len() != merged.len() {
-                error!(
+                warn!(
                     "FanOut: not all responses received. Expected {}, got {}",
                     senders.len(),
                     merged.len()
                 );
             }
 
-            if merged.len() == 1 {
-                let value = merged.pop().unwrap();
-                to.send(Message::JSON {
-                    message: value,
-                    origin: Some(origin),
-                })
-                .unwrap();
-            } else {
-                to.send(Message::JSON {
-                    message: json!(merged),
-                    origin: Some(origin),
-                })
-                .unwrap();
+            if let Some(to) = to {
+                if merged.len() == 1 {
+                    let value = merged.pop().unwrap();
+                    to.send(Message::JSON {
+                        message: value,
+                        origin: Some(origin),
+                    })
+                    .unwrap();
+                } else {
+                    to.send(Message::JSON {
+                        message: serde_json::Value::Array(merged),
+                        origin: Some(origin),
+                    })
+                    .unwrap();
+                }
             }
             /*
             match message {
@@ -346,8 +363,25 @@ impl FanOut {
         tokio::spawn(future);
     }
 
-    fn add_next(&mut self, operator: Arc<Mutex<dyn Operator + 'static>>) {
+    fn new(id: String, graph_name: String, next: Vec<OperatorRole>) -> Self {
+        let mut fo = FanOut {
+            next: Vec::new(),
+            graph_name,
+            id,
+            senders: Vec::new(),
+        };
+        for n in next.iter() {
+            fo.add_next(n.clone());
+        }
+        fo.next = next;
+
+        fo
+    }
+
+    fn add_next(&mut self, operator: OperatorRole) {
         //self.next.push(operator);
+
+        let operator = operator.operator;
 
         let (tx1, mut rx1) = mpsc::channel::<Message>(1);
 
@@ -364,25 +398,30 @@ impl FanOut {
                         message,
                         respond_to,
                         span,
+                        temp,
                         ..
                     } => {
                         let r_to = respond_to;
 
-                        operator.lock().unwrap().send(Message::Standard {
+                        operator.send(Message::Standard {
                             message,
-                            origin: Some(OriginMessage::new(Some(r_to)).with_span(span)),
+                            origin: Some(
+                                OriginMessage::new(Some(r_to))
+                                    .with_span(span)
+                                    .with_temp(temp),
+                            ),
                         });
                     }
                     Message::JSON {
                         message, origin, ..
                     } => {
-                        let og = origin.unwrap();
-                        let r_to = og.respond_to.expect("No respond_to");
-                        let span = og.span.unwrap();
+                        // let og = origin.unwrap();
+                        // let r_to = og.respond_to.expect("No respond_to");
+                        // let span = og.span.unwrap();
 
-                        operator.lock().unwrap().send(Message::JSON {
+                        operator.send(Message::JSON {
                             message,
-                            origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
+                            origin, // origin: Some(OriginMessage::new(Some(r_to)).with_span(Some(span))),
                         });
                     }
                     _ => {
@@ -414,7 +453,7 @@ impl FanOut {
     //         .collect::<Vec<Message>>();
     // }
 
-    fn setup_routes(&self, _start: Arc<Mutex<dyn Operator + 'static>>) {}
+    fn setup_routes(&self, _start: OperatorRef) {}
 }
 // /// Distributes a message to three receivers, collects all their responses,
 // /// and sends the combined result back through the original oneshot sender.
@@ -543,3 +582,39 @@ impl FanOut {
 // async fn main() {
 //     example_usage().await;
 // }
+
+impl OperatorRuntime for FanOut {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
+    fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
+        None
+    }
+
+    fn handle(&self, _message: Message) -> Message {
+        return _message;
+        //        panic!("Not implemented");
+        // return _message;
+        // // send message to "processor"
+        // // processor will create a new message for each next operator
+        // // and send it to them and wait for response
+        // // once it gets all the responses, it will send final message back to the original sender
+        // //
+        // match _message {
+        //     Message::Standard { message, origin } => Message::Standard {
+        //         message: message.to_owned(),
+        //         origin,
+        //     },
+        //     _ => panic!("Unexpected message type in FanOut::handle {}", _message),
+        // }
+    }
+
+    fn send(&self, message: Message) {
+        self.next(message);
+    }
+}

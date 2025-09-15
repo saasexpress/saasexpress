@@ -1,0 +1,32 @@
+name: settings
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(GET)$
+    routes:
+      - /settings
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "settings": {
+          "stub": {
+            "name": "Bar"
+          }
+        }
+      }
+
+  - id: settings
+    operator: Settings
+
+  - id: stub
+    operator: Stub
+    data:
+      name: Foo
+
+edges:
+  - { from: start, to: translate }
+  - { from: translate, to: settings }
+  - { from: settings, to: stub }

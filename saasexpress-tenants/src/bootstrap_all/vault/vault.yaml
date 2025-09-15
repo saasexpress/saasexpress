@@ -1,0 +1,36 @@
+#
+# curl -v http://localhost:2243/v1/<vault api>
+#
+# VAULT_RP_X_VAULT_TOKEN=
+# VAULT_RP_X_VAULT_NAMESPACE=
+#
+
+name: vault
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /v1/{*rest}
+
+  - id: rp
+    operator: APICall
+    path: ""
+    url: http://localhost:8200
+    method: GET
+
+  - id: b2j
+    operator: BufferToJSON
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "secrets": data.data.data
+      }
+
+edges:
+  - { from: start, to: rp }
+  - { from: rp, to: b2j }
+  - { from: b2j, to: translate }

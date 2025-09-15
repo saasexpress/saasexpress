@@ -24,6 +24,12 @@ pub(crate) fn parse_commands() -> ArgMatches {
             )
             .action(ArgAction::SetTrue),
         )
+        .arg(
+            arg!(
+                -w --watch ... "Turn watching graph folder for hot reload"
+            )
+            .action(ArgAction::SetTrue),
+        )
         .arg(arg!(
             -d --debug ... "Turn debugging information on"
         ))

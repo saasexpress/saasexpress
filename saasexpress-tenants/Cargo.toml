@@ -6,6 +6,8 @@ authors = ["SaaSExpress Team"]
 description = "Multi-tenant capabilitity"
 
 [dependencies]
+saasexpress-core = { path = "../saasexpress-core"}
+
 # Web framework
 axum = { version = "0.6.18", features = ["json", "macros", "multipart"] }
 tower = "0.4"
@@ -19,7 +21,7 @@ http-body = "0.4.5"
 diesel = { version = "2", features = ["sqlite", "chrono", "serde_json", "r2d2"] }
 diesel_migrations = "2"
 r2d2 = "0.8"
-libsqlite3-sys = { version = "0.18", features = ["bundled"]}
+libsqlite3-sys = { version = "0", features = ["bundled"]}
 
 # Serialization and data handling
 serde = { version = "1", features = ["derive"] }
@@ -39,12 +41,11 @@ anyhow = "1"
 thiserror = "1"
 
 # Misc
-chrono = { version = "0.4", features = ["serde"] }
 dotenv = "0.15"
-uuid = { version = "1", features = ["serde", "v4"] }
-rand = "0.8"
 async-trait = "0.1"
+rand = "0.8"
 rust-embed = "6.8"
+chrono = { version = "0.4", features = ["serde"] }
 mime_guess = "2.0"
 #static_files = "0.2"
 # futures = "0.3"

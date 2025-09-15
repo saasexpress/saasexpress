@@ -1,0 +1,138 @@
+name: oauth-callback
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /auth/callback
+
+  - id: b2j
+    operator: BufferToJSON
+
+  # OAUTH_CALLBACK_DISCOVERY_URL = "https://discovery"
+  # - id: discovery
+  #   operator: APICall
+  #   config:
+  #     method: POST
+  #     url: temp.token.url
+
+
+  # Could be an error
+  # "query": {
+  #   "error": "invalid_request",
+  #   "error_description": "unsupported prompt value requested",
+  #   "iss": ""
+  # },    
+
+  # Use query.session_state to look up the details of the original request (i.e./ redirect_uri)
+
+  # OAUTH_CALLBACK_TRANSLATE_URL = "https://token"
+  # OAUTH_CALLBACK_TRANSLATE_CLIENT_ID = "client_id"
+  # OAUTH_CALLBACK_TRANSLATE_CLIENT_SECRET = "client_secret"
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    in_temp: true
+    temp_group: token
+    template: |
+      {
+        "url": settings.URL,
+        "content_type": "application/x-www-form-urlencoded",
+        "body": {
+          "grant_type": "authorization_code",
+          "code": temp.http_in.query.code,
+          "client_id": settings.CLIENT_ID,
+          "client_secret": settings.CLIENT_SECRET
+        },
+        "path": "",
+        "headers": {}
+      }
+
+  - id: j2b
+    operator: JSONToBuffer
+
+  - id: token
+    operator: APICall
+    method: POST
+    url: temp.token.url
+
+  # Do a callout to get the user info using the access token (or id token)
+  # OAUTH_CALLBACK_USERINFO_URL = "https://userinfo"
+  - id: userinfo
+    operator: MessageTranslator
+    mode: json
+    in_temp: true
+    temp_group: userinfo_call
+    template: |
+      {
+        "url": settings.URL,
+        "content_type": "application/json",
+        "body": null,
+        "path": "",
+        "headers": {
+          "Authorization": "Bearer " + data.access_token
+        }
+      }
+
+  - id: j2b2
+    operator: JSONToBuffer
+
+  - id: userinfo_call
+    operator: APICall
+    method: GET
+    url: temp.token.url
+
+
+  - id: claim_check_prep
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "data": data,
+        "temp": temp
+      }
+
+  - id: claim_check
+    operator: ClaimCheck
+
+  # OAUTH_CALLBACK_REDIRECT_URL = "http://localhost:2243/ui/"
+  # OAUTH_CALLBACK_REDIRECT_COOKIE_DOMAIN = "localhost"
+  - id: redirect
+    operator: MessageTranslator
+    mode: json
+    in_temp: true
+    temp_group: http_in
+    template: |
+      {
+        "response": {
+          "redirect-url": {
+            "url": settings.URL,
+            "query": {}
+          },
+          "set-cookies": [
+            {
+              "name": "s",
+              "value": data.claim_value,
+              "path": "/",
+              "domain": settings.COOKIE_DOMAIN,
+              "http_only": true,
+              "same_site": "Strict",
+              "secure": true,
+              "expire_hours": 12*1
+            }
+          ]
+        }
+      }
+
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: translate }
+  # - { from: discovery, to: translate }
+  - { from: translate, to: j2b }
+  - { from: j2b, to: token }
+  - { from: token, to: userinfo }
+  - { from: userinfo, to: j2b2 }
+  - { from: j2b2, to: userinfo_call }
+  - { from: userinfo_call, to: claim_check_prep }
+  - { from: claim_check_prep, to: claim_check }
+  - { from: claim_check, to: redirect }

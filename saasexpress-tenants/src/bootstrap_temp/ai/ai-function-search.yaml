@@ -1,0 +1,51 @@
+# https://martinfowler.com/articles/function-call-LLM.html
+#
+
+name: ai-function-search
+nodes:
+  - id: start
+    operator: AITool
+    schema:
+      name: search_tenants
+      description: Search for tenants using keywords
+      parameters:
+        type: object
+        properties:
+          keywords:
+            type: array
+            items:
+              type: string
+            description: Keywords to search for
+        required:
+          - keywords
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "keywords": data.keywords
+      }
+
+  - id: j2b
+    operator: JSONToBuffer
+
+  - id: search
+    operator: APICall
+    method: GET
+    path: /api/tenants
+    url: http://localhost:2243
+
+  - id: result
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "response": "Here are the tenants I found: xyz, abc"
+      }
+
+edges:
+  - { from: start, to: translate }
+  - { from: translate, to: j2b }
+  - { from: j2b, to: search }
+  - { from: search, to: result }

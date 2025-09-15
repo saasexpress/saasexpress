@@ -1,0 +1,72 @@
+#
+# - make the input and output available in content enricher
+# - have "variables" in the content-enricher
+#
+#
+name: tenant-api-mutation
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: ^(PUT|DELETE)$
+    routes:
+      - /api/tenants/{id}
+
+  - id: rp
+    operator: APICall
+    url: http://localhost:8081
+
+  - id: fanout
+    operator: FanOut
+
+  - id: bufin
+    operator: BufferToJSON
+
+  - id: faker
+    operator: Faker
+
+  - id: in
+    operator: MessageTranslator
+    engine: cel-interpreter
+    template: |
+      {
+        "message": "{action} {resource} ({id}) {key}",
+        "result":  "success",
+        "params": {
+          "actor": temp.faker.name,
+          "action": temp.http_in.method,
+          "resource": "Tenant",
+          "id": temp.http_in.params.id,
+          "key": input.resource
+        }
+      }
+
+  - { id: j2b, operator: JSONToBuffer }
+
+  - id: create
+    operator: APICall
+    method: POST
+    url: http://localhost:8081
+    path: /api/activity
+    content_type: application/json
+
+  - id: done
+    operator: Passthrough
+
+  - id: terminate
+    operator: Terminate
+
+  # - { id: bufout, operator: JSONToBuffer }
+
+edges:
+  - { from: start, to: rp }
+  - { from: rp, to: fanout }
+  - { from: fanout, to: bufin }
+  - { from: fanout, to: done }
+  # - { from: start, to: bufin }
+  - { from: bufin, to: faker }
+  - { from: faker, to: in }
+  - { from: in, to: j2b }
+  - { from: j2b, to: create }
+  - { from: create, to: terminate }
+
+  # - { from: bufin, to: bufout }

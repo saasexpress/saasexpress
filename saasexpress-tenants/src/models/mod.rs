@@ -1,7 +1,9 @@
-pub mod tenant;
 pub mod activity;
 pub mod service;
+pub mod tenant;
 
-pub use tenant::{Tenant, NewTenant, UpdateTenant, TenantDTO};
-pub use activity::{Activity, NewActivity, ActivityDTO};
-pub use service::{Service, DagVariant, NewService, NewDagVariant, UpdateService, ServiceDTO, DagVariantDTO};
+pub use activity::{Activity, ActivityDTO, NewActivity};
+pub use service::{
+    DagVariant, DagVariantDTO, NewDagVariant, NewService, Service, ServiceDTO, UpdateService,
+};
+pub use tenant::{NewTenant, Tenant, TenantDTO, UpdateTenant};

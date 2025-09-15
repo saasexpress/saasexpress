@@ -1,0 +1,53 @@
+#
+# API_CALL_REQWEST_X_API_KEY=
+# API_CALL_REQWEST_ANTHROPIC_VERSION=2023-06-01
+#
+# curl https://api.anthropic.com/v1/messages \
+#      --header "x-api-key: $ANTHROPIC_API_KEY" \
+#      --header "anthropic-version: 2023-06-01" \
+#      --header "content-type: application/json" \
+#      --data \
+# '{
+#     "model": "claude-3-7-sonnet-20250219",
+#     "max_tokens": 1024,
+#     "messages": [
+#         {"role": "user", "content": "Hello, world"}
+#     ]
+# }'
+#
+#
+#
+# curl http://localhost:2243/prompt?prompt=hello
+#
+
+name: ai-claude
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /prompt
+
+  - id: prepare
+    operator: MessageTranslator
+    template: |
+      { 
+        "model": "claude-3-7-sonnet-20250219",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": temp.http_in.query.prompt}
+        ]
+      }
+
+  - id: j2b
+    operator: JSONToBuffer
+
+  - id: call
+    operator: APICall
+    url: https://api.anthropic.com/v1/messages
+    method: POST
+
+edges:
+  - { from: start, to: prepare }
+  - { from: prepare, to: j2b }
+  - { from: j2b, to: call }

@@ -1,18 +1,22 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tracing::{debug, error};
 
-use crate::graph::graph::{AsyncHandleTrait, Graph, OperatorType};
+use crate::graph::graph::{AsyncHandleTrait, Graph};
 
 use crate::graph::message::Message;
 
-use crate::graph::graph::Operator;
+use crate::graph::meta::NodeMeta;
+use crate::graph::operator::{
+    GraphOperatorContext, Operator, OperatorRef, OperatorRuntime, OperatorType,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct JSONToBuffer;
 
-impl From<serde_yaml::Value> for JSONToBuffer {
-    fn from(_value: serde_yaml::Value) -> Self {
+impl From<&serde_yaml::Value> for JSONToBuffer {
+    fn from(_value: &serde_yaml::Value) -> Self {
         JSONToBuffer {}
     }
 }
@@ -26,6 +30,31 @@ impl Operator for JSONToBuffer {
         "JSONToBuffer".to_string()
     }
 
+    fn new_runtime(
+        &self,
+        _graph_operator_context: GraphOperatorContext,
+    ) -> Arc<dyn OperatorRuntime> {
+        Arc::new(self.clone())
+    }
+
+    fn init(&mut self, _: &mut Graph, node_meta: &NodeMeta) {
+        debug!("Not implemented");
+    }
+
+    fn control(&mut self, _: Message) {
+        debug!("Not implemented");
+    }
+}
+
+impl OperatorRuntime for JSONToBuffer {
+    fn _type(&self) -> OperatorType {
+        Operator::_type(self)
+    }
+
+    fn name(&self) -> String {
+        Operator::name(self)
+    }
+
     fn get(&self) -> Option<Arc<dyn AsyncHandleTrait>> {
         None
     }
@@ -33,10 +62,12 @@ impl Operator for JSONToBuffer {
     fn handle(&self, _message: Message) -> Message {
         let (json, origin) = match _message {
             Message::JSON { message, origin } => (message, origin),
+            Message::Error { error, origin } => return Message::Error { error, origin },
             _ => {
                 error!("Unexpected message type {}", _message);
                 return Message::Error {
                     error: "Unexpected message type".to_string(),
+                    origin: None,
                 };
             }
         };
@@ -48,21 +79,7 @@ impl Operator for JSONToBuffer {
         }
     }
 
-    fn init(&mut self, _: &mut Graph) {
-        debug!("Not implemented");
-    }
-
-    fn control(&mut self, _: Message) {
-        debug!("Not implemented");
-    }
-
     fn send(&self, _: Message) {
-        panic!("Not implemented");
-    }
-    fn wait(&self) -> Message {
-        panic!("Not implemented");
-    }
-    fn get_output_channels(&self) -> &Vec<Arc<Mutex<dyn Operator>>> {
         panic!("Not implemented");
     }
 }

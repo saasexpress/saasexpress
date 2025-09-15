@@ -1,0 +1,62 @@
+[
+  {
+    "type": "function",
+    "tool": {
+      "name": "search_tenants",
+      "description": "Search for tenants using keywords",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keywords to search for"
+          }
+        },
+        "required": [
+          "keywords"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "tool": {
+      "name": "get_tenant_details",
+      "description": "Get detailed information about a specific tenant",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Tenant ID to get details for"
+          }
+        },
+        "required": [
+          "tenant_id"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "tool": {
+      "name": "clarify_request",
+      "description": "Ask user for clarification when request is unclear",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "Question to ask user for clarification"
+          }
+        },
+        "required": [
+          "question"
+        ]
+      }
+    }
+  }
+]

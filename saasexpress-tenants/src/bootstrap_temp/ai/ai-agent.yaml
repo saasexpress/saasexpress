@@ -1,0 +1,98 @@
+#
+# AI_CHATGPT_CALL_AUTHORIZATION="Bearer sk"
+#
+# curl http://localhost:2243/ai/agent?prompt=find me tenants
+#
+name: ai-agent
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: GET
+    routes:
+      - /ai/agent
+
+  - id: user_prompt
+    operator: MessageTranslator
+    in_temp: false
+    template: |
+      {
+          "prompt": temp.http_in.query.prompt
+      }
+     
+  - id: agent
+    operator: AIAgent
+
+  - id: system_prompt
+    operator: Stub
+    data:
+      content: |
+        You are a tenant assistant. Use these functions:
+
+        1. search_tenants: When user wants to find tenants (e.g., 'show me active tenants')
+        2. get_tenant_details: When user asks about a specific tenant ID (e.g., 'tell me about tenant p1')
+        3. clarify_request: When user's request is unclear
+
+  # - id: output
+  #   operator: MessageTranslator
+  #   config:
+  #     out_temp: true
+  #     temp_group: ai_agent_response
+  #     template: |
+  #       {
+  #         "system_prompt": temp.ai_agent_system_prompt,
+  #         "message": temp.ai_agent_message,
+  #         "prompt": temp.http_in.query.prompt
+  #       }
+
+  # - id: j2b
+  #   operator: JSONToBuffer
+
+  # - id: call
+  #   operator: APICall
+  #   config:
+  #     url: https://api.openai.com/v1/chat/completions
+  #     method: POST
+
+  # evaluate response based on "choices[0].finish_reason"
+  # If tool_calls then callout to the particular function
+  # If
+
+  - id: tool_get_details
+    operator: Callout
+    graph_name: ai-function-get-details
+
+  - id: tool_clarify
+    operator: Callout
+    graph_name: ai-function-clarify
+
+  - id: tool_search
+    operator: Callout
+    graph_name: ai-function-search
+
+  # - id: agent_memory
+  #   operator: AITool
+  #   config: {}
+
+  - id: chatgpt
+    operator: APICall
+    url: https://api.openai.com/v1/chat/completions
+    method: POST
+
+  - id: b2j
+    operator: BufferToJSON
+
+edges:
+  - { from: start, to: user_prompt }
+  - { from: user_prompt, to: agent }
+  - { from: agent, to: b2j }
+  - { from: agent, to: system_prompt, role: "prompt" }
+  # - { from: system_prompt, to: agent }
+  # - { from: agent, to: output }
+
+  - { from: agent, to: tool_get_details, role: "tool" }
+  - { from: agent, to: tool_clarify, role: "tool" }
+  - { from: agent, to: tool_search, role: "tool" }
+  - { from: agent, to: chatgpt, role: "llm" }
+  # - { from: chatgpt_j2b, to: chatgpt }
+  # - { from: agent, to: agent_memory, role: "storage" }
+  # - { from: agent, to: chatgpt, role: "llm" }

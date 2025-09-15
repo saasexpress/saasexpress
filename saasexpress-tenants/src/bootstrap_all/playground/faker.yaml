@@ -1,0 +1,28 @@
+# cargo run -- -c examples/faker.yaml
+#
+# curl -v http://localhost:2243/faker -d '{}'
+name: faker
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: POST
+    routes:
+      - /faker
+
+  - id: b2j
+    operator: BufferToJSON
+
+  - id: faker
+    operator: Faker
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      {
+        "first_name": temp.faker.name
+      }
+edges:
+  - { from: start, to: b2j }
+  - { from: b2j, to: faker }
+  - { from: faker, to: translate }

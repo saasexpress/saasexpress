@@ -6,13 +6,14 @@ mod schema;
 mod static_handler;
 
 use crate::static_handler::static_handler;
+use api::ApiError;
 use axum::Router;
+use db::service_repo;
+use models::{NewService, ServiceDTO};
 use serde_yaml::Value;
-use std::env;
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing::debug;
+use tracing::{debug, info};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -21,7 +22,7 @@ use crate::api::{ApiDoc, create_router};
 pub struct TenantsService;
 
 impl TenantsService {
-    pub fn saasexpress_graphs() -> Vec<Value> {
+    pub fn saasexpress_graphs() -> Vec<(String, Value)> {
         bootstrap::gather_files()
     }
 
@@ -55,5 +56,80 @@ impl TenantsService {
         {
             eprintln!("server error: {}", e);
         }
+    }
+
+    pub fn load_services() -> Result<(), ApiError> {
+        let mut new_services = HashMap::<String, NewServiceSpec>::new();
+
+        let graphs = bootstrap::gather_files();
+        for (service_id, graph) in graphs {
+            let name = graph["name"].as_str().unwrap();
+            debug!("Loading service {} - graph: {}", service_id, name);
+            // Load the service into the system
+            if new_services.contains_key(&service_id) {
+                debug!("Service {} already exists", service_id);
+                let service = new_services.get_mut(&service_id).unwrap();
+
+                if service.add_variant(name.to_string(), graph).is_err() {
+                    return Err(ApiError::bad_request(format!(
+                        "Invalid DAG JSON for service {}",
+                        service_id
+                    )));
+                }
+            } else {
+                debug!("New service {}", service_id);
+                let other_display_name = format!("Service {}", service_id);
+                let other_service_url = "http://example.com".to_string();
+
+                let mut new_service = NewServiceSpec {
+                    service: NewService {
+                        id: None,
+                        display_name: other_display_name.clone(),
+                        service_url: other_service_url.clone(),
+                    },
+                    variants: HashMap::new(),
+                };
+                if new_service.add_variant(name.to_string(), graph).is_err() {
+                    return Err(ApiError::bad_request(format!(
+                        "Invalid DAG JSON for service {}",
+                        service_id
+                    )));
+                }
+                new_services.insert(service_id.clone(), new_service);
+            }
+        }
+
+        for (a_service_id, new_service) in new_services {
+            let service = new_service.service;
+            let variants = new_service.variants;
+
+            // Create the service in the database
+            let created_service = service_repo::create_service(service, variants)
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+
+            // Fetch variants for the response
+            let variants = service_repo::get_variants_with_names(&created_service.id)
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+
+            let _service_dto = ServiceDTO::from(created_service).with_variants(variants);
+
+            info!("Service created: {:?}", a_service_id);
+        }
+
+        Ok(())
+    }
+}
+
+struct NewServiceSpec {
+    service: NewService,
+    variants: HashMap<String, String>,
+}
+
+impl NewServiceSpec {
+    fn add_variant(&mut self, name: String, dag: serde_yaml::Value) -> Result<(), ApiError> {
+        let dag_json = serde_json::to_string(&dag)
+            .map_err(|e| ApiError::bad_request(format!("Invalid DAG JSON: {}", e)))?;
+        self.variants.insert(name, dag_json);
+        Ok(())
     }
 }

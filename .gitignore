@@ -1,3 +1,4 @@
+_tmp
 target
 graph.yaml
 .env
@@ -5,3 +6,4 @@ sqlite.db
 
 saasexpress-mcp
 saasexpress-a2a
+saasexpress-kube

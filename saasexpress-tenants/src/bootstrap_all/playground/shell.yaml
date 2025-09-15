@@ -1,0 +1,24 @@
+#
+# curl -v http://localhost:2243/shell -d '{"data": "echo hello; exit"}'
+#
+name: shell
+nodes:
+  - id: start
+    operator: HTTPIn
+    method: POST
+    routes:
+      - /shell
+
+  - id: translate
+    operator: MessageTranslator
+    mode: json
+    template: |
+      { "command": data.data }
+
+  - id: shell
+    operator: Shell
+    command: bash
+
+edges:
+  - { from: start, to: translate }
+  - { from: translate, to: shell }
