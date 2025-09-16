@@ -1,6 +1,6 @@
 [package]
 name = "saasexpress"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "A low-code enterprise integration framework for microservice orchestration"
 license = "Apache-2.0"
@@ -9,8 +9,8 @@ license = "Apache-2.0"
 rustflags = ["--cfg", "tokio_unstable"]
 
 [dependencies]
-saasexpress-core = { path = "./saasexpress-core"}
-saasexpress-tenants = { path = "./saasexpress-tenants"}
+saasexpress-core = { path = "./saasexpress-core", version = "0.2.0" }
+saasexpress-tenants = { path = "./saasexpress-tenants", version = "0.2.0" }
 saasexpress-faker = { path = "./src/operators/faker"}
 async-nats = "0.38.0"
 async-std = "1.13.0"

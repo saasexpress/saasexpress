@@ -78,7 +78,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         }
         //bootstrap::bootstrap();
     } else {
-        tokio::spawn(TenantsService::start());
+        if matches.get_flag("tenants") {
+            info!("Starting Tenants service");
+            tokio::spawn(TenantsService::start());
+        }
 
         // get config file
 
@@ -103,8 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             let _guard = start.set_local_parent();
 
             //let graph_registry = GraphRegistry::get_instance();
-
-            {
+            if matches.get_flag("samples") {
                 TenantsService::saasexpress_graphs()
                     .iter()
                     .for_each(|(_service_id, yaml)| {
@@ -125,9 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                 error!("Error loading services: {:?}", e);
             }
         }
-    }
-    if matches.get_flag("samples") {
-        samples();
     }
 
     //do_it();

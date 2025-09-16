@@ -30,6 +30,12 @@ pub(crate) fn parse_commands() -> ArgMatches {
             )
             .action(ArgAction::SetTrue),
         )
+        .arg(
+            arg!(
+                -t --tenants ... "Turn on Tenants service (default off)"
+            )
+            .action(ArgAction::SetTrue),
+        )
         .arg(arg!(
             -d --debug ... "Turn debugging information on"
         ))

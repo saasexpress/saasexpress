@@ -1,12 +1,12 @@
 [package]
 name = "saasexpress-tenants"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["SaaSExpress Team"]
 description = "Multi-tenant capabilitity"
 
 [dependencies]
-saasexpress-core = { path = "../saasexpress-core"}
+saasexpress-core = { path = "../saasexpress-core", version = "0.2.0" }
 
 # Web framework
 axum = { version = "0.6.18", features = ["json", "macros", "multipart"] }

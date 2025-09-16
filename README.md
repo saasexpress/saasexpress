@@ -5,35 +5,33 @@
 Download latest binary for your operating system from https://github.com/saasexpress/saasexpress/releases/latest
 
 ```console
-saasexpress -i
+saasexpress -c test.yaml
 ```
 
-Paste a simple graph that creates an API on port 2500, returning static JSON data.
+Save to `test.yaml` a simple graph that creates an API on port 2500, returning static JSON data.
 
 ```yaml
 name: sample
 nodes:
   - id: start
-    action: HTTPIn
-    config:
-      method: ^(GET)$
-      routes:
-        - /hello
+    operator: HTTPIn
+    method: ^(GET)$
+    routes:
+      - /hello
 
   - id: translate
-    action: MessageTranslator
-    config:
-      template: |
-        {
-          "action":  input.http_method,
-          "message": "Hello",
-          "data": data
-        }
+    operator: MessageTranslator
+    template: |
+      {
+        "message": "Hello " + temp.http_in.query.name,
+        "data": data,
+        "action":  temp.http_in.method,
+      }
 edges:
   - { from: start, to: translate }
 ```
 
-Go to: http://localhost:2500/hello
+Go to: http://localhost:2243/hello
 
 ## Development
 
